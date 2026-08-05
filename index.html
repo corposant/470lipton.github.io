@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<!-- ══════════════════════════════════════════════════════════════════
+     ⟨ANGLE BRACKETS⟩ = placeholder. Every one must be replaced before
+     this page goes live at 470lipton.com. Search the file for "⟨" to
+     find them all. Nothing inside brackets is a real fact about the
+     property — I don't have the specs yet.
+     ══════════════════════════════════════════════════════════════════ -->
+<title>470 Lipton Street, Winnipeg — For Sale</title>
+<meta name="description" content="A 1912 two-storey taken back to the studs and rebuilt. Three bedrooms, two baths, 1,247 sq ft plus a finished basement. Offered at $349,900.">
+<meta property="og:title" content="470 Lipton Street, Winnipeg — $349,900">
+<meta property="og:description" content="A 1912 two-storey, fully renovated. Three bedrooms, two baths, deck, and a double garage.">
+<meta property="og:image" content="https://470lipton.com/photos/hero.jpg">
+<meta property="og:url" content="https://470lipton.com">
+<meta property="og:type" content="website">
+<link rel="canonical" href="https://470lipton.com/">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500&family=Jost:wght@200;300;400;500&display=swap" rel="stylesheet">
+
+<style>
+/* ══════════════════════════════════════════════════════════════
+   PALETTE — change these three lines to reskin the whole site
+   ══════════════════════════════════════════════════════════════ */
+:root{
+  --ink:#14140f;          /* near-black text */
+  --bone:#f6f4ef;         /* warm off-white background */
+  --brass:#9a8355;        /* muted brass accent */
+  --stone:#6f6e68;        /* secondary text */
+  --hair:#dcd8cf;         /* hairline rules */
+
+  --max:1240px;
+  --gut:clamp(1.5rem,5vw,5rem);
+  --serif:"Cormorant Garamond",Georgia,serif;
+  --sans:"Jost","Helvetica Neue",Arial,sans-serif;
+}
+
+*,*::before,*::after{box-sizing:border-box}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+body{
+  margin:0;background:var(--bone);color:var(--ink);
+  font-family:var(--sans);font-weight:300;font-size:1rem;line-height:1.7;
+  -webkit-font-smoothing:antialiased;
+}
+img{display:block;max-width:100%}
+a{color:inherit}
+
+.wrap{max-width:var(--max);margin:0 auto;padding:0 var(--gut)}
+
+/* small caps label used throughout */
+.eyebrow{
+  font-size:.68rem;letter-spacing:.32em;text-transform:uppercase;
+  font-weight:400;color:var(--brass);margin:0 0 1.5rem;
+}
+h1,h2,h3{font-family:var(--serif);font-weight:300;letter-spacing:.005em;margin:0}
+h2{font-size:clamp(2rem,4.2vw,3.1rem);line-height:1.12}
+h3{font-size:1.35rem;line-height:1.3}
+
+/* ─────────────── NAV ─────────────── */
+nav{
+  position:fixed;inset:0 0 auto 0;z-index:60;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:1.4rem var(--gut);
+  color:#fff;transition:background .45s ease,color .45s ease,padding .45s ease,box-shadow .45s ease;
+}
+nav.solid{
+  background:var(--bone);color:var(--ink);padding:.9rem var(--gut);
+  box-shadow:0 1px 0 var(--hair);
+}
+.brand{font-family:var(--serif);font-size:1.15rem;letter-spacing:.14em;text-transform:uppercase}
+.navlinks{display:flex;gap:2.2rem;list-style:none;margin:0;padding:0;
+  font-size:.72rem;letter-spacing:.2em;text-transform:uppercase}
+.navlinks a{text-decoration:none;padding-bottom:2px;border-bottom:1px solid transparent;transition:border-color .3s}
+.navlinks a:hover{border-color:currentColor}
+@media(max-width:820px){.navlinks{display:none}}
+
+/* ─────────────── HERO ─────────────── */
+header.hero{
+  position:relative;height:100svh;min-height:560px;
+  display:flex;align-items:flex-end;
+  color:#fff;overflow:hidden;
+}
+.hero-img{
+  position:absolute;inset:0;width:100%;height:100%;object-fit:cover;
+  animation:slowzoom 18s ease-out forwards;
+}
+@keyframes slowzoom{from{transform:scale(1.06)}to{transform:scale(1)}}
+@media(prefers-reduced-motion:reduce){.hero-img{animation:none}}
+.hero::after{
+  content:"";position:absolute;inset:0;
+  background:linear-gradient(180deg,rgba(0,0,0,.42) 0%,rgba(0,0,0,0) 32%,rgba(0,0,0,.1) 58%,rgba(0,0,0,.62) 100%);
+}
+.hero-copy{position:relative;z-index:2;width:100%;padding:0 var(--gut) clamp(3rem,7vh,5.5rem)}
+.hero-copy .inner{max-width:var(--max);margin:0 auto}
+.hero-copy .eyebrow{color:rgba(255,255,255,.82)}
+.hero-copy h1{
+  font-size:clamp(2.6rem,7vw,5.6rem);line-height:1.02;margin:0 0 1.1rem;
+}
+.hero-meta{
+  display:flex;flex-wrap:wrap;align-items:baseline;gap:.6rem 1.6rem;
+  font-size:.82rem;letter-spacing:.16em;text-transform:uppercase;color:rgba(255,255,255,.9)
+}
+.hero-meta .price{font-family:var(--serif);font-size:1.6rem;letter-spacing:.04em;text-transform:none}
+.scrollcue{
+  position:absolute;left:50%;bottom:1.6rem;transform:translateX(-50%);z-index:3;
+  width:1px;height:44px;background:rgba(255,255,255,.55);
+}
+.scrollcue::after{content:"";position:absolute;inset:0;background:#fff;animation:cue 2.4s ease-in-out infinite}
+@keyframes cue{0%{transform:scaleY(0);transform-origin:top}45%{transform:scaleY(1);transform-origin:top}
+  55%{transform:scaleY(1);transform-origin:bottom}100%{transform:scaleY(0);transform-origin:bottom}}
+
+/* ─────────────── STAT BAR ─────────────── */
+.stats{border-bottom:1px solid var(--hair)}
+.stats ul{
+  display:grid;grid-template-columns:repeat(4,1fr);
+  list-style:none;margin:0;padding:0;
+}
+.stats li{
+  padding:2.4rem 1rem;text-align:center;border-right:1px solid var(--hair);
+}
+.stats li:last-child{border-right:0}
+.stats .n{font-family:var(--serif);font-size:clamp(1.8rem,3vw,2.5rem);line-height:1;display:block}
+.stats .l{font-size:.66rem;letter-spacing:.24em;text-transform:uppercase;color:var(--stone);margin-top:.7rem;display:block}
+@media(max-width:700px){
+  .stats ul{grid-template-columns:repeat(2,1fr)}
+  .stats li{border-bottom:1px solid var(--hair);padding:1.8rem .5rem}
+  .stats li:nth-child(2n){border-right:0}
+  .stats li:nth-last-child(-n+2){border-bottom:0}
+}
+
+/* ─────────────── SECTIONS ─────────────── */
+section{padding:clamp(4.5rem,11vh,8.5rem) 0}
+.two-col{display:grid;grid-template-columns:1fr 1.35fr;gap:clamp(2.5rem,7vw,6rem);align-items:start}
+@media(max-width:900px){.two-col{grid-template-columns:1fr;gap:2rem}}
+.lede{font-family:var(--serif);font-size:clamp(1.3rem,2.1vw,1.65rem);line-height:1.55;margin:0 0 1.6rem}
+.body p{margin:0 0 1.15rem;color:#2c2c26;max-width:62ch}
+.body p:last-child{margin-bottom:0}
+
+/* feature list */
+.features{
+  list-style:none;margin:2.6rem 0 0;padding:0;
+  display:grid;grid-template-columns:repeat(2,1fr);gap:0 3rem;
+}
+.features li{
+  padding:.85rem 0;border-top:1px solid var(--hair);
+  font-size:.9rem;display:flex;gap:.9rem;align-items:baseline;
+}
+.features li::before{content:"—";color:var(--brass);flex:none}
+@media(max-width:640px){.features{grid-template-columns:1fr}}
+
+/* ─────────────── GALLERY ─────────────── */
+.gallery-head{display:flex;align-items:flex-end;justify-content:space-between;gap:2rem;margin-bottom:2.8rem}
+.gallery-head p{margin:0;color:var(--stone);font-size:.85rem;letter-spacing:.06em}
+
+.grid{
+  display:grid;grid-template-columns:repeat(6,1fr);
+  gap:clamp(.5rem,1vw,.85rem);
+}
+.grid figure{margin:0;position:relative;overflow:hidden;background:#e6e2da;cursor:zoom-in}
+.grid figure img{width:100%;height:100%;object-fit:cover;transition:transform .9s cubic-bezier(.2,.7,.3,1)}
+.grid figure:hover img{transform:scale(1.045)}
+.grid figure::after{
+  content:"";position:absolute;inset:0;background:rgba(20,20,15,0);transition:background .5s
+}
+.grid figure:hover::after{background:rgba(20,20,15,.12)}
+/* mosaic rhythm */
+.g-wide{grid-column:span 4}
+.g-nar{grid-column:span 2}
+.g-half{grid-column:span 3}
+.g-third{grid-column:span 2}
+.grid figure{aspect-ratio:4/3}
+.g-wide{aspect-ratio:16/9}
+/* ── Virtually staged shots ──────────────────────────────────────────
+   Two things going on here:
+   1. A 4:3 photo in a 16:9 slot loses 25% of its height to the cover
+      crop, so anchor these to the bottom edge to keep the badge in frame.
+   2. The photographer's own badge is clipped by the right edge in the
+      source files — it reads "Virtually S…" and never completes. So we
+      draw our own label in the opposite corner. Belt and braces: the
+      disclosure stays legible even if the photos get re-exported. */
+.staged img{object-position:50% 100%}
+.staged::before,.player::before{
+  content:"Virtually Staged";position:absolute;left:0;bottom:0;z-index:2;
+  padding:.55rem .9rem;background:rgba(20,20,15,.72);color:rgba(255,255,255,.92);
+  font-family:var(--sans);font-size:.58rem;font-weight:400;
+  letter-spacing:.2em;text-transform:uppercase;pointer-events:none
+}
+.player::before{left:auto;right:0}
+.player.playing::before{display:none}
+/* and in the lightbox, where the photo is shown full-size */
+.lb .staged-tag{
+  position:absolute;bottom:1.5rem;right:1.8rem;display:none;
+  padding:.55rem .9rem;background:rgba(20,20,15,.8);color:rgba(255,255,255,.92);
+  font-size:.58rem;letter-spacing:.2em;text-transform:uppercase
+}
+.lb.is-staged .staged-tag{display:block}
+@media(max-width:820px){
+  .grid{grid-template-columns:repeat(2,1fr)}
+  .g-wide,.g-nar,.g-half,.g-third{grid-column:span 1}
+  .grid figure,.g-wide{aspect-ratio:4/3}
+  .grid figure:first-child{grid-column:span 2;aspect-ratio:16/10}
+}
+
+/* lightbox */
+.lb{
+  position:fixed;inset:0;z-index:200;display:none;
+  background:rgba(14,14,11,.965);
+  align-items:center;justify-content:center;
+}
+.lb.open{display:flex}
+.lb img{max-width:92vw;max-height:84vh;object-fit:contain;box-shadow:0 30px 80px rgba(0,0,0,.5)}
+.lb button{
+  position:absolute;background:none;border:0;color:#fff;cursor:pointer;
+  font-family:var(--sans);font-weight:200;line-height:1;
+}
+.lb .close{top:1.6rem;right:1.8rem;font-size:2.2rem}
+.lb .prev,.lb .next{top:50%;transform:translateY(-50%);font-size:2.6rem;padding:1.4rem}
+.lb .prev{left:.5rem}.lb .next{right:.5rem}
+.lb .count{
+  position:absolute;bottom:1.6rem;left:50%;transform:translateX(-50%);
+  color:rgba(255,255,255,.7);font-size:.72rem;letter-spacing:.22em
+}
+.lb button:hover{color:var(--brass)}
+
+/* ─────────────── VIDEO ─────────────── */
+.video{background:#1b1b16;color:#fff}
+.video .eyebrow{color:var(--brass)}
+.video h2{color:#fff}
+.video-head{display:flex;align-items:flex-end;justify-content:space-between;gap:2rem;margin-bottom:2.8rem}
+.video-head p{margin:0;color:rgba(255,255,255,.55);font-size:.85rem;letter-spacing:.06em}
+.player{
+  position:relative;aspect-ratio:16/9;background:#000;overflow:hidden;cursor:pointer;
+  border:0;padding:0;width:100%;display:block
+}
+.player img{width:100%;height:100%;object-fit:cover;object-position:50% 100%;
+  opacity:.85;transition:opacity .5s,transform .9s cubic-bezier(.2,.7,.3,1)}
+.player:hover img{opacity:.72;transform:scale(1.03)}
+.player iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+.play{
+  position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  width:88px;height:88px;border-radius:50%;
+  border:1px solid rgba(255,255,255,.85);background:rgba(20,20,15,.28);
+  display:flex;align-items:center;justify-content:center;
+  transition:background .4s,border-color .4s,transform .4s
+}
+.player:hover .play{background:var(--brass);border-color:var(--brass);transform:translate(-50%,-50%) scale(1.06)}
+.play::after{
+  content:"";border-left:20px solid #fff;border-top:12px solid transparent;
+  border-bottom:12px solid transparent;margin-left:6px
+}
+/* left-aligned so it never sits on top of the virtual-staging badge,
+   which the photographer places in the bottom-right corner */
+.player-cap{
+  position:absolute;left:0;right:0;bottom:0;padding:1.6rem;text-align:left;
+  font-size:.68rem;letter-spacing:.26em;text-transform:uppercase;color:rgba(255,255,255,.85);
+  background:linear-gradient(180deg,rgba(0,0,0,0),rgba(0,0,0,.4))
+}
+@media(max-width:600px){.play{width:64px;height:64px}.play::after{border-left-width:15px;border-top-width:9px;border-bottom-width:9px}}
+
+/* ─────────────── QUOTE BAND ─────────────── */
+.band{
+  position:relative;color:#fff;text-align:center;
+  padding:clamp(6rem,16vh,10rem) var(--gut);
+  background:#1b1b16;overflow:hidden
+}
+.band img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.42}
+.band .q{position:relative;z-index:2;max-width:760px;margin:0 auto;
+  font-family:var(--serif);font-size:clamp(1.5rem,3.2vw,2.5rem);line-height:1.35;font-style:italic}
+.band .attr{position:relative;z-index:2;margin-top:1.8rem;font-size:.7rem;letter-spacing:.26em;
+  text-transform:uppercase;color:rgba(255,255,255,.75)}
+
+/* ─────────────── DETAILS TABLE ─────────────── */
+.spec{display:grid;grid-template-columns:repeat(3,1fr);gap:0 3rem;margin-top:2.5rem}
+.spec div{border-top:1px solid var(--hair);padding:1rem 0}
+.spec dt{font-size:.66rem;letter-spacing:.22em;text-transform:uppercase;color:var(--stone)}
+.spec dd{margin:.35rem 0 0;font-family:var(--serif);font-size:1.15rem}
+@media(max-width:760px){.spec{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:440px){.spec{grid-template-columns:1fr}}
+
+/* ─────────────── MAP ─────────────── */
+.map{border:1px solid var(--hair);background:#e9e6df}
+.map iframe{display:block;width:100%;height:clamp(320px,46vh,520px);border:0;filter:grayscale(1) contrast(.92)}
+
+/* ─────────────── AGENT + FORM ─────────────── */
+.contact{background:#efece5;border-top:1px solid var(--hair)}
+.contact-grid{display:grid;grid-template-columns:1fr 1.15fr;gap:clamp(2.5rem,6vw,5rem);align-items:start}
+@media(max-width:900px){.contact-grid{grid-template-columns:1fr}}
+
+.agent img{width:150px;height:190px;object-fit:cover;margin-bottom:1.6rem;filter:grayscale(.15)}
+.agent .name{font-family:var(--serif);font-size:1.7rem;margin:0}
+.agent .title{font-size:.68rem;letter-spacing:.22em;text-transform:uppercase;color:var(--stone);margin:.5rem 0 1.4rem}
+.agent .bio{font-size:.92rem;color:#3a3a33;max-width:44ch}
+.agent .lines{margin-top:1.6rem;font-size:.9rem;line-height:2}
+.agent .lines a{text-decoration:none;border-bottom:1px solid var(--hair);transition:border-color .3s}
+.agent .lines a:hover{border-color:var(--brass)}
+
+form{display:grid;gap:1.35rem}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:1.35rem}
+@media(max-width:560px){.row{grid-template-columns:1fr}}
+label{display:block;font-size:.64rem;letter-spacing:.22em;text-transform:uppercase;color:var(--stone);margin-bottom:.55rem}
+input,textarea,select{
+  width:100%;padding:.85rem 0;border:0;border-bottom:1px solid #cfcbc2;
+  background:transparent;font-family:var(--sans);font-size:.98rem;font-weight:300;color:var(--ink);
+  border-radius:0;transition:border-color .3s
+}
+input:focus,textarea:focus,select:focus{outline:0;border-bottom-color:var(--brass)}
+textarea{resize:vertical;min-height:96px}
+
+.btn{
+  display:inline-block;justify-self:start;cursor:pointer;
+  background:var(--ink);color:var(--bone);border:1px solid var(--ink);
+  padding:1.05rem 2.6rem;font-family:var(--sans);font-size:.7rem;font-weight:400;
+  letter-spacing:.26em;text-transform:uppercase;text-decoration:none;
+  transition:background .35s,color .35s
+}
+.btn:hover{background:transparent;color:var(--ink)}
+.btn-ghost{background:transparent;color:var(--ink)}
+.btn-ghost:hover{background:var(--ink);color:var(--bone)}
+.formnote{font-size:.75rem;color:var(--stone);margin:0}
+
+/* ─────────────── FOOTER ─────────────── */
+footer{background:var(--ink);color:#cfcbc0;padding:3.5rem 0 2.5rem;font-size:.78rem}
+.foot{display:flex;flex-wrap:wrap;gap:1.5rem;justify-content:space-between;align-items:center}
+footer .brand{color:#fff}
+.legal{max-width:var(--max);margin:2.5rem auto 0;padding:1.5rem var(--gut) 0;
+  border-top:1px solid rgba(255,255,255,.13);color:#8d897e;font-size:.68rem;line-height:1.8}
+
+/* ─────────────── REVEAL ON SCROLL ─────────────── */
+.rev{opacity:0;transform:translateY(22px);transition:opacity 1s ease,transform 1s cubic-bezier(.2,.7,.3,1)}
+.rev.in{opacity:1;transform:none}
+@media(prefers-reduced-motion:reduce){.rev{opacity:1;transform:none;transition:none}}
+
+/* print */
+@media print{nav,.scrollcue,.lb,form{display:none}body{background:#fff}}
+</style>
+</head>
+
+<body>
+
+<!-- ══════════════════════ NAV ══════════════════════ -->
+<nav id="nav">
+  <a class="brand" href="#top" style="text-decoration:none">470&nbsp;Lipton</a>
+  <ul class="navlinks">
+    <li><a href="#residence">The Home</a></li>
+    <li><a href="#gallery">Gallery</a></li>
+    <li><a href="#video">Video</a></li>
+    <li><a href="#details">Details</a></li>
+    <li><a href="#location">Location</a></li>
+    <li><a href="#inquire">Inquire</a></li>
+  </ul>
+</nav>
+
+<!-- ══════════════════════ HERO ══════════════════════
+     EDIT: swap photos/hero.jpg — use a 2400px-wide landscape exterior shot -->
+<header class="hero" id="top">
+  <img class="hero-img" src="photos/hero.jpg" alt="Front exterior of the residence at dusk">
+  <div class="hero-copy">
+    <div class="inner">
+      <p class="eyebrow">For Sale &nbsp;·&nbsp; Winnipeg, Manitoba</p>
+      <h1>470 Lipton<br>Street</h1>
+      <div class="hero-meta">
+        <span class="price">$349,900</span>
+        <span>3 Bed</span><span>2 Bath</span><span>1,247 Sq Ft</span><span>Built 1912</span>
+      </div>
+    </div>
+  </div>
+  <div class="scrollcue" aria-hidden="true"></div>
+</header>
+
+<!-- ══════════════════════ STATS ══════════════════════ -->
+<div class="stats">
+  <ul>
+    <li><span class="n">1,247</span><span class="l">Sq Ft Above Grade</span></li>
+    <li><span class="n">378</span><span class="l">Finished Basement</span></li>
+    <li><span class="n">3</span><span class="l">Bedrooms</span></li>
+    <li><span class="n">1912</span><span class="l">Year Built</span></li>
+  </ul>
+</div>
+
+<!-- ══════════════════════ THE RESIDENCE ══════════════════════ -->
+<section id="residence" class="wrap rev">
+  <div class="two-col">
+    <div>
+      <p class="eyebrow">The Home</p>
+      <h2>Built in 1912.<br>Rebuilt for now.</h2>
+    </div>
+    <div class="body">
+      <p class="lede">A hundred-and-thirteen-year-old two-storey that has been taken apart and put back together — the proportions and the bay window kept, everything else new.</p>
+
+      <p>The main floor reads as one long, bright room. A bay window pulls morning light across the front, the living area opens to a dining space anchored by a slatted white-oak feature wall with a linear fireplace set into it, and the kitchen sits at the back — white cabinetry below, warm oak above, quartz counters, brushed-gold fixtures, and full stainless appliances. A rear entry off the kitchen opens onto the deck.</p>
+
+      <p>Three bedrooms upstairs, including a primary at 11'2" × 11'7", plus a small flexible room at the back that works as a nursery, office, or dressing room. The bathroom is finished with a double vanity, arched mirrors, gold fittings, and a fully tiled tub and shower.</p>
+
+      <p>Downstairs the basement is finished and carpeted with a blacked-out open ceiling, a second full bathroom, a separate laundry room, and a 10' × 16'4" rec room — 378 square feet of genuinely usable space on top of the 1,247 above grade. Out back: a 17'7" × 11'6" deck under a cedar pergola with lattice privacy screening, a covered carport, and a detached garage off the rear lane.</p>
+
+      <!-- EDIT: I wrote these from the photos and floorplan — everything here
+           is visible in an image. Add the things I can't see (furnace, roof,
+           windows, wiring, plumbing, and the year of the renovation) — at
+           this price those updates are exactly what buyers scan for. -->
+      <ul class="features">
+        <li>Renovated top to bottom</li>
+        <li>Original bay window</li>
+        <li>White oak slat feature wall</li>
+        <li>Linear electric fireplace</li>
+        <li>Quartz counters, gold fittings</li>
+        <li>Full stainless appliance package</li>
+        <li>Double vanity in main bath</li>
+        <li>Finished basement, second full bath</li>
+        <li>Separate laundry room</li>
+        <li>Cedar pergola over the deck</li>
+        <li>Detached garage plus carport</li>
+        <li>⟨Furnace / windows / roof — add year⟩</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════ GALLERY ══════════════════════
+     EDIT: replace photos/01.jpg … 09.jpg. Keep the class names —
+     they control the mosaic rhythm. Add more <figure> blocks freely. -->
+<section id="gallery" class="wrap rev">
+  <div class="gallery-head">
+    <div>
+      <p class="eyebrow">Gallery</p>
+      <h2>A closer look</h2>
+    </div>
+    <p>Click any image to enlarge</p>
+  </div>
+
+  <div class="grid" id="grid">
+    <figure class="g-wide"><img src="photos/01.jpg" alt="Front elevation from the sidewalk, sage green stucco with a white pergola over the porch" loading="lazy"></figure>
+    <figure class="g-nar"><img src="photos/02.jpg" alt="Front entry and staircase" loading="lazy"></figure>
+    <figure class="g-third"><img src="photos/03.jpg" alt="Living room bay window" loading="lazy"></figure>
+    <figure class="g-third staged"><img src="photos/04.jpg" alt="Living room looking toward the staircase, virtually staged" loading="lazy"></figure>
+    <figure class="g-third"><img src="photos/05.jpg" alt="White oak slat feature wall with linear fireplace" loading="lazy"></figure>
+    <figure class="g-wide staged"><img src="photos/06.jpg" alt="Dining area open to the kitchen, virtually staged" loading="lazy"></figure>
+    <figure class="g-nar"><img src="photos/07.jpg" alt="Kitchen with quartz counters and brushed gold fixtures" loading="lazy"></figure>
+    <figure class="g-third"><img src="photos/08.jpg" alt="Kitchen looking back toward the dining area" loading="lazy"></figure>
+    <figure class="g-third"><img src="photos/09.jpg" alt="Staircase to the second floor" loading="lazy"></figure>
+    <figure class="g-third staged"><img src="photos/10.jpg" alt="Primary bedroom, virtually staged" loading="lazy"></figure>
+    <figure class="g-third"><img src="photos/11.jpg" alt="Second bedroom with mirrored closet doors" loading="lazy"></figure>
+    <figure class="g-nar"><img src="photos/12.jpg" alt="Main bathroom with double vanity and arched mirrors" loading="lazy"></figure>
+    <figure class="g-nar"><img src="photos/13.jpg" alt="Tiled tub and shower in the main bathroom" loading="lazy"></figure>
+    <figure class="g-wide"><img src="photos/14.jpg" alt="Finished basement rec room" loading="lazy"></figure>
+    <figure class="g-nar"><img src="photos/15.jpg" alt="Second full bathroom in the basement" loading="lazy"></figure>
+    <figure class="g-wide staged"><img src="photos/16.jpg" alt="Rear deck under a cedar pergola with lattice privacy screening, virtually staged" loading="lazy"></figure>
+    <figure class="g-third"><img src="photos/17.jpg" alt="Detached garage off the rear lane" loading="lazy"></figure>
+    <figure class="g-wide"><img src="photos/18.jpg" alt="Aerial view of the neighbourhood with the downtown Winnipeg skyline beyond" loading="lazy"></figure>
+  </div>
+
+  <!-- Virtual staging disclosure — required by most brokerages, and the
+       honest thing to do. Photos 4, 6, 10 and 16 in this gallery are the
+       staged versions. Delete this line only if you swap them for the
+       unstaged originals. -->
+  <p style="margin-top:1.8rem;font-size:.75rem;letter-spacing:.06em;color:var(--stone)">
+    Photographs marked <em>Virtually Staged</em> have been digitally furnished. The furnishings shown are not present in the home and are not included in the sale.
+  </p>
+</section>
+
+<!-- ══════════════════════ VIDEO ══════════════════════
+     Click-to-load: the YouTube player isn't fetched until someone actually
+     clicks, so the page stays fast and sets no YouTube cookies before then.
+     To swap videos, change the ID in data-id (and the watch link below). -->
+<section id="video" class="video">
+  <div class="wrap rev">
+    <div class="video-head">
+      <div>
+        <p class="eyebrow">Walkthrough</p>
+        <h2>Take the tour</h2>
+      </div>
+      <p>1 minute · sound on</p>
+    </div>
+
+    <button class="player" id="player" data-id="RgDM1lMocA4"
+            aria-label="Play the video walkthrough of 470 Lipton Street">
+      <img src="photos/video-poster.jpg" alt="" loading="lazy">
+      <span class="play" aria-hidden="true"></span>
+      <span class="player-cap">470 Lipton Street — Video Walkthrough</span>
+    </button>
+
+    <p style="margin:1.4rem 0 0;font-size:.78rem;color:rgba(255,255,255,.5)">
+      Trouble playing? <a href="https://youtu.be/RgDM1lMocA4" target="_blank" rel="noopener"
+      style="color:rgba(255,255,255,.75)">Watch on YouTube</a>.
+    </p>
+  </div>
+</section>
+
+<!-- ══════════════════════ QUOTE BAND ══════════════════════ -->
+<div class="band">
+  <img src="photos/band.jpg" alt="" aria-hidden="true" loading="lazy">
+  <!-- EDIT: a line from the current owners works beautifully here — what
+       they'll miss about living in it. Ask them; people give you gold.
+       If you'd rather not use a quote, delete this whole .band div. -->
+  <p class="q">“⟨A sentence from the sellers about living here — the morning light, the neighbours, the walk to the park. Specific beats poetic.⟩”</p>
+  <p class="attr">— ⟨The Owners⟩</p>
+</div>
+
+<!-- ══════════════════════ DETAILS ══════════════════════ -->
+<section id="details" class="wrap rev">
+  <p class="eyebrow">Property Details</p>
+  <h2>The particulars</h2>
+
+  <dl class="spec">
+    <div><dt>Address</dt><dd>470 Lipton Street</dd></div>
+    <div><dt>City</dt><dd>Winnipeg, MB</dd></div>
+    <div><dt>Offered At</dt><dd>$349,900</dd></div>
+    <div><dt>Bedrooms</dt><dd>3</dd></div>
+    <div><dt>Bathrooms</dt><dd>2 full</dd></div>
+    <div><dt>Above Grade</dt><dd>1,247 sq ft</dd></div>
+    <div><dt>Finished Basement</dt><dd>378 sq ft</dd></div>
+    <div><dt>Total Finished</dt><dd>1,625 sq ft</dd></div>
+    <div><dt>Year Built</dt><dd>1912</dd></div>
+    <div><dt>Storeys</dt><dd>Two</dd></div>
+    <div><dt>Deck</dt><dd>17'7" × 11'6"</dd></div>
+    <div><dt>Parking</dt><dd>Detached garage &amp; carport</dd></div>
+    <div><dt>MLS® No.</dt><dd>202619473</dd></div>
+    <!-- EDIT: the four below are the ones I can't read off a floorplan.
+         Taxes and lot size especially — buyers at this price look. -->
+    <div><dt>Lot Size</dt><dd>⟨00 × 000 ft⟩</dd></div>
+    <div><dt>Heating</dt><dd>⟨Forced air, natural gas⟩</dd></div>
+    <div><dt>Annual Taxes</dt><dd>⟨$0,000⟩ (⟨2025⟩)</dd></div>
+    <div><dt>Possession</dt><dd>⟨Flexible⟩</dd></div>
+  </dl>
+
+  <!-- Room dimensions straight off the floorplan — delete if you'd rather
+       keep the page lean and let the PDF carry them. -->
+  <h3 style="margin-top:4rem;font-size:1.1rem;letter-spacing:.02em">Room Dimensions</h3>
+  <dl class="spec" style="margin-top:1.2rem">
+    <div><dt>Living Room</dt><dd>11'2" × 16'1"</dd></div>
+    <div><dt>Dining Area</dt><dd>10'5" × 11'11"</dd></div>
+    <div><dt>Kitchen</dt><dd>8'1" × 11'7"</dd></div>
+    <div><dt>Foyer</dt><dd>7'0" × 11'4"</dd></div>
+    <div><dt>Rear Entry</dt><dd>9'3" × 7'9"</dd></div>
+    <div><dt>Front Porch</dt><dd>9'8" × 6'7"</dd></div>
+    <div><dt>Primary Bedroom</dt><dd>11'2" × 11'7"</dd></div>
+    <div><dt>Bedroom Two</dt><dd>9'8" × 11'4"</dd></div>
+    <div><dt>Bedroom Three</dt><dd>8'6" × 11'4"</dd></div>
+    <div><dt>Flex Room</dt><dd>7'1" × 7'9"</dd></div>
+    <div><dt>Main Bath</dt><dd>7'0" × 11'7"</dd></div>
+    <div><dt>Rec Room</dt><dd>10'0" × 16'4"</dd></div>
+    <div><dt>Laundry</dt><dd>10'5" × 5'5"</dd></div>
+    <div><dt>Basement Bath</dt><dd>7'0" × 9'0"</dd></div>
+    <div><dt>Utility</dt><dd>9'11" × 9'0"</dd></div>
+  </dl>
+
+  <p style="margin-top:3rem">
+    <!-- EDIT: drop your PDF next to index.html. If you have no floor plan,
+         change the label to "Download Feature Sheet" — or delete this <p>. -->
+    <a class="btn btn-ghost" href="floorplan.pdf" download>Download Floor Plans (PDF)</a>
+  </p>
+</section>
+
+<!-- ══════════════════════ LOCATION ══════════════════════
+     EDIT THE MAP: Google Maps → search address → Share → Embed a map
+     → copy iframe → paste its src below. -->
+<section id="location" class="wrap rev">
+  <div class="two-col" style="margin-bottom:2.8rem">
+    <div>
+      <p class="eyebrow">Location</p>
+      <h2>⟨Neighbourhood<br>headline.⟩</h2>
+    </div>
+    <div class="body">
+      <!-- EDIT: name the neighbourhood and give two or three concrete
+           anchors — walking distance to a specific park, school, café,
+           or bus route. Vague ("close to amenities") persuades nobody. -->
+      <p>⟨Two or three sentences on the neighbourhood. Name it, then give real landmarks and honest walk/drive times.⟩</p>
+    </div>
+  </div>
+  <div class="map">
+    <iframe
+      title="Map of 470 Lipton Street, Winnipeg"
+      src="https://www.google.com/maps?q=470+Lipton+Street,+Winnipeg,+MB&output=embed"
+      loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe>
+  </div>
+</section>
+
+<!-- ══════════════════════ AGENT + INQUIRY ══════════════════════ -->
+<section id="inquire" class="contact">
+  <div class="wrap contact-grid rev">
+
+    <div class="agent">
+      <p class="eyebrow">Represented By</p>
+      <img src="photos/agent.jpg" alt="Annika Pineau, listing agent">
+      <p class="name">Annika Pineau</p>
+      <p class="title">⟨REALTOR® · Brokerage name⟩</p>
+      <p class="bio">⟨Two or three sentences. Years in the Winnipeg market, what she specializes in, and one line that sounds like a person rather than a bio.⟩</p>
+      <div class="lines">
+        <div><a href="tel:+1204XXXXXXX">⟨(204) 000‑0000⟩</a></div>
+        <div><a href="mailto:hello@annikapineau.com">⟨hello@annikapineau.com⟩</a></div>
+        <div><a href="https://annikapineau.com" target="_blank" rel="noopener">annikapineau.com</a></div>
+      </div>
+    </div>
+
+    <div>
+      <p class="eyebrow">Book a Showing</p>
+      <h2 style="margin-bottom:2.2rem">Inquire</h2>
+
+      <!-- Wired to Formspree. Submits by fetch() so the visitor stays on the
+           page instead of bouncing to a Formspree thank-you screen. The
+           _subject line is what lands in the inbox. -->
+      <form id="inquiry" action="https://formspree.io/f/xjybvazp" method="POST">
+        <input type="hidden" name="_subject" value="470 Lipton — website inquiry">
+        <!-- honeypot: bots fill it, humans never see it -->
+        <input type="text" name="_gotcha" tabindex="-1" autocomplete="off"
+               style="position:absolute;left:-9999px" aria-hidden="true">
+        <div class="row">
+          <div><label for="fn">First Name</label><input id="fn" name="First Name" required></div>
+          <div><label for="ln">Last Name</label><input id="ln" name="Last Name" required></div>
+        </div>
+        <div class="row">
+          <div><label for="em">Email</label><input id="em" type="email" name="Email" required></div>
+          <div><label for="ph">Phone</label><input id="ph" type="tel" name="Phone"></div>
+        </div>
+        <div>
+          <label for="int">I am</label>
+          <select id="int" name="Interest">
+            <option>A prospective buyer</option>
+            <option>A buyer's agent</option>
+            <option>Requesting a private showing</option>
+            <option>Just curious</option>
+          </select>
+        </div>
+        <div>
+          <label for="msg">Message</label>
+          <textarea id="msg" name="Message" placeholder="Tell us a little about what you're looking for."></textarea>
+        </div>
+        <button class="btn" type="submit">Send Inquiry</button>
+        <p class="formnote">Your information is shared only with the listing agent.</p>
+      </form>
+    </div>
+
+  </div>
+</section>
+
+<!-- ══════════════════════ FOOTER ══════════════════════ -->
+<footer>
+  <div class="wrap foot">
+    <span class="brand">470 Lipton Street, Winnipeg</span>
+    <span>Annika Pineau · ⟨Brokerage⟩ · ⟨(204) 000‑0000⟩</span>
+  </div>
+  <!-- EDIT: your brokerage almost certainly has required disclosure wording
+       and a logo policy for agent-run listing sites. Check with your broker
+       and paste theirs over this — it's a starting point, not legal advice. -->
+  <div class="legal">
+    All information is from sources deemed reliable but is not guaranteed. Room sizes, square footage, lot dimensions, taxes, and all other measurements are approximate and should be independently verified by the buyer. This is not an offer for sale; the property is offered through ⟨Brokerage name⟩. Not intended to solicit properties already listed for sale or buyers already under contract. MLS® and REALTOR® are trademarks owned or controlled by the Canadian Real Estate Association, used under licence.
+  </div>
+</footer>
+
+<!-- ══════════════════════ LIGHTBOX ══════════════════════ -->
+<div class="lb" id="lb" role="dialog" aria-modal="true" aria-label="Photo viewer">
+  <button class="close" id="lbClose" aria-label="Close">&times;</button>
+  <button class="prev" id="lbPrev" aria-label="Previous photo">&#8249;</button>
+  <img id="lbImg" src="" alt="">
+  <button class="next" id="lbNext" aria-label="Next photo">&#8250;</button>
+  <span class="count" id="lbCount"></span>
+  <span class="staged-tag">Virtually Staged</span>
+</div>
+
+<script>
+/* ── sticky nav turns solid past the hero ── */
+(function(){
+  var nav=document.getElementById('nav');
+  var hero=document.querySelector('.hero');
+  new IntersectionObserver(function(e){
+    nav.classList.toggle('solid', !e[0].isIntersecting);
+  },{rootMargin:'-72px 0px 0px 0px'}).observe(hero);
+})();
+
+/* ── reveal on scroll ── */
+(function(){
+  var io=new IntersectionObserver(function(entries){
+    entries.forEach(function(en){ if(en.isIntersecting){en.target.classList.add('in'); io.unobserve(en.target);} });
+  },{threshold:.12});
+  document.querySelectorAll('.rev').forEach(function(el){io.observe(el)});
+})();
+
+/* ── lightbox ── */
+(function(){
+  var imgs=[].slice.call(document.querySelectorAll('#grid img'));
+  var lb=document.getElementById('lb'), lbImg=document.getElementById('lbImg'),
+      count=document.getElementById('lbCount'), i=0, lastFocus=null;
+
+  function show(n){
+    i=(n+imgs.length)%imgs.length;
+    lbImg.src=imgs[i].src; lbImg.alt=imgs[i].alt;
+    count.textContent=(i+1)+' / '+imgs.length;
+    // carry the staging disclosure through to the full-size view
+    lb.classList.toggle('is-staged',
+      imgs[i].parentElement.classList.contains('staged'));
+  }
+  function open(n){ lastFocus=document.activeElement; show(n); lb.classList.add('open');
+    document.body.style.overflow='hidden'; document.getElementById('lbClose').focus(); }
+  function close(){ lb.classList.remove('open'); document.body.style.overflow='';
+    if(lastFocus) lastFocus.focus(); }
+
+  imgs.forEach(function(im,n){
+    im.parentElement.setAttribute('tabindex','0');
+    im.parentElement.setAttribute('role','button');
+    im.parentElement.addEventListener('click',function(){open(n)});
+    im.parentElement.addEventListener('keydown',function(e){
+      if(e.key==='Enter'||e.key===' '){e.preventDefault();open(n)}
+    });
+  });
+
+  document.getElementById('lbClose').addEventListener('click',close);
+  document.getElementById('lbPrev').addEventListener('click',function(e){e.stopPropagation();show(i-1)});
+  document.getElementById('lbNext').addEventListener('click',function(e){e.stopPropagation();show(i+1)});
+  lb.addEventListener('click',function(e){ if(e.target===lb) close(); });
+  document.addEventListener('keydown',function(e){
+    if(!lb.classList.contains('open')) return;
+    if(e.key==='Escape') close();
+    if(e.key==='ArrowRight') show(i+1);
+    if(e.key==='ArrowLeft') show(i-1);
+  });
+})();
+
+/* ── VIDEO: swap the poster for the real player on click ── */
+(function(){
+  var p=document.getElementById('player');
+  if(!p) return;
+  p.addEventListener('click',function(){
+    var f=document.createElement('iframe');
+    f.src='https://www.youtube-nocookie.com/embed/'+p.dataset.id+
+          '?autoplay=1&rel=0&modestbranding=1';
+    f.title='470 Lipton Street — video walkthrough';
+    f.allow='accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
+    f.allowFullscreen=true;
+    p.innerHTML=''; p.style.cursor='default';
+    p.classList.add('playing');   // drops the staging label off the poster
+    p.appendChild(f);
+  },{once:true});
+})();
+
+/* ── PLACEHOLDER GUARD ──────────────────────────────────────────────
+   Highlights any remaining ⟨placeholder⟩ and shows a bar with the count,
+   so an unfilled field can't quietly go live. It removes itself once the
+   last placeholder is gone — but delete this block before launch anyway. */
+(function(){
+  var found=[], walker=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT,{
+    acceptNode:function(node){
+      var p=node.parentNode.nodeName;
+      if(p==='SCRIPT'||p==='STYLE'||p==='NOSCRIPT') return NodeFilter.FILTER_REJECT;
+      return node.nodeValue.indexOf('⟨')>-1
+        ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+    }
+  });
+  var n; while((n=walker.nextNode())) found.push(n);
+  document.querySelectorAll('[alt]').forEach(function(el){
+    if(el.getAttribute('alt').indexOf('⟨')>-1) found.push(el);
+  });
+  if(!found.length) return;
+
+  found.forEach(function(t){
+    if(t.nodeType!==3) return;
+    var span=document.createElement('mark');
+    span.style.cssText='background:#ffe9a8;color:#5a4a00;box-decoration-break:clone;'+
+      '-webkit-box-decoration-break:clone;padding:.05em .2em;border-radius:2px';
+    span.textContent=t.nodeValue;
+    t.parentNode.replaceChild(span,t);
+  });
+
+  var bar=document.createElement('div');
+  bar.style.cssText='position:fixed;left:0;right:0;bottom:0;z-index:300;background:#14140f;'+
+    'color:#ffe9a8;font:400 .72rem/1.5 Jost,Arial,sans-serif;letter-spacing:.12em;'+
+    'text-transform:uppercase;padding:.85rem 1.2rem;text-align:center';
+  bar.textContent=found.length+' placeholder'+(found.length>1?'s':'')+
+    ' still to fill — do not publish yet';
+  document.body.appendChild(bar);
+})();
+
+/* ── FORMSPREE SUBMIT — posts in the background, no page change ── */
+(function(){
+  var f=document.getElementById('inquiry');
+  if(!f) return;
+  var btn=f.querySelector('button[type=submit]'), note=f.querySelector('.formnote');
+  var label=btn.textContent, original=note.textContent;
+
+  f.addEventListener('submit',function(e){
+    e.preventDefault();
+    btn.disabled=true; btn.textContent='Sending…'; note.textContent=original;
+
+    fetch(f.action,{method:'POST',body:new FormData(f),headers:{Accept:'application/json'}})
+      .then(function(r){ return r.ok ? r : r.json().then(function(j){throw j}) })
+      .then(function(){
+        f.innerHTML='<p style="font-family:Cormorant Garamond,Georgia,serif;'+
+          'font-size:1.5rem;line-height:1.4;margin:0">Thank you — your message is on its way.'+
+          '<br><span style="font-size:.85rem;font-family:inherit;color:#6f6e68">'+
+          'Annika will be in touch shortly.</span></p>';
+      })
+      .catch(function(){
+        btn.disabled=false; btn.textContent=label;
+        note.innerHTML='Something went wrong sending that. Please email '+
+          '<a href="mailto:hello@annikapineau.com">hello@annikapineau.com</a> directly.';
+      });
+  });
+})();
+</script>
+
+</body>
+</html>
