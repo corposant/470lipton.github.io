@@ -8,8 +8,6 @@ Static HTML — no build step, no dependencies. `index.html` contains the markup
 
 ## Local preview
 
-Double-click `preview.command`, or:
-
 ```bash
 python3 -m http.server
 ```
