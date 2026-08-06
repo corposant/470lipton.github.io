@@ -4,10 +4,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
-<!-- 470 Lipton Street — single-property listing site.
-     All placeholders filled. The PLACEHOLDER GUARD script near the
-     bottom is now inert (it exits early when it finds nothing) and can
-     be deleted whenever; leave it if you expect to draft more copy. -->
 <title>470 Lipton Street, Winnipeg — For Sale</title>
 <meta name="description" content="A 1912 two-storey taken back to the studs and rebuilt. Three bedrooms, two baths, 1,247 sq ft plus a finished basement. Offered at $349,900.">
 <meta property="og:title" content="470 Lipton Street, Winnipeg — $349,900">
@@ -132,39 +128,6 @@ nav.solid{
 @media(prefers-reduced-motion:reduce){
   .drawer,.drawer li,.burger span{transition:none}
 }
-
-/* ─────────────── COUNTDOWN BANNER ───────────────
-   Hidden by default so it never flashes for visitors arriving after
-   go-live. JS reveals it only while there's time left on the clock. */
-.banner{display:none}
-.banner.on{
-  display:block;position:fixed;top:0;left:0;right:0;z-index:70;
-  background:var(--ink);color:var(--bone);
-  padding:.75rem var(--gut);
-  border-bottom:1px solid rgba(255,255,255,.14)
-}
-.banner .in{
-  max-width:var(--max);margin:0 auto;
-  display:flex;align-items:center;justify-content:center;gap:.35rem 1.1rem;
-  flex-wrap:wrap;text-align:center
-}
-.banner .lab{
-  font-size:.64rem;letter-spacing:.28em;text-transform:uppercase;
-  color:rgba(246,244,239,.62)
-}
-.banner .clock{
-  font-family:var(--serif);font-size:1.32rem;letter-spacing:.06em;
-  font-variant-numeric:tabular-nums;color:var(--brass);white-space:nowrap
-}
-.banner .clock b{font-weight:400;color:var(--bone)}
-.banner .sep{color:rgba(246,244,239,.28)}
-@media(max-width:560px){
-  .banner.on{padding:.6rem 1rem}
-  .banner .lab{font-size:.56rem;letter-spacing:.2em}
-  .banner .clock{font-size:1.12rem}
-}
-/* push the nav down while the banner is up */
-.has-banner nav{top:var(--banner-h,0px)}
 
 /* ─────────────── HERO ─────────────── */
 header.hero{
@@ -341,18 +304,6 @@ section{padding:clamp(4.5rem,11vh,8.5rem) 0}
 }
 @media(max-width:600px){.play{width:64px;height:64px}.play::after{border-left-width:15px;border-top-width:9px;border-bottom-width:9px}}
 
-/* ─────────────── QUOTE BAND ─────────────── */
-.band{
-  position:relative;color:#fff;text-align:center;
-  padding:clamp(6rem,16vh,10rem) var(--gut);
-  background:#1b1b16;overflow:hidden
-}
-.band img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.42}
-.band .q{position:relative;z-index:2;max-width:760px;margin:0 auto;
-  font-family:var(--serif);font-size:clamp(1.5rem,3.2vw,2.5rem);line-height:1.35;font-style:italic}
-.band .attr{position:relative;z-index:2;margin-top:1.8rem;font-size:.7rem;letter-spacing:.26em;
-  text-transform:uppercase;color:rgba(255,255,255,.75)}
-
 /* ─────────────── DETAILS TABLE ─────────────── */
 .spec{display:grid;grid-template-columns:repeat(3,1fr);gap:0 3rem;margin-top:2.5rem}
 .spec div{border-top:1px solid var(--hair);padding:1rem 0}
@@ -420,18 +371,6 @@ footer .brand{color:#fff}
 </head>
 
 <body>
-
-<!-- ══════════════════════ GO-LIVE COUNTDOWN ══════════════════════
-     Target is set in the script at the bottom — search for GO_LIVE.
-     It's an absolute instant (midnight in Winnipeg), so the clock reads
-     the same whether the visitor is in Brandon or Berlin. Once it passes,
-     the banner removes itself and never returns. Nothing to clean up. -->
-<div class="banner" id="banner" role="status" aria-live="off">
-  <div class="in">
-    <span class="lab">Listing goes live</span>
-    <span class="clock" id="clock"></span>
-  </div>
-</div>
 
 <!-- ══════════════════════ NAV ══════════════════════ -->
 <nav id="nav">
@@ -614,7 +553,7 @@ Single detached garage plus covered carport off the rear lane provides parking f
     <div><dt>MLS® No.</dt><dd>202619473</dd></div>
     <div><dt>Heating</dt><dd>Forced air, natural gas</dd></div>
     <div><dt>A/C</dt><dd>Integrated</dd></div>
-    <div><dt>Annual Taxes</dt><dd>$3,569.93 - 2026</dd></div>
+    <div><dt>Annual Taxes</dt><dd>$3,569.93 (2026)</dd></div>
     <div><dt>Possession</dt><dd>Immediate</dd></div>
   </dl>
 
@@ -757,65 +696,6 @@ Single detached garage plus covered carport off the rear lane provides parking f
   },{rootMargin:'-72px 0px 0px 0px'}).observe(hero);
 })();
 
-/* ── GO-LIVE COUNTDOWN ──────────────────────────────────────────────
-   GO_LIVE is midnight in Winnipeg, written as an absolute instant.
-   Manitoba is on CDT (UTC−5) in August, so 00:00 local = 05:00 UTC.
-
-   To change the date, edit this one string. Use the right offset:
-     −05:00  March to early November  (CDT)
-     −06:00  early November to March  (CST)
-   Writing it with the offset — rather than as a plain local date — is
-   what makes the clock agree for every visitor no matter where they are.
-
-   When it expires the banner disappears on its own. Deleting this block
-   is optional tidying, not a required launch step.                      */
-var GO_LIVE = new Date('2026-08-06T00:00:00-05:00');
-
-(function(){
-  var banner=document.getElementById('banner'), clock=document.getElementById('clock');
-  if(!banner||!clock) return;
-  var root=document.documentElement, timer;
-
-  function two(n){ return n<10 ? '0'+n : ''+n }
-
-  function retire(){
-    clearInterval(timer);
-    banner.classList.remove('on');
-    root.classList.remove('has-banner');
-    root.style.removeProperty('--banner-h');
-  }
-
-  function tick(){
-    var left=GO_LIVE-new Date();
-    if(left<=0){ retire(); return }
-
-    var d=Math.floor(left/864e5),
-        h=Math.floor(left/36e5)%24,
-        m=Math.floor(left/6e4)%60,
-        s=Math.floor(left/1e3)%60;
-
-    clock.innerHTML =
-      (d ? '<b>'+d+'</b> day'+(d>1?'s':'')+' <span class="sep">·</span> ' : '') +
-      '<b>'+two(h)+'</b>:<b>'+two(m)+'</b>:<b>'+two(s)+'</b>';
-
-    // keep the nav clear of the banner even as it reflows
-    root.style.setProperty('--banner-h', banner.offsetHeight+'px');
-  }
-
-  if(GO_LIVE-new Date() <= 0) return;   // already live — never paint it
-
-  banner.classList.add('on');
-  root.classList.add('has-banner');
-  tick();
-  timer=setInterval(tick,1000);
-
-  // a phone that slept through midnight should catch up on wake
-  document.addEventListener('visibilitychange',function(){
-    if(!document.hidden) tick();
-  });
-  window.addEventListener('resize',tick);
-})();
-
 /* ── mobile menu ── */
 (function(){
   var burger=document.getElementById('burger'), drawer=document.getElementById('drawer');
@@ -920,62 +800,6 @@ var GO_LIVE = new Date('2026-08-06T00:00:00-05:00');
     f.allowFullscreen=true;
     p.innerHTML=''; p.style.cursor='default'; p.appendChild(f);
   },{once:true});
-})();
-
-/* ── PLACEHOLDER GUARD ──────────────────────────────────────────────
-   Highlights any remaining ⟨placeholder⟩ and shows a bar with the count,
-   so an unfilled field can't quietly go live. It removes itself once the
-   last placeholder is gone — but delete this block before launch anyway. */
-(function(){
-  var found=[], walker=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT,{
-    acceptNode:function(node){
-      var p=node.parentNode.nodeName;
-      if(p==='SCRIPT'||p==='STYLE'||p==='NOSCRIPT') return NodeFilter.FILTER_REJECT;
-      return node.nodeValue.indexOf('⟨')>-1
-        ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
-    }
-  });
-  var n; while((n=walker.nextNode())) found.push(n);
-  document.querySelectorAll('[alt]').forEach(function(el){
-    if(el.getAttribute('alt').indexOf('⟨')>-1) found.push(el);
-  });
-  if(!found.length) return;
-
-  var marks=[];
-  found.forEach(function(t){
-    if(t.nodeType!==3) return;
-    var span=document.createElement('mark');
-    span.style.cssText='background:#ffe9a8;color:#5a4a00;box-decoration-break:clone;'+
-      '-webkit-box-decoration-break:clone;padding:.05em .2em;border-radius:2px';
-    span.textContent=t.nodeValue;
-    t.parentNode.replaceChild(span,t);
-    marks.push(span);
-  });
-
-  // Some placeholders sit in things CSS hides at the current width — the
-  // mobile menu, mostly. Highlighting those is useless on a desktop screen,
-  // so name them instead. Nothing should ever be counted but unfindable.
-  var hidden=marks.filter(function(m){ return !m.getClientRects().length });
-  function whereIs(m){
-    var n=m;
-    while(n && n!==document.body){
-      if(n.id==='drawer') return 'the mobile menu';
-      if(n.id) return 'the ' + n.id + ' section';
-      n=n.parentNode;
-    }
-    return 'the page';
-  }
-  var spots=hidden.map(whereIs).filter(function(v,i,a){ return a.indexOf(v)===i });
-
-  var bar=document.createElement('div');
-  bar.style.cssText='position:fixed;left:0;right:0;bottom:0;z-index:300;background:#14140f;'+
-    'color:#ffe9a8;font:400 .72rem/1.5 Jost,Arial,sans-serif;letter-spacing:.12em;'+
-    'text-transform:uppercase;padding:.85rem 1.2rem;text-align:center';
-  bar.textContent = marks.length+' placeholder'+(marks.length>1?'s':'')+' still to fill'+
-    (hidden.length
-       ? ' — '+hidden.length+' of them in '+spots.join(' and ')+', hidden at this window size'
-       : ' — do not publish yet');
-  document.body.appendChild(bar);
 })();
 
 /* ── FORMSPREE SUBMIT — posts in the background, no page change ── */
