@@ -580,18 +580,20 @@ footer .brand{color:#fff}
         <p class="eyebrow">Walkthrough</p>
         <h2>Take the tour</h2>
       </div>
-      <p>1 minute · sound on</p>
+      <!-- I could measure the old file's length; I can't measure this one.
+           Add "1 minute · " back in front if that's still right. -->
+      <p>Sound on</p>
     </div>
 
-    <button class="player" id="player" data-id="RgDM1lMocA4"
-            aria-label="Play the video walkthrough of 470 Lipton Street">
+    <button class="player" id="player" data-id="VQOPNLZ4w2A"
+            aria-label="Play the video tour of 470 Lipton Street">
       <img src="photos/video-poster.jpg" srcset="photos/r/video-poster-640.jpg 640w, photos/r/video-poster-1000.jpg 1000w, photos/video-poster.jpg 1600w" sizes="(max-width:820px) 92vw, 1100px" alt="" loading="lazy" decoding="async">
       <span class="play" aria-hidden="true"></span>
-      <span class="player-cap">470 Lipton Street — Video Walkthrough</span>
+      <span class="player-cap">470 Lipton Street — Video Tour</span>
     </button>
 
     <p style="margin:1.4rem 0 0;font-size:.78rem;color:rgba(255,255,255,.5)">
-      Trouble playing? <a href="https://youtu.be/RgDM1lMocA4" target="_blank" rel="noopener"
+      Trouble playing? <a href="https://youtu.be/VQOPNLZ4w2A" target="_blank" rel="noopener"
       style="color:rgba(255,255,255,.75)">Watch on YouTube</a>.
     </p>
   </div>
@@ -935,7 +937,7 @@ var GO_LIVE = new Date('2026-08-06T00:00:00-05:00');
     var f=document.createElement('iframe');
     f.src='https://www.youtube-nocookie.com/embed/'+p.dataset.id+
           '?autoplay=1&rel=0&modestbranding=1';
-    f.title='470 Lipton Street — video walkthrough';
+    f.title='470 Lipton Street — video tour';
     f.allow='accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
     f.allowFullscreen=true;
     p.innerHTML=''; p.style.cursor='default'; p.appendChild(f);
