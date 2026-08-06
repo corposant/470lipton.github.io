@@ -77,7 +77,96 @@ nav.solid{
   font-size:.72rem;letter-spacing:.2em;text-transform:uppercase}
 .navlinks a{text-decoration:none;padding-bottom:2px;border-bottom:1px solid transparent;transition:border-color .3s}
 .navlinks a:hover{border-color:currentColor}
-@media(max-width:820px){.navlinks{display:none}}
+
+/* ── mobile menu ── */
+.burger{
+  display:none;background:none;border:0;padding:.6rem;margin:-.6rem;
+  cursor:pointer;color:inherit;line-height:0
+}
+.burger span{
+  display:block;width:26px;height:1px;background:currentColor;
+  transition:transform .35s cubic-bezier(.2,.7,.3,1),opacity .2s
+}
+.burger span+span{margin-top:7px}
+.menu-open .burger span:nth-child(1){transform:translateY(8px) rotate(45deg)}
+.menu-open .burger span:nth-child(2){opacity:0}
+.menu-open .burger span:nth-child(3){transform:translateY(-8px) rotate(-45deg)}
+
+.drawer{
+  position:fixed;inset:0;z-index:55;background:var(--ink);color:var(--bone);
+  display:flex;flex-direction:column;justify-content:center;
+  padding:0 var(--gut);
+  opacity:0;visibility:hidden;transform:translateY(-8px);
+  transition:opacity .4s ease,transform .5s cubic-bezier(.2,.7,.3,1),visibility .4s
+}
+.menu-open .drawer{opacity:1;visibility:visible;transform:none}
+.drawer ul{list-style:none;margin:0;padding:0}
+.drawer li{
+  border-bottom:1px solid rgba(255,255,255,.12);
+  opacity:0;transform:translateY(14px);
+  transition:opacity .5s ease,transform .5s cubic-bezier(.2,.7,.3,1)
+}
+.menu-open .drawer li{opacity:1;transform:none}
+.menu-open .drawer li:nth-child(1){transition-delay:.10s}
+.menu-open .drawer li:nth-child(2){transition-delay:.16s}
+.menu-open .drawer li:nth-child(3){transition-delay:.22s}
+.menu-open .drawer li:nth-child(4){transition-delay:.28s}
+.menu-open .drawer li:nth-child(5){transition-delay:.34s}
+.drawer a{
+  display:block;padding:1.15rem 0;text-decoration:none;
+  font-family:var(--serif);font-size:1.9rem;font-weight:300
+}
+.drawer .foot{
+  margin-top:2.6rem;font-size:.72rem;letter-spacing:.2em;text-transform:uppercase;
+  color:rgba(255,255,255,.55);opacity:0;transition:opacity .5s ease .42s
+}
+.menu-open .drawer .foot{opacity:1}
+.drawer .foot a{display:inline;padding:0;font-family:var(--sans);
+  font-size:.72rem;letter-spacing:.2em;color:var(--brass)}
+
+@media(max-width:820px){
+  .navlinks{display:none}
+  .burger{display:block}
+  nav{color:#fff}
+  .menu-open nav{color:var(--bone);background:transparent;box-shadow:none}
+}
+@media(min-width:821px){.drawer{display:none}}
+@media(prefers-reduced-motion:reduce){
+  .drawer,.drawer li,.burger span{transition:none}
+}
+
+/* ─────────────── COUNTDOWN BANNER ───────────────
+   Hidden by default so it never flashes for visitors arriving after
+   go-live. JS reveals it only while there's time left on the clock. */
+.banner{display:none}
+.banner.on{
+  display:block;position:fixed;top:0;left:0;right:0;z-index:70;
+  background:var(--ink);color:var(--bone);
+  padding:.75rem var(--gut);
+  border-bottom:1px solid rgba(255,255,255,.14)
+}
+.banner .in{
+  max-width:var(--max);margin:0 auto;
+  display:flex;align-items:center;justify-content:center;gap:.35rem 1.1rem;
+  flex-wrap:wrap;text-align:center
+}
+.banner .lab{
+  font-size:.64rem;letter-spacing:.28em;text-transform:uppercase;
+  color:rgba(246,244,239,.62)
+}
+.banner .clock{
+  font-family:var(--serif);font-size:1.32rem;letter-spacing:.06em;
+  font-variant-numeric:tabular-nums;color:var(--brass);white-space:nowrap
+}
+.banner .clock b{font-weight:400;color:var(--bone)}
+.banner .sep{color:rgba(246,244,239,.28)}
+@media(max-width:560px){
+  .banner.on{padding:.6rem 1rem}
+  .banner .lab{font-size:.56rem;letter-spacing:.2em}
+  .banner .clock{font-size:1.12rem}
+}
+/* push the nav down while the banner is up */
+.has-banner nav{top:var(--banner-h,0px)}
 
 /* ─────────────── HERO ─────────────── */
 header.hero{
@@ -223,6 +312,11 @@ section{padding:clamp(4.5rem,11vh,8.5rem) 0}
 }
 .lb .close{top:1.6rem;right:1.8rem;font-size:2.2rem}
 .lb .prev,.lb .next{top:50%;transform:translateY(-50%);font-size:2.6rem;padding:1.4rem}
+/* arrows are clutter on a touchscreen — swipe instead */
+@media(hover:none) and (pointer:coarse){
+  .lb .prev,.lb .next{display:none}
+  .lb .close{font-size:2.6rem;padding:.4rem;top:.8rem;right:1rem}
+}
 .lb .prev{left:.5rem}.lb .next{right:.5rem}
 .lb .count{
   position:absolute;bottom:1.6rem;left:50%;transform:translateX(-50%);
@@ -345,6 +439,18 @@ footer .brand{color:#fff}
 
 <body>
 
+<!-- ══════════════════════ GO-LIVE COUNTDOWN ══════════════════════
+     Target is set in the script at the bottom — search for GO_LIVE.
+     It's an absolute instant (midnight in Winnipeg), so the clock reads
+     the same whether the visitor is in Brandon or Berlin. Once it passes,
+     the banner removes itself and never returns. Nothing to clean up. -->
+<div class="banner" id="banner" role="status" aria-live="off">
+  <div class="in">
+    <span class="lab">Listing goes live</span>
+    <span class="clock" id="clock"></span>
+  </div>
+</div>
+
 <!-- ══════════════════════ NAV ══════════════════════ -->
 <nav id="nav">
   <a class="brand" href="#top" style="text-decoration:none">470&nbsp;Lipton</a>
@@ -356,12 +462,27 @@ footer .brand{color:#fff}
     <li><a href="#location">Location</a></li>
     <li><a href="#inquire">Inquire</a></li>
   </ul>
+  <button class="burger" id="burger" aria-label="Menu" aria-expanded="false" aria-controls="drawer">
+    <span></span><span></span><span></span>
+  </button>
 </nav>
+
+<!-- full-screen menu, phones and small tablets only -->
+<div class="drawer" id="drawer" role="dialog" aria-modal="true" aria-label="Menu">
+  <ul>
+    <li><a href="#residence">The Home</a></li>
+    <li><a href="#gallery">Gallery</a></li>
+    <li><a href="#video">Video</a></li>
+    <li><a href="#details">Details</a></li>
+    <li><a href="#inquire">Inquire</a></li>
+  </ul>
+  <p class="foot">470 Lipton Street · <a href="tel:+1204XXXXXXX">⟨(204) 000‑0000⟩</a></p>
+</div>
 
 <!-- ══════════════════════ HERO ══════════════════════
      EDIT: swap photos/hero.jpg — use a 2400px-wide landscape exterior shot -->
 <header class="hero" id="top">
-  <img class="hero-img" src="photos/hero.jpg" alt="Front exterior of the residence at dusk">
+  <img class="hero-img" src="photos/hero.jpg" srcset="photos/r/hero-640.jpg 640w, photos/r/hero-1024.jpg 1024w, photos/r/hero-1280.jpg 1280w, photos/r/hero-1600.jpg 1600w, photos/hero.jpg 2048w" sizes="100vw" alt="470 Lipton Street seen from the front walk" fetchpriority="high" decoding="async">
   <div class="hero-copy">
     <div class="inner">
       <p class="eyebrow">For Sale &nbsp;·&nbsp; Winnipeg, Manitoba</p>
@@ -436,24 +557,24 @@ footer .brand{color:#fff}
   </div>
 
   <div class="grid" id="grid">
-    <figure class="g-feature"><img src="photos/01.jpg" alt="Front elevation from the sidewalk, sage green stucco with a white pergola over the porch" loading="lazy"></figure>
-    <figure><img src="photos/02.jpg" alt="Front entry and staircase" loading="lazy"></figure>
-    <figure><img src="photos/03.jpg" alt="Living room bay window" loading="lazy"></figure>
-    <figure class="staged"><img src="photos/04.jpg" alt="Living room looking toward the staircase, virtually staged" loading="lazy"></figure>
-    <figure><img src="photos/05.jpg" alt="White oak slat feature wall with linear fireplace" loading="lazy"></figure>
-    <figure class="staged"><img src="photos/06.jpg" alt="Dining area open to the kitchen, virtually staged" loading="lazy"></figure>
-    <figure><img src="photos/07.jpg" alt="Kitchen with quartz counters and brushed gold fixtures" loading="lazy"></figure>
-    <figure><img src="photos/08.jpg" alt="Kitchen looking back toward the dining area" loading="lazy"></figure>
-    <figure><img src="photos/09.jpg" alt="Staircase to the second floor" loading="lazy"></figure>
-    <figure class="staged"><img src="photos/10.jpg" alt="Primary bedroom, virtually staged" loading="lazy"></figure>
-    <figure><img src="photos/11.jpg" alt="Second bedroom with mirrored closet doors" loading="lazy"></figure>
-    <figure><img src="photos/12.jpg" alt="Main bathroom with double vanity and arched mirrors" loading="lazy"></figure>
-    <figure><img src="photos/13.jpg" alt="Tiled tub and shower in the main bathroom" loading="lazy"></figure>
-    <figure><img src="photos/14.jpg" alt="Finished basement rec room" loading="lazy"></figure>
-    <figure><img src="photos/15.jpg" alt="Second full bathroom in the basement" loading="lazy"></figure>
-    <figure class="staged"><img src="photos/16.jpg" alt="Rear deck under a cedar pergola with lattice privacy screening, virtually staged" loading="lazy"></figure>
-    <figure><img src="photos/17.jpg" alt="Detached garage off the rear lane" loading="lazy"></figure>
-    <figure><img src="photos/18.jpg" alt="Aerial view of the neighbourhood with the downtown Winnipeg skyline beyond" loading="lazy"></figure>
+    <figure class="g-feature"><img src="photos/01.jpg" srcset="photos/r/01-480.jpg 480w, photos/r/01-960.jpg 960w, photos/r/01-1280.jpg 1280w, photos/01.jpg 2000w" sizes="(max-width:520px) 92vw, (max-width:820px) 92vw, (max-width:1240px) 63vw, 810px" alt="Front elevation from the sidewalk, sage green stucco with a white pergola over the porch" loading="lazy" decoding="async"></figure>
+    <figure><img src="photos/02.jpg" srcset="photos/r/02-480.jpg 480w, photos/r/02-960.jpg 960w, photos/r/02-1280.jpg 1280w, photos/02.jpg 1600w" sizes="(max-width:520px) 92vw, (max-width:820px) 46vw, (max-width:1240px) 31vw, 400px" alt="Front entry and staircase" loading="lazy" decoding="async"></figure>
+    <figure><img src="photos/03.jpg" srcset="photos/r/03-480.jpg 480w, photos/r/03-960.jpg 960w, photos/r/03-1280.jpg 1280w, photos/03.jpg 1600w" sizes="(max-width:520px) 92vw, (max-width:820px) 46vw, (max-width:1240px) 31vw, 400px" alt="Living room bay window" loading="lazy" decoding="async"></figure>
+    <figure class="staged"><img src="photos/04.jpg" srcset="photos/r/04-480.jpg 480w, photos/r/04-960.jpg 960w, photos/r/04-1280.jpg 1280w, photos/04.jpg 2000w" sizes="(max-width:520px) 92vw, (max-width:820px) 46vw, (max-width:1240px) 31vw, 400px" alt="Living room looking toward the staircase, virtually staged" loading="lazy" decoding="async"></figure>
+    <figure><img src="photos/05.jpg" srcset="photos/r/05-480.jpg 480w, photos/r/05-960.jpg 960w, photos/r/05-1280.jpg 1280w, photos/05.jpg 1600w" sizes="(max-width:520px) 92vw, (max-width:820px) 46vw, (max-width:1240px) 31vw, 400px" alt="White oak slat feature wall with linear fireplace" loading="lazy" decoding="async"></figure>
+    <figure class="staged"><img src="photos/06.jpg" srcset="photos/r/06-480.jpg 480w, photos/r/06-960.jpg 960w, photos/r/06-1280.jpg 1280w, photos/06.jpg 1600w" sizes="(max-width:520px) 92vw, (max-width:820px) 46vw, (max-width:1240px) 31vw, 400px" alt="Dining area open to the kitchen, virtually staged" loading="lazy" decoding="async"></figure>
+    <figure><img src="photos/07.jpg" srcset="photos/r/07-480.jpg 480w, photos/r/07-960.jpg 960w, photos/r/07-1280.jpg 1280w, photos/07.jpg 1600w" sizes="(max-width:520px) 92vw, (max-width:820px) 46vw, (max-width:1240px) 31vw, 400px" alt="Kitchen with quartz counters and brushed gold fixtures" loading="lazy" decoding="async"></figure>
+    <figure><img src="photos/08.jpg" srcset="photos/r/08-480.jpg 480w, photos/r/08-960.jpg 960w, photos/r/08-1280.jpg 1280w, photos/08.jpg 1600w" sizes="(max-width:520px) 92vw, (max-width:820px) 46vw, (max-width:1240px) 31vw, 400px" alt="Kitchen looking back toward the dining area" loading="lazy" decoding="async"></figure>
+    <figure><img src="photos/09.jpg" srcset="photos/r/09-480.jpg 480w, photos/r/09-960.jpg 960w, photos/r/09-1280.jpg 1280w, photos/09.jpg 1600w" sizes="(max-width:520px) 92vw, (max-width:820px) 46vw, (max-width:1240px) 31vw, 400px" alt="Staircase to the second floor" loading="lazy" decoding="async"></figure>
+    <figure class="staged"><img src="photos/10.jpg" srcset="photos/r/10-480.jpg 480w, photos/r/10-960.jpg 960w, photos/r/10-1280.jpg 1280w, photos/10.jpg 1600w" sizes="(max-width:520px) 92vw, (max-width:820px) 46vw, (max-width:1240px) 31vw, 400px" alt="Primary bedroom, virtually staged" loading="lazy" decoding="async"></figure>
+    <figure><img src="photos/11.jpg" srcset="photos/r/11-480.jpg 480w, photos/r/11-960.jpg 960w, photos/r/11-1280.jpg 1280w, photos/11.jpg 1600w" sizes="(max-width:520px) 92vw, (max-width:820px) 46vw, (max-width:1240px) 31vw, 400px" alt="Second bedroom with mirrored closet doors" loading="lazy" decoding="async"></figure>
+    <figure><img src="photos/12.jpg" srcset="photos/r/12-480.jpg 480w, photos/r/12-960.jpg 960w, photos/r/12-1280.jpg 1280w, photos/12.jpg 1600w" sizes="(max-width:520px) 92vw, (max-width:820px) 46vw, (max-width:1240px) 31vw, 400px" alt="Main bathroom with double vanity and arched mirrors" loading="lazy" decoding="async"></figure>
+    <figure><img src="photos/13.jpg" srcset="photos/r/13-480.jpg 480w, photos/r/13-960.jpg 960w, photos/r/13-1280.jpg 1280w, photos/13.jpg 1600w" sizes="(max-width:520px) 92vw, (max-width:820px) 46vw, (max-width:1240px) 31vw, 400px" alt="Tiled tub and shower in the main bathroom" loading="lazy" decoding="async"></figure>
+    <figure><img src="photos/14.jpg" srcset="photos/r/14-480.jpg 480w, photos/r/14-960.jpg 960w, photos/r/14-1280.jpg 1280w, photos/14.jpg 2000w" sizes="(max-width:520px) 92vw, (max-width:820px) 46vw, (max-width:1240px) 31vw, 400px" alt="Finished basement rec room" loading="lazy" decoding="async"></figure>
+    <figure><img src="photos/15.jpg" srcset="photos/r/15-480.jpg 480w, photos/r/15-960.jpg 960w, photos/r/15-1280.jpg 1280w, photos/15.jpg 1600w" sizes="(max-width:520px) 92vw, (max-width:820px) 46vw, (max-width:1240px) 31vw, 400px" alt="Second full bathroom in the basement" loading="lazy" decoding="async"></figure>
+    <figure class="staged"><img src="photos/16.jpg" srcset="photos/r/16-480.jpg 480w, photos/r/16-960.jpg 960w, photos/r/16-1280.jpg 1280w, photos/16.jpg 2000w" sizes="(max-width:520px) 92vw, (max-width:820px) 46vw, (max-width:1240px) 31vw, 400px" alt="Rear deck under a cedar pergola with lattice privacy screening, virtually staged" loading="lazy" decoding="async"></figure>
+    <figure><img src="photos/17.jpg" srcset="photos/r/17-480.jpg 480w, photos/r/17-960.jpg 960w, photos/r/17-1280.jpg 1280w, photos/17.jpg 1600w" sizes="(max-width:520px) 92vw, (max-width:820px) 46vw, (max-width:1240px) 31vw, 400px" alt="Detached garage off the rear lane" loading="lazy" decoding="async"></figure>
+    <figure><img src="photos/18.jpg" srcset="photos/r/18-480.jpg 480w, photos/r/18-960.jpg 960w, photos/r/18-1280.jpg 1280w, photos/18.jpg 2000w" sizes="(max-width:520px) 92vw, (max-width:820px) 46vw, (max-width:1240px) 31vw, 400px" alt="Aerial view of the neighbourhood with the downtown Winnipeg skyline beyond" loading="lazy" decoding="async"></figure>
   </div>
 
   <!-- Virtual staging disclosure — required by most brokerages, and the
@@ -481,7 +602,7 @@ footer .brand{color:#fff}
 
     <button class="player" id="player" data-id="RgDM1lMocA4"
             aria-label="Play the video walkthrough of 470 Lipton Street">
-      <img src="photos/video-poster.jpg" alt="" loading="lazy">
+      <img src="photos/video-poster.jpg" srcset="photos/r/video-poster-640.jpg 640w, photos/r/video-poster-1000.jpg 1000w, photos/video-poster.jpg 1600w" sizes="(max-width:820px) 92vw, 1100px" alt="" loading="lazy" decoding="async">
       <span class="play" aria-hidden="true"></span>
       <span class="player-cap">470 Lipton Street — Video Walkthrough</span>
     </button>
@@ -495,7 +616,7 @@ footer .brand{color:#fff}
 
 <!-- ══════════════════════ QUOTE BAND ══════════════════════ -->
 <div class="band">
-  <img src="photos/band.jpg" alt="" aria-hidden="true" loading="lazy">
+  <img src="photos/band.jpg" srcset="photos/r/band-640.jpg 640w, photos/r/band-1200.jpg 1200w, photos/band.jpg 2000w" sizes="100vw" alt="" aria-hidden="true" loading="lazy" decoding="async">
   <!-- EDIT: a line from the current owners works beautifully here — what
        they'll miss about living in it. Ask them; people give you gold.
        If you'd rather not use a quote, delete this whole .band div. -->
@@ -674,6 +795,96 @@ footer .brand{color:#fff}
   },{rootMargin:'-72px 0px 0px 0px'}).observe(hero);
 })();
 
+/* ── GO-LIVE COUNTDOWN ──────────────────────────────────────────────
+   GO_LIVE is midnight in Winnipeg, written as an absolute instant.
+   Manitoba is on CDT (UTC−5) in August, so 00:00 local = 05:00 UTC.
+
+   To change the date, edit this one string. Use the right offset:
+     −05:00  March to early November  (CDT)
+     −06:00  early November to March  (CST)
+   Writing it with the offset — rather than as a plain local date — is
+   what makes the clock agree for every visitor no matter where they are.
+
+   When it expires the banner disappears on its own. Deleting this block
+   is optional tidying, not a required launch step.                      */
+var GO_LIVE = new Date('2026-08-06T00:00:00-05:00');
+
+(function(){
+  var banner=document.getElementById('banner'), clock=document.getElementById('clock');
+  if(!banner||!clock) return;
+  var root=document.documentElement, timer;
+
+  function two(n){ return n<10 ? '0'+n : ''+n }
+
+  function retire(){
+    clearInterval(timer);
+    banner.classList.remove('on');
+    root.classList.remove('has-banner');
+    root.style.removeProperty('--banner-h');
+  }
+
+  function tick(){
+    var left=GO_LIVE-new Date();
+    if(left<=0){ retire(); return }
+
+    var d=Math.floor(left/864e5),
+        h=Math.floor(left/36e5)%24,
+        m=Math.floor(left/6e4)%60,
+        s=Math.floor(left/1e3)%60;
+
+    clock.innerHTML =
+      (d ? '<b>'+d+'</b> day'+(d>1?'s':'')+' <span class="sep">·</span> ' : '') +
+      '<b>'+two(h)+'</b>:<b>'+two(m)+'</b>:<b>'+two(s)+'</b>';
+
+    // keep the nav clear of the banner even as it reflows
+    root.style.setProperty('--banner-h', banner.offsetHeight+'px');
+  }
+
+  if(GO_LIVE-new Date() <= 0) return;   // already live — never paint it
+
+  banner.classList.add('on');
+  root.classList.add('has-banner');
+  tick();
+  timer=setInterval(tick,1000);
+
+  // a phone that slept through midnight should catch up on wake
+  document.addEventListener('visibilitychange',function(){
+    if(!document.hidden) tick();
+  });
+  window.addEventListener('resize',tick);
+})();
+
+/* ── mobile menu ── */
+(function(){
+  var burger=document.getElementById('burger'), drawer=document.getElementById('drawer');
+  if(!burger||!drawer) return;
+  var root=document.documentElement, scrollY=0;
+
+  function open(){
+    scrollY=window.scrollY;
+    root.classList.add('menu-open');
+    burger.setAttribute('aria-expanded','true');
+    document.body.style.overflow='hidden';
+  }
+  function close(){
+    root.classList.remove('menu-open');
+    burger.setAttribute('aria-expanded','false');
+    document.body.style.overflow='';
+  }
+  function toggle(){ root.classList.contains('menu-open') ? close() : open(); }
+
+  burger.addEventListener('click',toggle);
+  // tapping a link closes the menu, then the browser handles the anchor jump
+  drawer.addEventListener('click',function(e){ if(e.target.closest('a')) close(); });
+  document.addEventListener('keydown',function(e){
+    if(e.key==='Escape' && root.classList.contains('menu-open')){ close(); burger.focus(); }
+  });
+  // rotating to landscape past the breakpoint shouldn't strand an open drawer
+  window.addEventListener('resize',function(){
+    if(window.innerWidth>820 && root.classList.contains('menu-open')) close();
+  });
+})();
+
 /* ── reveal on scroll ── */
 (function(){
   var io=new IntersectionObserver(function(entries){
@@ -720,6 +931,21 @@ footer .brand{color:#fff}
     if(e.key==='ArrowRight') show(i+1);
     if(e.key==='ArrowLeft') show(i-1);
   });
+
+  // swipe left/right to move through photos, swipe down to dismiss
+  var x0=null,y0=null,t0=0;
+  lb.addEventListener('touchstart',function(e){
+    if(e.touches.length!==1) return;
+    x0=e.touches[0].clientX; y0=e.touches[0].clientY; t0=Date.now();
+  },{passive:true});
+  lb.addEventListener('touchend',function(e){
+    if(x0===null) return;
+    var t=e.changedTouches[0], dx=t.clientX-x0, dy=t.clientY-y0;
+    x0=null;
+    if(Date.now()-t0>600) return;                 // slow drag, not a swipe
+    if(Math.abs(dx)>45 && Math.abs(dx)>Math.abs(dy)) show(dx<0 ? i+1 : i-1);
+    else if(dy>70 && Math.abs(dy)>Math.abs(dx)) close();
+  },{passive:true});
 })();
 
 /* ── VIDEO: swap the poster for the real player on click ── */
