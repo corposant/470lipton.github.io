@@ -168,13 +168,13 @@ section{padding:clamp(4.5rem,11vh,8.5rem) 0}
   content:"";position:absolute;inset:0;background:rgba(20,20,15,0);transition:background .5s
 }
 .grid figure:hover::after{background:rgba(20,20,15,.12)}
-/* mosaic rhythm */
-.g-wide{grid-column:span 4}
-.g-nar{grid-column:span 2}
-.g-half{grid-column:span 3}
-.g-third{grid-column:span 2}
-.grid figure{aspect-ratio:4/3}
-.g-wide{aspect-ratio:16/9}
+/* Every photo in this gallery is 4:3, so every tile is 4:3 — nothing is
+   cropped. The feature tile is two tiles wide by two tall, which is also
+   4:3, so it stays uncropped too. Rhythm comes from scale, not from
+   cutting into the photographs. */
+.grid{grid-auto-flow:dense}
+.grid figure{grid-column:span 2;aspect-ratio:4/3}
+.g-feature{grid-column:span 4;grid-row:span 2;aspect-ratio:auto}
 /* ── Virtually staged shots ──────────────────────────────────────────
    Two things going on here:
    1. A 4:3 photo in a 16:9 slot loses 25% of its height to the cover
@@ -201,9 +201,12 @@ section{padding:clamp(4.5rem,11vh,8.5rem) 0}
 .lb.is-staged .staged-tag{display:block}
 @media(max-width:820px){
   .grid{grid-template-columns:repeat(2,1fr)}
-  .g-wide,.g-nar,.g-half,.g-third{grid-column:span 1}
-  .grid figure,.g-wide{aspect-ratio:4/3}
-  .grid figure:first-child{grid-column:span 2;aspect-ratio:16/10}
+  .grid figure{grid-column:span 1;aspect-ratio:4/3}
+  .g-feature{grid-column:span 2;grid-row:span 2;aspect-ratio:auto}
+}
+@media(max-width:520px){
+  .grid{grid-template-columns:1fr}
+  .grid figure,.g-feature{grid-column:span 1;grid-row:span 1;aspect-ratio:4/3}
 }
 
 /* lightbox */
@@ -433,24 +436,24 @@ footer .brand{color:#fff}
   </div>
 
   <div class="grid" id="grid">
-    <figure class="g-wide"><img src="photos/01.jpg" alt="Front elevation from the sidewalk, sage green stucco with a white pergola over the porch" loading="lazy"></figure>
-    <figure class="g-nar"><img src="photos/02.jpg" alt="Front entry and staircase" loading="lazy"></figure>
-    <figure class="g-third"><img src="photos/03.jpg" alt="Living room bay window" loading="lazy"></figure>
-    <figure class="g-third staged"><img src="photos/04.jpg" alt="Living room looking toward the staircase, virtually staged" loading="lazy"></figure>
-    <figure class="g-third"><img src="photos/05.jpg" alt="White oak slat feature wall with linear fireplace" loading="lazy"></figure>
-    <figure class="g-wide staged"><img src="photos/06.jpg" alt="Dining area open to the kitchen, virtually staged" loading="lazy"></figure>
-    <figure class="g-nar"><img src="photos/07.jpg" alt="Kitchen with quartz counters and brushed gold fixtures" loading="lazy"></figure>
-    <figure class="g-third"><img src="photos/08.jpg" alt="Kitchen looking back toward the dining area" loading="lazy"></figure>
-    <figure class="g-third"><img src="photos/09.jpg" alt="Staircase to the second floor" loading="lazy"></figure>
-    <figure class="g-third staged"><img src="photos/10.jpg" alt="Primary bedroom, virtually staged" loading="lazy"></figure>
-    <figure class="g-third"><img src="photos/11.jpg" alt="Second bedroom with mirrored closet doors" loading="lazy"></figure>
-    <figure class="g-nar"><img src="photos/12.jpg" alt="Main bathroom with double vanity and arched mirrors" loading="lazy"></figure>
-    <figure class="g-nar"><img src="photos/13.jpg" alt="Tiled tub and shower in the main bathroom" loading="lazy"></figure>
-    <figure class="g-wide"><img src="photos/14.jpg" alt="Finished basement rec room" loading="lazy"></figure>
-    <figure class="g-nar"><img src="photos/15.jpg" alt="Second full bathroom in the basement" loading="lazy"></figure>
-    <figure class="g-wide staged"><img src="photos/16.jpg" alt="Rear deck under a cedar pergola with lattice privacy screening, virtually staged" loading="lazy"></figure>
-    <figure class="g-third"><img src="photos/17.jpg" alt="Detached garage off the rear lane" loading="lazy"></figure>
-    <figure class="g-wide"><img src="photos/18.jpg" alt="Aerial view of the neighbourhood with the downtown Winnipeg skyline beyond" loading="lazy"></figure>
+    <figure class="g-feature"><img src="photos/01.jpg" alt="Front elevation from the sidewalk, sage green stucco with a white pergola over the porch" loading="lazy"></figure>
+    <figure><img src="photos/02.jpg" alt="Front entry and staircase" loading="lazy"></figure>
+    <figure><img src="photos/03.jpg" alt="Living room bay window" loading="lazy"></figure>
+    <figure class="staged"><img src="photos/04.jpg" alt="Living room looking toward the staircase, virtually staged" loading="lazy"></figure>
+    <figure><img src="photos/05.jpg" alt="White oak slat feature wall with linear fireplace" loading="lazy"></figure>
+    <figure class="staged"><img src="photos/06.jpg" alt="Dining area open to the kitchen, virtually staged" loading="lazy"></figure>
+    <figure><img src="photos/07.jpg" alt="Kitchen with quartz counters and brushed gold fixtures" loading="lazy"></figure>
+    <figure><img src="photos/08.jpg" alt="Kitchen looking back toward the dining area" loading="lazy"></figure>
+    <figure><img src="photos/09.jpg" alt="Staircase to the second floor" loading="lazy"></figure>
+    <figure class="staged"><img src="photos/10.jpg" alt="Primary bedroom, virtually staged" loading="lazy"></figure>
+    <figure><img src="photos/11.jpg" alt="Second bedroom with mirrored closet doors" loading="lazy"></figure>
+    <figure><img src="photos/12.jpg" alt="Main bathroom with double vanity and arched mirrors" loading="lazy"></figure>
+    <figure><img src="photos/13.jpg" alt="Tiled tub and shower in the main bathroom" loading="lazy"></figure>
+    <figure><img src="photos/14.jpg" alt="Finished basement rec room" loading="lazy"></figure>
+    <figure><img src="photos/15.jpg" alt="Second full bathroom in the basement" loading="lazy"></figure>
+    <figure class="staged"><img src="photos/16.jpg" alt="Rear deck under a cedar pergola with lattice privacy screening, virtually staged" loading="lazy"></figure>
+    <figure><img src="photos/17.jpg" alt="Detached garage off the rear lane" loading="lazy"></figure>
+    <figure><img src="photos/18.jpg" alt="Aerial view of the neighbourhood with the downtown Winnipeg skyline beyond" loading="lazy"></figure>
   </div>
 
   <!-- Virtual staging disclosure — required by most brokerages, and the
