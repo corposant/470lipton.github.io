@@ -56,16 +56,34 @@ h2{font-size:clamp(2rem,4.2vw,3.1rem);line-height:1.12}
 h3{font-size:1.35rem;line-height:1.3}
 
 /* ─────────────── NAV ─────────────── */
+/* The bar is dark in both states — the difference is how dark.
+   Over the hero it's a gradient scrim, strongest at the very top and
+   gone by the bottom edge, so it darkens the links without drawing a
+   hard band across the photograph. Once scrolled it becomes a near-solid
+   charcoal bar, which is what gives it an edge against the cream page —
+   a light bar on a bone background has nothing to read against. */
 nav{
   position:fixed;inset:0 0 auto 0;z-index:60;
   display:flex;align-items:center;justify-content:space-between;
   padding:1.4rem var(--gut);
-  color:#fff;transition:background .45s ease,color .45s ease,padding .45s ease,box-shadow .45s ease;
+  color:#fff;
+  transition:background .45s ease,padding .45s ease,box-shadow .45s ease
+}
+nav::before{
+  content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;
+  background:linear-gradient(180deg,
+    rgba(20,20,15,.82) 0%, rgba(20,20,15,.66) 52%,
+    rgba(20,20,15,.3) 80%, rgba(20,20,15,0) 100%);
+  transition:opacity .45s ease
 }
 nav.solid{
-  background:var(--bone);color:var(--ink);padding:.9rem var(--gut);
-  box-shadow:0 1px 0 var(--hair);
+  background:rgba(20,20,15,.9);
+  -webkit-backdrop-filter:saturate(150%) blur(14px);
+  backdrop-filter:saturate(150%) blur(14px);
+  padding:.9rem var(--gut);
+  box-shadow:0 1px 0 rgba(246,244,239,.14), 0 12px 34px rgba(20,20,15,.22)
 }
+nav.solid::before{opacity:0}
 .brand{font-family:var(--serif);font-size:1.15rem;letter-spacing:.14em;text-transform:uppercase}
 .navlinks{display:flex;gap:2.2rem;list-style:none;margin:0;padding:0;
   font-size:.72rem;letter-spacing:.2em;text-transform:uppercase}
@@ -121,9 +139,11 @@ nav.solid{
 @media(max-width:820px){
   .navlinks{display:none}
   .burger{display:block}
-  nav{color:#fff}
-  .menu-open nav{color:var(--bone);background:transparent;box-shadow:none}
 }
+/* with the drawer open the nav sits on the drawer's own charcoal, so it
+   needs neither scrim nor bar of its own */
+.menu-open nav{background:transparent;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none}
+.menu-open nav::before{opacity:0}
 @media(min-width:821px){.drawer{display:none}}
 @media(prefers-reduced-motion:reduce){
   .drawer,.drawer li,.burger span{transition:none}
