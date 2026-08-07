@@ -187,20 +187,40 @@ header.hero{
 /* ─────────────── STAT BAR ─────────────── */
 .stats{border-bottom:1px solid var(--hair)}
 .stats ul{
-  display:grid;grid-template-columns:repeat(4,1fr);
+  display:grid;grid-template-columns:repeat(5,1fr);
   list-style:none;margin:0;padding:0;
 }
+/* flex-centred so the cells still line up when one of them holds a
+   9-digit MLS number set much smaller than the display figures */
 .stats li{
   padding:2.4rem 1rem;text-align:center;border-right:1px solid var(--hair);
+  display:flex;flex-direction:column;justify-content:center
 }
 .stats li:last-child{border-right:0}
 .stats .n{font-family:var(--serif);font-size:clamp(1.8rem,3vw,2.5rem);line-height:1;display:block}
 .stats .l{font-size:.66rem;letter-spacing:.24em;text-transform:uppercase;color:var(--stone);margin-top:.7rem;display:block}
-@media(max-width:700px){
+
+/* the MLS cell: sans and tabular, because nine old-style serif figures in
+   a row are a mess, and brass so it reads as the one link in the bar */
+.stats .mls .n{
+  font-family:var(--sans);font-weight:400;
+  font-size:clamp(1.05rem,1.7vw,1.35rem);
+  font-variant-numeric:tabular-nums;letter-spacing:.03em
+}
+.stats .mls a{
+  color:var(--brass);text-decoration:none;
+  border-bottom:1px solid rgba(154,131,85,.45);
+  transition:color .3s,border-color .3s
+}
+.stats .mls a:hover{color:var(--ink);border-color:var(--ink)}
+
+@media(max-width:900px){
   .stats ul{grid-template-columns:repeat(2,1fr)}
   .stats li{border-bottom:1px solid var(--hair);padding:1.8rem .5rem}
   .stats li:nth-child(2n){border-right:0}
-  .stats li:nth-last-child(-n+2){border-bottom:0}
+  /* five items into two columns leaves one orphan — let it span the row
+     rather than stranding a border down the middle of empty space */
+  .stats li:last-child{grid-column:1/-1;border-right:0;border-bottom:0}
 }
 
 /* ─────────────── SECTIONS ─────────────── */
@@ -638,6 +658,7 @@ footer .brand{color:#fff}
     <li><span class="n">378</span><span class="l">Finished Basement</span></li>
     <li><span class="n">3</span><span class="l">Bedrooms</span></li>
     <li><span class="n">1912</span><span class="l">Year Built</span></li>
+    <li class="mls"><span class="n"><a href="https://www.realtor.ca/real-estate/30125698/470-lipton-street-winnipeg-west-end" target="_blank" rel="noopener">202619473</a></span><span class="l">MLS&reg; No.</span></li>
   </ul>
 </div>
 
