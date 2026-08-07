@@ -14,15 +14,22 @@
 <link rel="canonical" href="https://470lipton.com/">
 
 <!-- Favicons: the key from the Annika Pineau Group crest — see favicon.svg
-     for why the lion itself couldn't be used. SVG first, since modern
-     browsers prefer it and it stays crisp at any size; the .ico carries
-     16/32/48 for older browsers and the bookmarks bar.
-     Paths are root-absolute, which is right for 470lipton.com. If you ever
-     serve the site from a subfolder, make these relative. -->
-<link rel="icon" href="/favicon.svg" type="image/svg+xml">
-<link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48">
-<link rel="apple-touch-icon" href="/apple-touch-icon.png">
-<link rel="manifest" href="/site.webmanifest">
+     for why the lion itself couldn't be used.
+
+     Paths are RELATIVE, not root-absolute. "/favicon.svg" only resolves when
+     the site is served from a domain root; on the GitHub Pages project URL
+     (corposant.github.io/470lipton.github.io/) it would look for the file at
+     the account root and 404. Relative works in both places.
+
+     PNGs are listed as well as the SVG because Safari is the least reliable
+     about SVG favicons, and the SVG now carries explicit width/height, which
+     Safari wants before it will use one. -->
+<link rel="icon" href="icon-32.png" type="image/png" sizes="32x32">
+<link rel="icon" href="icon-16.png" type="image/png" sizes="16x16">
+<link rel="icon" href="favicon.ico" sizes="48x48">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="site.webmanifest">
 <meta name="theme-color" content="#14140f">
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
