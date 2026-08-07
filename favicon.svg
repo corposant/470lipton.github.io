@@ -6,11 +6,12 @@
        palette while staying legible at a tab's worth of pixels.
 
        Bow lower-right, teeth upper-left, both teeth equal length. The ring
-       is 13 units thick — the same as the shaft — and the whole key is drawn
-       around the origin, then rotated and scaled to sit centred with even
-       padding. Change ro / w / L below and the fit takes care of itself. -->
+       is 13 units thick — the same as the shaft. The key is drawn along +y
+       around the origin, so rotate(135) puts its centreline at exactly 45°
+       from horizontal; the scale/translate then centres it with even padding.
+       Change ro / w / L and the fit takes care of itself. -->
   <rect width="100" height="100" fill="#14140f"/>
-  <g fill="#d9b45e" transform="translate(50 50) rotate(142) scale(0.7546) translate(-0.00 -26.50)">
+  <g fill="#d9b45e" transform="translate(50 50) rotate(135) scale(0.7845) translate(-0.00 -26.50)">
     <path fill-rule="evenodd" d="M0 -21a21 21 0 1 1 0 42 a21 21 0 1 1 0 -42
                                  m0 13a8 8 0 1 0 0 16 a8 8 0 1 0 0 -16z"/>
     <rect x="-6.5" y="18" width="13" height="56"/>
