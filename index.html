@@ -490,6 +490,16 @@ section{padding:clamp(4.5rem,11vh,8.5rem) 0}
   background:linear-gradient(90deg,
     transparent 0%, var(--brass) 18%, #d3b87e 50%, var(--brass) 82%, transparent 100%)
 }
+/* brand lockup at the head of the card. The supplied file was artwork on
+   pure black, which would have shown as a slightly-wrong rectangle against
+   this card's warmer ink — so it's been keyed to transparency and the
+   colour un-premultiplied, keeping the gold clean at the anti-aliased edges. */
+.agent-card .brandmark{
+  display:block;padding:1.6rem 1.9rem 1.3rem;
+  border-bottom:1px solid rgba(154,131,85,.22)
+}
+.agent-card .brandmark img{width:100%;max-width:236px;height:auto}
+
 .agent-card .shot{position:relative;display:block}
 .agent-card .shot img{
   width:100%;aspect-ratio:4/5;object-fit:cover;object-position:50% 18%;
@@ -523,6 +533,17 @@ section{padding:clamp(4.5rem,11vh,8.5rem) 0}
   transition:color .3s,border-color .3s
 }
 .agent-card .lines a:hover{color:var(--bone);border-color:var(--bone)}
+
+/* brokerage mark beneath the form — a credit line, not a banner, so it's
+   sized to sit quietly under the send button */
+.brokerage{
+  display:flex;align-items:center;gap:1.1rem;
+  margin:2.6rem 0 0;padding-top:1.5rem;border-top:1px solid var(--hair)
+}
+.brokerage span{
+  font-size:.6rem;letter-spacing:.24em;text-transform:uppercase;color:var(--stone);flex:none
+}
+.brokerage img{width:74px;height:auto}
 
 form{display:grid;gap:1.35rem}
 .row{display:grid;grid-template-columns:1fr 1fr;gap:1.35rem}
@@ -872,6 +893,12 @@ Single detached garage plus covered carport off the rear lane provides parking f
   <div class="wrap contact-grid rev">
 
     <div class="agent-card">
+        <span class="brandmark">
+          <img src="photos/apg-logo.png"
+               srcset="photos/r/apg-logo-440.png 440w, photos/apg-logo.png 900w"
+               sizes="236px" width="900" height="383"
+               alt="Annika Pineau Group" loading="lazy" decoding="async">
+        </span>
         <span class="shot">
           <img src="photos/agent.jpg"
                srcset="photos/r/agent-480.jpg 480w, photos/agent.jpg 900w"
@@ -927,6 +954,12 @@ Single detached garage plus covered carport off the rear lane provides parking f
         <button class="btn" type="submit">Send Inquiry</button>
         <p class="formnote">Your information is shared only with the listing agent.</p>
       </form>
+
+      <p class="brokerage">
+        <span>Brokered by</span>
+        <img src="photos/real-logo.png" width="640" height="218"
+             alt="REAL Broker" loading="lazy" decoding="async">
+      </p>
     </div>
 
   </div>
