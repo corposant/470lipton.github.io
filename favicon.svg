@@ -5,22 +5,25 @@
        out on its own it read as a bracket. This keeps the idea and the
        palette while staying legible at a tab's worth of pixels.
 
-       Bow lower-right, teeth upper-left, both teeth equal length. The ring
-       is 13 units thick — the same as the shaft. The key is drawn along +y
-       around the origin, so rotate(135) puts its centreline at exactly 45°
-       from horizontal.
+       The bow is a rosette — eight shallow lobes joined by arcs, with a
+       quatrefoil eye. Ornament on the OUTLINE survives shrinking far better
+       than ornament inside the hole, because the silhouette is what a
+       browser's downsampling preserves. It reads as tracery at 48px and up
+       and simply as a key ring below that, which is the right failure mode.
+
+       Bow lower-right, teeth upper-left, both teeth equal length. Ring and
+       shaft are the same 13 units thick. The key is drawn along +y around
+       the origin, so rotate(135) sets its centreline to exactly 45°.
 
        The translate offset is not decorative: rotating a shape centred on
        its own bounding box does NOT leave the rendered ink centred, because
-       the key isn't symmetric. These numbers were solved by rendering and
-       measuring until all four margins matched. The mark now runs nearly
-       edge to edge with 2% clear, and loses nothing to iOS's rounded
+       the key isn't symmetric. These were solved by rendering and measuring
+       until all four margins matched. Nothing is lost to iOS's rounded
        home-screen mask — a 45° diagonal puts the tips near the middle of
        each edge rather than in the corners. -->
   <rect width="100" height="100" fill="#14140f"/>
-  <g fill="#d9b45e" transform="translate(51.925 49.100) rotate(135) scale(1.15917) translate(-0.00 -26.50)">
-    <path fill-rule="evenodd" d="M0 -21a21 21 0 1 1 0 42 a21 21 0 1 1 0 -42
-                                 m0 13a8 8 0 1 0 0 16 a8 8 0 1 0 0 -16z"/>
+  <g fill="#d9b45e" transform="translate(53.525 50.600) rotate(135) scale(1.18538) translate(-0.00 -26.50)">
+    <path fill-rule="evenodd" d="M 0.00 -18.10 A 11.93 11.93 0 0 1 12.80 -12.80 A 11.93 11.93 0 0 1 18.10 0.00 A 11.93 11.93 0 0 1 12.80 12.80 A 11.93 11.93 0 0 1 0.00 18.10 A 11.93 11.93 0 0 1 -12.80 12.80 A 11.93 11.93 0 0 1 -18.10 0.00 A 11.93 11.93 0 0 1 -12.80 -12.80 A 11.93 11.93 0 0 1 0.00 -18.10 Z M -5.0 -5.0 A 5.0 5.0 0 0 1 5.0 -5.0 A 5.0 5.0 0 0 1 5.0 5.0 A 5.0 5.0 0 0 1 -5.0 5.0 A 5.0 5.0 0 0 1 -5.0 -5.0 Z"/>
     <rect x="-6.5" y="18" width="13" height="56"/>
     <rect x="-6.5" y="44" width="24" height="9"/>
     <rect x="-6.5" y="61" width="24" height="9"/>
