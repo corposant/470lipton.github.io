@@ -353,7 +353,7 @@ section{padding:clamp(4.5rem,11vh,8.5rem) 0}
   padding:.7rem 0;border-top:1px solid rgba(246,244,239,.1)
 }
 .floor li:first-child{border-top:0;padding-top:0}
-.floor .rm{font-size:.84rem;color:rgba(246,244,239,.78)}
+.floor .rm{font-size:.84rem;color:rgba(246,244,239,.78);flex:0 0 auto}
 .floor .dim{
   font-family:var(--serif);font-size:1.04rem;color:var(--bone);
   font-variant-numeric:tabular-nums;white-space:nowrap
@@ -372,21 +372,35 @@ section{padding:clamp(4.5rem,11vh,8.5rem) 0}
 @media(max-width:1000px){.floors{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:560px){.floors{grid-template-columns:1fr}}
 
-/* ── everything that isn't a room ── */
-.specs{
-  display:grid;grid-template-columns:repeat(4,1fr);
-  gap:0 2.5rem;margin-top:3.4rem
+/* ── text values wrap; dimensions never do ── */
+/* text values wrap under themselves rather than crushing the label */
+.floor .val{
+  font-family:var(--serif);font-size:.98rem;color:var(--bone);
+  text-align:right;line-height:1.35;flex:1 1 auto;min-width:0
 }
-.specs div{border-top:1px solid rgba(246,244,239,.16);padding:1.15rem 0}
-.specs dt{
-  font-size:.58rem;letter-spacing:.24em;text-transform:uppercase;
-  color:rgba(246,244,239,.45)
+
+/* ── header row: disclaimer left, download right ── */
+.details-bar{
+  display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;
+  gap:1.6rem 2.5rem;margin-top:1.8rem;
+  padding-bottom:2.2rem;border-bottom:1px solid rgba(246,244,239,.15)
 }
-.specs dd{
-  margin:.42rem 0 0;font-family:var(--serif);font-size:1.14rem;color:var(--bone)
+.details-bar .intro{margin:0;flex:1 1 22rem}
+.dl{flex:0 0 auto;display:flex;flex-direction:column;gap:.6rem;align-items:flex-start}
+.dl .btn{display:inline-flex;align-items:center;gap:.85rem}
+.dl svg{width:15px;height:19px;flex:none}
+.dl .meta{
+  font-size:.58rem;letter-spacing:.22em;text-transform:uppercase;
+  color:rgba(246,244,239,.42);padding-left:.2rem
 }
-@media(max-width:860px){.specs{grid-template-columns:repeat(2,1fr)}}
-@media(max-width:440px){.specs{grid-template-columns:1fr}}
+
+/* ── a linked value, e.g. the MLS number ── */
+.floor a.dim,.floor a.val{
+  color:var(--brass);text-decoration:none;
+  border-bottom:1px solid rgba(154,131,85,.4);
+  transition:color .3s,border-color .3s
+}
+.floor a.dim:hover,.floor a.val:hover{color:var(--bone);border-color:var(--bone)}
 
 /* ghost button, light-on-dark */
 .btn-light{background:transparent;color:var(--bone);border-color:rgba(246,244,239,.45)}
@@ -630,9 +644,16 @@ Single detached garage plus covered carport off the rear lane provides parking f
   <div class="wrap rev">
     <p class="eyebrow">Property Details</p>
     <h2>The particulars</h2>
-    <p class="intro">Room dimensions are approximate and should be verified by the buyer. Detailed floor plan is available in the PDF below.</p>
 
-    <div class="floors">
+    <div class="details-bar">
+      <p class="intro">Room dimensions are approximate and should be verified by the buyer. Detailed floor plan is available in the PDF below.</p>
+      <span class="dl">
+        <a class="btn btn-light" href="floorplan.pdf" download><svg viewBox="0 0 20 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" aria-hidden="true"><path d="M12.4 1H3.6A1.6 1.6 0 0 0 2 2.6v18.8A1.6 1.6 0 0 0 3.6 23h12.8a1.6 1.6 0 0 0 1.6-1.6V6.6z"/><path d="M12.4 1v5.6H18"/><path d="M5.6 13.4h8.8M5.6 17h6"/></svg> Download Floor Plans</a>
+        <span class="meta">PDF &middot; 4 pages &middot; 424&nbsp;KB</span>
+      </span>
+    </div>
+
+<div class="floors">
       <div class="floor">
         <h3>Main Floor</h3>
         <ul>
@@ -680,31 +701,45 @@ Single detached garage plus covered carport off the rear lane provides parking f
       </div>
     </div>
 
-    <dl class="specs">
-      <div><dt>Offered At</dt><dd>$349,900</dd></div>
-      <div><dt>Bedrooms</dt><dd>3</dd></div>
-      <div><dt>Bathrooms</dt><dd>2 full</dd></div>
-      <div><dt>Year Built</dt><dd>1912</dd></div>
+    <div class="floors">
+      <div class="floor">
+        <h3>The Offering</h3>
+        <ul>
+          <li><span class="rm">Offered At</span><span class="dim">$349,900</span></li>
+          <li><span class="rm">Annual Taxes</span><span class="val">$3,569.93 (2026)</span></li>
+          <li><span class="rm">Possession</span><span class="val">Immediate</span></li>
+          <li><span class="rm">MLS&reg; No.</span><span class=""><a class="val" href="https://www.realtor.ca/real-estate/30125698/470-lipton-street-winnipeg-west-end" target="_blank" rel="noopener">202619473</a></span></li>
+        </ul>
+      </div>
 
-      <div><dt>Above Grade</dt><dd>1,247 sq ft</dd></div>
-      <div><dt>Finished Basement</dt><dd>378 sq ft</dd></div>
-      <div><dt>Total Finished</dt><dd>1,625 sq ft</dd></div>
-      <div><dt>Storeys</dt><dd>Two</dd></div>
+      <div class="floor">
+        <h3>The Building</h3>
+        <ul>
+          <li><span class="rm">Year Built</span><span class="dim">1912</span></li>
+          <li><span class="rm">Storeys</span><span class="val">Two</span></li>
+          <li><span class="rm">Bedrooms</span><span class="dim">3</span></li>
+          <li><span class="rm">Bathrooms</span><span class="val">2 full</span></li>
+        </ul>
+      </div>
 
-      <div><dt>Heating</dt><dd>Forced air, natural gas</dd></div>
-      <div><dt>Air Conditioning</dt><dd>Integrated</dd></div>
-      <div><dt>Annual Taxes</dt><dd>$3,569.93 (2026)</dd></div>
-      <div><dt>Possession</dt><dd>Immediate</dd></div>
+      <div class="floor">
+        <h3>Floor Area</h3>
+        <ul>
+          <li><span class="rm">Above Grade</span><span class="val">1,247 sq ft</span></li>
+          <li><span class="rm">Finished Basement</span><span class="val">378 sq ft</span></li>
+          <li><span class="rm">Total Finished</span><span class="val">1,625 sq ft</span></li>
+        </ul>
+      </div>
 
-      <div><dt>Parking</dt><dd>Detached garage &amp; carport</dd></div>
-      <div><dt>MLS&reg; No.</dt><dd>202619473</dd></div>
-      <div><dt>Address</dt><dd>470 Lipton Street</dd></div>
-      <div><dt>City</dt><dd>Winnipeg, MB</dd></div>
-    </dl>
-
-    <p style="margin-top:3.4rem">
-      <a class="btn btn-light" href="floorplan.pdf" download>Download Floor Plans (PDF)</a>
-    </p>
+      <div class="floor">
+        <h3>Systems</h3>
+        <ul>
+          <li><span class="rm">Heating</span><span class="val">Forced air, natural gas</span></li>
+          <li><span class="rm">Air Conditioning</span><span class="val">Integrated</span></li>
+          <li><span class="rm">Parking</span><span class="val">Detached garage &amp; carport</span></li>
+        </ul>
+      </div>
+    </div>
   </div>
 </section>
 
