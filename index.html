@@ -418,8 +418,14 @@ section{padding:clamp(4.5rem,11vh,8.5rem) 0}
 
 /* Download button, light-on-dark. A 1px hairline disappears against this
    background, so the shape is carried by a brass edge, a faint brass fill
-   and an outer ring — it should read as a pressable object, not as text. */
-.btn-light{
+   and an outer ring — it should read as a pressable object, not as text.
+
+   Written as `.btn.btn-light` on purpose. The base `.btn:hover` rule is
+   defined further down this stylesheet, and at equal specificity the later
+   rule wins — which repainted the label in --ink over a transparent
+   background and made the text vanish on hover. Doubling the class lifts
+   this above the base rule regardless of source order. */
+.btn.btn-light{
   background:rgba(154,131,85,.14);
   color:var(--bone);
   border:1px solid var(--brass);
@@ -428,15 +434,15 @@ section{padding:clamp(4.5rem,11vh,8.5rem) 0}
              0 6px 20px rgba(0,0,0,.45);
   transition:background .35s,color .35s,border-color .35s,box-shadow .35s
 }
-.btn-light:hover,.btn-light:focus-visible{
+.btn.btn-light:hover,.btn.btn-light:focus-visible{
   background:var(--brass);color:var(--ink);border-color:var(--brass);
   box-shadow:0 0 0 3px rgba(154,131,85,.26),
              0 0 34px rgba(154,131,85,.34),
              0 8px 26px rgba(0,0,0,.5)
 }
-.btn-light svg{stroke:var(--brass);transition:stroke .35s}
-.btn-light:hover svg,.btn-light:focus-visible svg{stroke:var(--ink)}
-@media(prefers-reduced-motion:reduce){.btn-light{transition:none}}
+.btn.btn-light svg{stroke:var(--brass);transition:stroke .35s}
+.btn.btn-light:hover svg,.btn.btn-light:focus-visible svg{stroke:var(--ink)}
+@media(prefers-reduced-motion:reduce){.btn.btn-light{transition:none}}
 
 /* ─────────────── MAP ─────────────── */
 .map{border:1px solid var(--hair);background:#e9e6df}
