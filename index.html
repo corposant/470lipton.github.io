@@ -185,6 +185,9 @@ header.hero{
 
 /* ─────────────── SECTIONS ─────────────── */
 section{padding:clamp(4.5rem,11vh,8.5rem) 0}
+/* the dark block ends hard; give what follows room to breathe rather than
+   letting Location start the instant the charcoal stops */
+#location{padding-top:clamp(6.5rem,15vh,11rem)}
 .two-col{display:grid;grid-template-columns:1fr 1.35fr;gap:clamp(2.5rem,7vw,6rem);align-items:start}
 @media(max-width:900px){.two-col{grid-template-columns:1fr;gap:2rem}}
 .lede{font-family:var(--serif);font-size:clamp(1.3rem,2.1vw,1.65rem);line-height:1.55;margin:0 0 1.6rem}
@@ -320,19 +323,26 @@ section{padding:clamp(4.5rem,11vh,8.5rem) 0}
    charcoal than as grey-on-cream, and the inversion gives the middle of
    the page somewhere to rest. It sits directly below the video section,
    which is also dark — the hairline and the slightly deeper black are
-   what keep the two from reading as one undifferentiated block. */
+   what keep the two from reading as one undifferentiated block.
+
+   Everything in here is set in the SANS, not the serif used elsewhere.
+   Cormorant Garamond draws old-style figures — the 3, 4, 7 and 9 hang
+   below the baseline — which is lovely in a pull quote and unreadable in
+   a column of measurements. Jost keeps every digit on the baseline at a
+   uniform width, so the inch marks stack straight down the column. */
 .details{
   background:var(--ink);color:var(--bone);
-  border-top:1px solid rgba(246,244,239,.13)
+  border-top:1px solid rgba(246,244,239,.13);
+  padding-bottom:clamp(6rem,14vh,10rem)
 }
 .details .eyebrow{color:var(--brass)}
 .details h2{color:var(--bone)}
 .details .intro{
-  margin:1.4rem 0 0;max-width:52ch;font-size:.92rem;
-  color:rgba(246,244,239,.5)
+  margin:1.4rem 0 0;max-width:52ch;font-size:1rem;line-height:1.65;
+  color:rgba(246,244,239,.56)
 }
 
-/* ── one card per floor ──
+/* ── one card per group ──
    gap:1px over a light background paints the dividers, so the cards
    share hairlines instead of each drawing its own doubled-up border. */
 .floors{
@@ -341,70 +351,92 @@ section{padding:clamp(4.5rem,11vh,8.5rem) 0}
   border:1px solid rgba(246,244,239,.15);
   margin-top:3.5rem
 }
-.floor{background:var(--ink);padding:2.1rem 1.7rem;display:flex;flex-direction:column}
+.floors+.floors{margin-top:1.6rem}
+.floor{background:var(--ink);padding:2.3rem 1.9rem;display:flex;flex-direction:column}
 .floor h3{
-  font-family:var(--sans);font-size:.6rem;font-weight:400;
-  letter-spacing:.28em;text-transform:uppercase;color:var(--brass);
-  margin:0 0 1.5rem
+  font-family:var(--sans);font-size:.68rem;font-weight:400;
+  letter-spacing:.26em;text-transform:uppercase;color:var(--brass);
+  margin:0 0 1.7rem
 }
 .floor ul{list-style:none;margin:0;padding:0;flex:1}
 .floor li{
-  display:flex;justify-content:space-between;align-items:baseline;gap:.9rem;
-  padding:.7rem 0;border-top:1px solid rgba(246,244,239,.1)
+  display:flex;justify-content:space-between;align-items:baseline;gap:1rem;
+  padding:.82rem 0;border-top:1px solid rgba(246,244,239,.1)
 }
 .floor li:first-child{border-top:0;padding-top:0}
-.floor .rm{font-size:.84rem;color:rgba(246,244,239,.78);flex:0 0 auto}
+.floor .rm{font-size:.95rem;color:rgba(246,244,239,.72);flex:0 0 auto}
+
+/* measurements — sans, tabular, never wrapping */
 .floor .dim{
-  font-family:var(--serif);font-size:1.04rem;color:var(--bone);
-  font-variant-numeric:tabular-nums;white-space:nowrap
+  font-family:var(--sans);font-weight:400;font-size:1.12rem;color:var(--bone);
+  font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1,"lnum" 1;
+  letter-spacing:.01em;white-space:nowrap
+}
+/* text values — same face, allowed to wrap under themselves */
+.floor .val{
+  font-family:var(--sans);font-weight:400;font-size:1.05rem;color:var(--bone);
+  font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1,"lnum" 1;
+  text-align:right;line-height:1.4;flex:1 1 auto;min-width:0
 }
 .floor .area{
-  margin-top:1.5rem;padding-top:.9rem;
+  margin-top:1.6rem;padding-top:1rem;
   border-top:1px solid rgba(246,244,239,.24);
-  display:flex;justify-content:space-between;align-items:baseline;
-  font-size:.58rem;letter-spacing:.22em;text-transform:uppercase;
-  color:rgba(246,244,239,.42)
+  display:flex;justify-content:space-between;align-items:baseline;gap:1rem;
+  font-size:.64rem;letter-spacing:.2em;text-transform:uppercase;
+  color:rgba(246,244,239,.45)
 }
 .floor .area b{
-  font-family:var(--serif);font-weight:400;font-size:1rem;letter-spacing:.02em;
-  text-transform:none;color:var(--brass)
+  font-family:var(--sans);font-weight:400;font-size:1.05rem;letter-spacing:.01em;
+  font-variant-numeric:tabular-nums;text-transform:none;color:var(--brass);
+  white-space:nowrap
 }
 @media(max-width:1000px){.floors{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:560px){.floors{grid-template-columns:1fr}}
-
-/* ── text values wrap; dimensions never do ── */
-/* text values wrap under themselves rather than crushing the label */
-.floor .val{
-  font-family:var(--serif);font-size:.98rem;color:var(--bone);
-  text-align:right;line-height:1.35;flex:1 1 auto;min-width:0
-}
 
 /* ── header row: disclaimer left, download right ── */
 .details-bar{
   display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;
   gap:1.6rem 2.5rem;margin-top:1.8rem;
-  padding-bottom:2.2rem;border-bottom:1px solid rgba(246,244,239,.15)
+  padding-bottom:2.4rem;border-bottom:1px solid rgba(246,244,239,.15)
 }
 .details-bar .intro{margin:0;flex:1 1 22rem}
-.dl{flex:0 0 auto;display:flex;flex-direction:column;gap:.6rem;align-items:flex-start}
-.dl .btn{display:inline-flex;align-items:center;gap:.85rem}
-.dl svg{width:15px;height:19px;flex:none}
+.dl{flex:0 0 auto;display:flex;flex-direction:column;gap:.7rem;align-items:flex-start}
+.dl .btn{display:inline-flex;align-items:center;gap:.9rem}
+.dl svg{width:16px;height:20px;flex:none}
 .dl .meta{
-  font-size:.58rem;letter-spacing:.22em;text-transform:uppercase;
-  color:rgba(246,244,239,.42);padding-left:.2rem
+  font-size:.62rem;letter-spacing:.2em;text-transform:uppercase;
+  color:rgba(246,244,239,.45);padding-left:.2rem
 }
 
 /* ── a linked value, e.g. the MLS number ── */
 .floor a.dim,.floor a.val{
   color:var(--brass);text-decoration:none;
-  border-bottom:1px solid rgba(154,131,85,.4);
+  border-bottom:1px solid rgba(154,131,85,.45);
   transition:color .3s,border-color .3s
 }
 .floor a.dim:hover,.floor a.val:hover{color:var(--bone);border-color:var(--bone)}
 
-/* ghost button, light-on-dark */
-.btn-light{background:transparent;color:var(--bone);border-color:rgba(246,244,239,.45)}
-.btn-light:hover{background:var(--bone);color:var(--ink);border-color:var(--bone)}
+/* Download button, light-on-dark. A 1px hairline disappears against this
+   background, so the shape is carried by a brass edge, a faint brass fill
+   and an outer ring — it should read as a pressable object, not as text. */
+.btn-light{
+  background:rgba(154,131,85,.14);
+  color:var(--bone);
+  border:1px solid var(--brass);
+  box-shadow:0 0 0 1px rgba(154,131,85,.18),
+             0 0 22px rgba(154,131,85,.16),
+             0 6px 20px rgba(0,0,0,.45);
+  transition:background .35s,color .35s,border-color .35s,box-shadow .35s
+}
+.btn-light:hover,.btn-light:focus-visible{
+  background:var(--brass);color:var(--ink);border-color:var(--brass);
+  box-shadow:0 0 0 3px rgba(154,131,85,.26),
+             0 0 34px rgba(154,131,85,.34),
+             0 8px 26px rgba(0,0,0,.5)
+}
+.btn-light svg{stroke:var(--brass);transition:stroke .35s}
+.btn-light:hover svg,.btn-light:focus-visible svg{stroke:var(--ink)}
+@media(prefers-reduced-motion:reduce){.btn-light{transition:none}}
 
 /* ─────────────── MAP ─────────────── */
 .map{border:1px solid var(--hair);background:#e9e6df}
