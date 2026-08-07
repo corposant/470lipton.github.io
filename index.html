@@ -188,13 +188,30 @@ header.hero{
   font-size:.82rem;letter-spacing:.16em;text-transform:uppercase;color:rgba(255,255,255,.9)
 }
 .hero-meta .price{font-family:var(--serif);font-size:1.6rem;letter-spacing:.04em;text-transform:none}
+/* Scroll cue: a chevron that drifts down and fades, telling the visitor the
+   page continues past the fold. Pure CSS — two 1px rules rotated into a V,
+   so there's no icon file and it inherits the hero's white. */
 .scrollcue{
-  position:absolute;left:50%;bottom:1.6rem;transform:translateX(-50%);z-index:3;
-  width:1px;height:44px;background:rgba(255,255,255,.55);
+  position:absolute;left:50%;bottom:2.1rem;z-index:3;
+  width:26px;height:26px;margin-left:-13px;
+  animation:cue 2.6s cubic-bezier(.4,0,.5,1) infinite
 }
-.scrollcue::after{content:"";position:absolute;inset:0;background:#fff;animation:cue 2.4s ease-in-out infinite}
-@keyframes cue{0%{transform:scaleY(0);transform-origin:top}45%{transform:scaleY(1);transform-origin:top}
-  55%{transform:scaleY(1);transform-origin:bottom}100%{transform:scaleY(0);transform-origin:bottom}}
+.scrollcue::before,.scrollcue::after{
+  content:"";position:absolute;top:50%;width:16px;height:1px;
+  background:rgba(255,255,255,.9)
+}
+.scrollcue::before{left:0;transform:rotate(45deg);transform-origin:left center}
+.scrollcue::after{right:0;transform:rotate(-45deg);transform-origin:right center}
+@keyframes cue{
+  0%   {transform:translateY(-6px);opacity:0}
+  35%  {opacity:1}
+  70%  {transform:translateY(6px);opacity:0}
+  100% {transform:translateY(6px);opacity:0}
+}
+/* a chevron that never stops moving is a nag; hold still if asked */
+@media(prefers-reduced-motion:reduce){
+  .scrollcue{animation:none;opacity:.85}
+}
 
 /* ─────────────── STAT BAR ─────────────── */
 .stats{border-bottom:1px solid var(--hair)}
