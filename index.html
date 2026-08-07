@@ -473,13 +473,56 @@ section{padding:clamp(4.5rem,11vh,8.5rem) 0}
 .contact-grid{display:grid;grid-template-columns:1fr 1.15fr;gap:clamp(2.5rem,6vw,5rem);align-items:start}
 @media(max-width:900px){.contact-grid{grid-template-columns:1fr}}
 
-.agent img{width:150px;height:190px;object-fit:cover;margin-bottom:1.6rem;filter:grayscale(.15)}
-.agent .name{font-family:var(--serif);font-size:1.7rem;margin:0}
-.agent .title{font-size:.68rem;letter-spacing:.22em;text-transform:uppercase;color:var(--stone);margin:.5rem 0 1.4rem}
-.agent .bio{font-size:.92rem;color:#3a3a33;max-width:44ch}
-.agent .lines{margin-top:1.6rem;font-size:.9rem;line-height:2}
-.agent .lines a{text-decoration:none;border-bottom:1px solid var(--hair);transition:border-color .3s}
-.agent .lines a:hover{border-color:var(--brass)}
+/* ── Agent card: black and gold ──────────────────────────────────
+   Annika's own brand colours, and the one place on the page where the
+   accent is allowed to be the loudest thing. It sits on the pale contact
+   background, so the dark card reads as an object handed to you rather
+   than another band of layout. */
+.agent-card{
+  position:relative;background:var(--ink);color:var(--bone);
+  border:1px solid rgba(154,131,85,.45);
+  box-shadow:0 22px 55px rgba(20,20,15,.20);
+  overflow:hidden
+}
+/* a struck gold edge along the top, brightest in the middle */
+.agent-card::before{
+  content:"";position:absolute;left:0;right:0;top:0;height:2px;z-index:3;
+  background:linear-gradient(90deg,
+    transparent 0%, var(--brass) 18%, #d3b87e 50%, var(--brass) 82%, transparent 100%)
+}
+.agent-card .shot{position:relative;display:block}
+.agent-card .shot img{
+  width:100%;aspect-ratio:4/5;object-fit:cover;object-position:50% 18%;
+  filter:saturate(.92) contrast(1.02)
+}
+/* melt the photograph into the card rather than butting it against a rule */
+.agent-card .shot::after{
+  content:"";position:absolute;inset:auto 0 -1px 0;height:38%;
+  background:linear-gradient(180deg,rgba(20,20,15,0),rgba(20,20,15,.86) 72%,var(--ink) 100%)
+}
+.agent-card .body{position:relative;padding:0 1.9rem 2.1rem;margin-top:-2.6rem;z-index:2}
+.agent-card .eyebrow{color:var(--brass);margin:0 0 .7rem;font-size:.6rem;letter-spacing:.3em}
+.agent-card .name{
+  font-family:var(--serif);font-size:2.05rem;line-height:1.1;margin:0;color:var(--bone)
+}
+.agent-card .title{
+  margin:.55rem 0 0;font-size:.62rem;letter-spacing:.22em;text-transform:uppercase;
+  color:var(--brass)
+}
+.agent-card .bio{
+  margin:1.5rem 0 0;padding-top:1.4rem;border-top:1px solid rgba(154,131,85,.3);
+  font-size:.9rem;line-height:1.7;color:rgba(246,244,239,.66)
+}
+.agent-card .lines{
+  margin-top:1.5rem;padding-top:1.3rem;border-top:1px solid rgba(154,131,85,.3);
+  display:grid;gap:.55rem;font-size:.92rem
+}
+.agent-card .lines a{
+  color:var(--brass);text-decoration:none;
+  border-bottom:1px solid rgba(154,131,85,.35);
+  transition:color .3s,border-color .3s
+}
+.agent-card .lines a:hover{color:var(--bone);border-color:var(--bone)}
 
 form{display:grid;gap:1.35rem}
 .row{display:grid;grid-template-columns:1fr 1fr;gap:1.35rem}
@@ -828,18 +871,25 @@ Single detached garage plus covered carport off the rear lane provides parking f
 <section id="inquire" class="contact">
   <div class="wrap contact-grid rev">
 
-    <div class="agent">
-      <p class="eyebrow">Represented By</p>
-      <img src="photos/agent.jpg" alt="Annika Pineau, listing agent">
-      <p class="name">Annika Pineau</p>
-      <p class="title">REALTOR® · REAL Broker</p>
-      <p class="bio">Annika loves helping people find not just a house, but a place full of possibility... Whether it is a hidden gem that needs a little vision or a space ready for your personal touch, she can help you see the potential and turn a property into your perfect home.</p>
-      <div class="lines">
-        <div><a href="tel:+12044704547">(204) 470‑4547</a></div>
-        <div><a href="mailto:hello@annikapineau.com">hello@annikapineau.com</a></div>
-        <div><a href="https://annikapineau.com" target="_blank" rel="noopener">annikapineau.com</a></div>
+    <div class="agent-card">
+        <span class="shot">
+          <img src="photos/agent.jpg"
+               srcset="photos/r/agent-480.jpg 480w, photos/agent.jpg 900w"
+               sizes="(max-width:900px) 92vw, 420px"
+               alt="Annika Pineau" loading="lazy" decoding="async">
+        </span>
+        <div class="body">
+          <p class="eyebrow">Represented By</p>
+          <p class="name">Annika Pineau</p>
+          <p class="title">REALTOR&reg; &middot; REAL Broker</p>
+          <p class="bio">Annika loves helping people find not just a house, but a place full of possibility... Whether it is a hidden gem that needs a little vision or a space ready for your personal touch, she can help you see the potential and turn a property into your perfect home.</p>
+          <div class="lines">
+            <div><a href="tel:+12044704547">(204) 470&#8209;4547</a></div>
+            <div><a href="mailto:hello@annikapineau.com">hello@annikapineau.com</a></div>
+            <div><a href="https://annikapineau.com" target="_blank" rel="noopener">annikapineau.com</a></div>
+          </div>
+        </div>
       </div>
-    </div>
 
     <div>
       <p class="eyebrow">Book a Showing</p>
