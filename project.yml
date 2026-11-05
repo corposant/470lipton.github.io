@@ -1,0 +1,93 @@
+name: Nog
+options:
+  bundleIdPrefix: io.nogapp
+  deploymentTarget:
+    iOS: "27.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    # Needs Xcode 27 (iOS 27 SDK).
+    # Put your Apple Team ID here (developer.apple.com/account → Membership)
+    # so you don't have to re-pick it in Xcode every time you run xcodegen.
+    DEVELOPMENT_TEAM: ""
+    CODE_SIGN_STYLE: Automatic
+
+targets:
+  Nog:
+    type: application
+    platform: iOS
+    sources: [Nog, Shared]
+    dependencies:
+      - target: NogWidgets
+    info:
+      path: Nog/Info.plist
+      properties:
+        CFBundleDisplayName: Nog
+        UILaunchScreen: {}
+        UIApplicationSupportsIndirectInputEvents: true
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        # Makes the Items folder visible in the Files app (On My iPhone → Nog)
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true
+        UIBackgroundModes: [fetch]
+        BGTaskSchedulerPermittedIdentifiers: [io.nogapp.nog.refresh]
+        NSSupportsLiveActivities: true
+        NSAlarmKitUsageDescription: Nog rings like an alarm for the items you mark as can't-miss.
+        # Shows the app's iCloud folder as "Nog" in iCloud Drive (Files app, Finder)
+        NSUbiquitousContainers:
+          iCloud.io.nogapp.nog:
+            NSUbiquitousContainerIsDocumentScopePublic: true
+            NSUbiquitousContainerName: Nog
+            NSUbiquitousContainerSupportedFolderLevels: Any
+    # iCloud Drive sync. Needs the paid Apple Developer Program — on a free
+    # account, delete this block and re-run xcodegen (items stay on the phone).
+    entitlements:
+      path: Nog/Nog.entitlements
+      properties:
+        com.apple.developer.icloud-container-identifiers: [iCloud.io.nogapp.nog]
+        com.apple.developer.ubiquity-container-identifiers: [iCloud.io.nogapp.nog]
+        com.apple.developer.icloud-services: [CloudDocuments]
+    settings:
+      base:
+        # Bundle IDs are globally unique. If Xcode says this one is taken,
+        # change it to something like com.<yourname>.nog
+        PRODUCT_BUNDLE_IDENTIFIER: io.nogapp.nog
+        TARGETED_DEVICE_FAMILY: "1"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        # Settings → Appearance → App icon
+        ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: AppIcon-Spectrum
+        ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS: YES
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+    scheme:
+      testTargets: [NogTests]
+
+  # Live Activity for ▶︎ Doing (Lock Screen, Dynamic Island, Watch, CarPlay)
+  NogWidgets:
+    type: app-extension
+    platform: iOS
+    sources: [NogWidgets, Shared]
+    info:
+      path: NogWidgets/Info.plist
+      properties:
+        CFBundleDisplayName: Nog
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.nogapp.nog.widgets
+        TARGETED_DEVICE_FAMILY: "1"
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) WIDGET_EXTENSION"
+
+  NogTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [NogTests]
+    dependencies:
+      - target: Nog
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES

@@ -1,0 +1,77 @@
+import AppIntents
+
+/// "Hey Siri, Nog me" (or "Capture in Nog") → Siri asks what → item saved with the default nog.
+/// Also usable from Shortcuts and the Action Button without opening the app.
+struct CaptureIntent: AppIntent {
+    static var title: LocalizedStringResource = "Capture"
+    static var description = IntentDescription("Capture something and start nogging about it.")
+    static var openAppWhenRun = false
+
+    @Parameter(title: "What", requestValueDialog: IntentDialog("What do you want to capture?"))
+    var text: String
+
+    @MainActor
+    func perform() async throws -> some IntentResult & ProvidesDialog {
+        guard let item = ItemStore.shared.capture(text) else {
+            return .result(dialog: "There was nothing to capture.")
+        }
+        await ItemStore.shared.syncNow()
+        await ItemStore.shared.flush()
+        return .result(dialog: "Got it: \(item.title)")
+    }
+}
+
+/// Opens the app straight into the capture field (good for the Action Button).
+struct OpenCaptureIntent: AppIntent {
+    static var title: LocalizedStringResource = "Quick Capture"
+    static var description = IntentDescription("Open Nog ready to type.")
+    static var openAppWhenRun = true
+
+    @MainActor
+    func perform() async throws -> some IntentResult {
+        Router.shared.focusCapture()
+        return .result()
+    }
+}
+
+/// "Start <item> in Nog" → ▶︎ with the suggested timebox.
+struct StartItemIntent: AppIntent {
+    static var title: LocalizedStringResource = "Start Working On"
+    static var description = IntentDescription("Start doing a Nog item, with a timer on your Lock Screen.")
+    static var openAppWhenRun = true
+
+    @Parameter(title: "Item")
+    var item: ReminderEntity
+
+    @Parameter(title: "Minutes", description: "Leave empty to use Nog's suggestion.")
+    var minutes: Int?
+
+    @MainActor
+    func perform() async throws -> some IntentResult & ProvidesDialog {
+        let store = ItemStore.shared
+        guard let existing = store.items[item.id] else { throw NogIntentError.notFound }
+        let timebox = minutes ?? store.suggestedTimebox(for: existing.id).minutes
+        store.start(existing.id, timebox: timebox)
+        Router.shared.open(existing.id)
+        await store.flush()
+        let length = timebox.map { "for \(IntervalFormat.short($0))" } ?? "with no time limit"
+        return .result(dialog: IntentDialog(full: "Started \(existing.title) \(length). Go!", supporting: "Started"))
+    }
+}
+
+struct NogShortcuts: AppShortcutsProvider {
+    static var appShortcuts: [AppShortcut] {
+        AppShortcut(intent: CaptureIntent(),
+                    phrases: ["Capture in \(.applicationName)", "\(.applicationName) me", "\(.applicationName) this"],
+                    shortTitle: "Capture",
+                    systemImageName: "plus.circle")
+        AppShortcut(intent: StartItemIntent(),
+                    phrases: ["Start \(\.$item) in \(.applicationName)", "\(.applicationName) start \(\.$item)"],
+                    shortTitle: "Start",
+                    systemImageName: "play.circle")
+        AppShortcut(intent: OpenCaptureIntent(),
+                    phrases: ["Open \(.applicationName) capture"],
+                    shortTitle: "Quick Capture",
+                    systemImageName: "square.and.pencil")
+    }
+}
