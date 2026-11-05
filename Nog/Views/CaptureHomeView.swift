@@ -111,15 +111,18 @@ struct CaptureHomeView: View {
     // MARK: Lists
 
     @ViewBuilder
+    /// The three latest captures (shown once, under Just caught).
+    private var recentItems: [Item] {
+        Array(store.items.values.sorted { $0.created > $1.created }.prefix(3))
+    }
+
     private var justCaught: some View {
-        let recent = store.items.values
-            .sorted { $0.created > $1.created }
-            .prefix(3)
+        let recent = recentItems
         if !recent.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
                 SectionLabel(title: "Just caught")
                 VStack(spacing: 0) {
-                    ForEach(Array(recent)) { item in
+                    ForEach(recent) { item in
                         CompactRow(item: item, trailing: item.created.formatted(.relative(presentation: .named)))
                         if item.id != recent.last?.id { Divider().overlay(Theme.edge) }
                     }
@@ -136,9 +139,11 @@ struct CaptureHomeView: View {
     @ViewBuilder
     private var nextNogs: some View {
         let now = Date.now
+        // Skip what's already listed under Just caught, so nothing shows twice.
+        let shown = Set(recentItems.map(\.id))
         let upcoming = store.items.values
             .compactMap { item -> (Item, Date)? in
-                guard item.isOpen, let r = item.reminder else { return nil }
+                guard item.isOpen, !shown.contains(item.id), let r = item.reminder else { return nil }
                 return (item, r.isActive(at: now) ? now : r.start)
             }
             .sorted { $0.1 < $1.1 }
