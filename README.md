@@ -39,7 +39,7 @@ As you type, a line above the capture field shows how Nog understood it. A day w
 - **Siri speaks Nog natively.** Nog adopts iOS 27's new Reminders App Schemas (`createReminder`, `updateReminder`, `deleteReminders`, `createList`). Try *"Remind me in Nog to call mom tomorrow at 3"*, *"Add milk to my Groceries list in Nog"*, *"Mark this as done"* and *"Set the due date for this to Friday"*. Any item with sub-items works as a list.
 - **"Siri, mark that done."** Nog notifications, list rows and item screens are tagged with their item (iOS 27 entity annotations), so Siri knows what "this" or "that" means.
 - **Spotlight's semantic index.** Items are indexed so Siri and Spotlight can find them by meaning, not just exact words.
-- **Ring like an alarm.** Flip it on per item, or type `!alarm`, and that item's nogs become real AlarmKit alarms. They break through Silent mode and Focus, take over the Lock Screen and your Watch, and have Done / Snooze buttons. Regular nogs take over again after the scheduled alarms run out.
+- **Ring like an alarm.** Flip it on per item, or type `!alarm`, and that item's nogs become real AlarmKit alarms. They break through Silent mode and Focus, take over the Lock Screen and your Watch, with **Stop** (silence this ring; nogs continue) and **Done** (finish the item). Regular nogs take over again after the scheduled alarms run out.
 - **Break it down.** On-device Apple Intelligence (Foundation Models) suggests 3–7 concrete first steps for any item, and you pick which ones become sub-items. It runs only on Apple Intelligence devices, and nothing leaves the phone.
 
 ## Three tabs
