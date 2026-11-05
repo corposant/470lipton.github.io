@@ -137,7 +137,7 @@ struct SettingsView: View {
                 NogsAlertsPage()
             } label: {
                 row("Nogs & alerts", "bell.badge", Theme.pink,
-                    detail: repeatMinutes > 0 ? "every \(IntervalFormat.short(repeatMinutes))" : "once")
+                    detail: NogSettings.defaultProfile?.label.lowercased() ?? "custom")
             }
             NavigationLink {
                 DoingPage()
