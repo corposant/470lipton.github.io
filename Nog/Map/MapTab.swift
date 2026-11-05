@@ -250,6 +250,19 @@ struct MindMapView: View {
                 Label("Start", systemImage: "play")
             }
         }
+        if item.status == .done {
+            Button {
+                store.reopen(item.id)
+            } label: {
+                Label("Reopen", systemImage: "arrow.uturn.backward")
+            }
+        } else {
+            Button {
+                store.markDone(item.id)
+            } label: {
+                Label("Mark done", systemImage: "checkmark.circle")
+            }
+        }
     }
 
     private func panAndZoom(viewSize: CGSize) -> some Gesture {

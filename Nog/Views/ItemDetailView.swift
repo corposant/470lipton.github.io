@@ -99,6 +99,27 @@ private struct ItemEditor: View {
         }
         .nogListStyle()
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                if item.status == .done {
+                    Button {
+                        store.reopen(item.id)
+                    } label: {
+                        Label("Reopen", systemImage: "arrow.uturn.backward.circle")
+                            .labelStyle(.titleAndIcon)
+                    }
+                    .tint(Theme.violet)
+                } else {
+                    Button {
+                        store.markDone(item.id)
+                    } label: {
+                        Label("Done", systemImage: "checkmark.circle")
+                            .labelStyle(.titleAndIcon)
+                    }
+                    .tint(Theme.blue)
+                }
+            }
+        }
         .confirmationDialog("Delete this item?", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("Delete", role: .destructive) {
                 store.delete(item.id)
