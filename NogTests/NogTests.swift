@@ -477,3 +477,46 @@ final class PolicyTests: XCTestCase {
         XCTAssertEqual(soonPlan.compactMap(\.fireDate).sorted(), [date(5, 21, 20), date(5, 21, 30)])
     }
 }
+
+final class ProfileTests: XCTestCase {
+    let now = Date(timeIntervalSince1970: 1_800_000_000)
+
+    func testRelentlessToken() throws {
+        let defaults = CaptureDefaults(firstDelayMinutes: 15, repeatMinutes: 8)
+        let r = try XCTUnwrap(CaptureParser.parse("file taxes !relentless", defaults: defaults, now: now).reminder)
+        XCTAssertEqual(r.start, now.addingTimeInterval(120))
+        XCTAssertEqual(r.repeatMinutes, 7)
+        XCTAssertEqual(r.escalateAfter, 3)
+        XCTAssertEqual(NogProfile.matching(r), .relentless)
+    }
+
+    func testRelentlessRingsAfterThreeIgnoredNogsEvenWhenGlobalEscalationIsOff() {
+        let reminder = NogProfile.relentless.apply(to: Reminder(start: now.addingTimeInterval(-60)))
+        let item = Item(title: "taxes", reminder: reminder)
+        let alarms = AlarmScheduler.alarmDates(for: item, policy: .standard, now: now, limit: 1)
+        XCTAssertEqual(alarms, [now.addingTimeInterval(-60 + 3 * 7 * 60)])
+    }
+
+    func testWhisperNeverEscalatesEvenWhenGlobalEscalationIsOn() {
+        var policy = NogPolicy.standard
+        policy.escalateAfter = 2
+        let reminder = NogProfile.whisper.apply(to: Reminder(start: now.addingTimeInterval(-60)))
+        let item = Item(title: "someday-ish", reminder: reminder)
+        XCTAssertTrue(AlarmScheduler.alarmDates(for: item, policy: policy, now: now).isEmpty)
+    }
+
+    func testApplyingAProfileKeepsTheStartAndMatchesBack() {
+        let original = Reminder(start: now, repeatMinutes: 30, curve: .steady, alarm: true)
+        XCTAssertNil(NogProfile.matching(original))
+        let easing = NogProfile.easing.apply(to: original)
+        XCTAssertEqual(easing.start, now)
+        XCTAssertEqual(NogProfile.matching(easing), .easing)
+    }
+
+    func testProfileSurvivesTheFile() throws {
+        var item = Item(title: "x", reminder: NogProfile.relentless.reminder(from: now))
+        item.created = now
+        item.updated = now
+        XCTAssertEqual(ItemFile.decode(ItemFile.encode(item)), item)
+    }
+}

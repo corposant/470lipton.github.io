@@ -72,6 +72,19 @@ Every nog has a play button. Tap it and the nog becomes **Doing**, the thing you
 - **Finishing keeps the item.** Done items stay with their notes, sub-items and the time you spent ("took 40 min"). That history makes future timeboxes smarter. **Stop** puts it back to Open and keeps the time.
 - **Siri:** *"Start write report in Nog."*
 
+## Nog profiles
+
+A nagging style in one tap. Pick your default in Control Panel → Nogs & alerts, switch any item on its page, or type the token when capturing.
+
+| Profile | Token | First nog | Then | Rings as an alarm |
+|---|---|---|---|---|
+| **Whisper** | `!whisper` | after 1 hr | hourly, easing off to daily | never |
+| **Steady** | (default) | after 15 min | every 8 min | per global setting |
+| **Easing** | `!easing` | after 8 min | 8 → 16 → 32 min… up to daily | per global setting |
+| **Relentless** | `!relentless` | after 2 min | every 7 min, no let-up | after 3 ignored nogs |
+
+Fine-tune anything and the item becomes **Custom**.
+
 ## Steady or logarithmic
 
 Each reminder has a style:
@@ -92,6 +105,7 @@ Type these anywhere in a capture line (all optional):
 | `!log` | logarithmic: the gap doubles after each nog |
 | `!steady` | same gap every time |
 | `!alarm` | ring like a real alarm |
+| `!whisper` `!easing` `!relentless` | use a nog profile |
 | `~30m` `~2h` | how long it'll take (the ▶︎ timebox) |
 | `!off` or `!idea` | no reminder |
 | `@30m` `@2h` `@1d` `@now` | when to start nogging |

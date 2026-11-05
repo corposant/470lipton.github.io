@@ -101,6 +101,8 @@ struct Reminder: Hashable {
     var curve: RepeatCurve = .steady
     /// Ring as a real alarm (AlarmKit) that breaks through Silent and Focus.
     var alarm: Bool = false
+    /// Ring as an alarm after this many ignored nogs. nil = the global setting, 0 = never.
+    var escalateAfter: Int? = nil
 
     /// Logarithmic gaps stop growing here.
     static let logarithmicCapMinutes = 1440

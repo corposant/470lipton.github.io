@@ -4,6 +4,7 @@ struct CaptureDefaults: Equatable {
     var firstDelayMinutes: Int
     var repeatMinutes: Int?
     var curve: RepeatCurve = .steady
+    var escalateAfter: Int? = nil
 }
 
 struct CaptureResult: Equatable {
@@ -21,6 +22,7 @@ struct CaptureResult: Equatable {
 ///   `!log`              logarithmic: gaps double each time (8, 16, 32…), capped at daily
 ///   `!steady`           same gap every time
 ///   `!alarm`            ring like a real alarm (through Silent and Focus)
+///   `!whisper` `!easing` `!relentless`   use a nog profile
 ///   `!off` / `!idea`    no reminder at all
 ///   `@30m` `@2h` `@1d`  start nogging in 30 minutes / 2 hours / 1 day
 ///   `@now`              start now
@@ -38,6 +40,7 @@ enum CaptureParser {
         var once = false
         var curveOverride: RepeatCurve?
         var alarm = false
+        var profile: NogProfile?
         var estimate: Int?
         var repeatOverride: Int?
         var delayOverride: Int?
@@ -60,6 +63,9 @@ enum CaptureParser {
                 continue
             case "!alarm", "!ring":
                 alarm = true
+                continue
+            case _ where NogProfile.token(lower) != nil:
+                profile = NogProfile.token(lower)
                 continue
             case "@now":
                 delayOverride = 0
@@ -91,17 +97,22 @@ enum CaptureParser {
         if noReminder {
             return CaptureResult(title: title, reminder: nil, tags: tags, estimateMinutes: estimate)
         }
+        let effective = profile.map {
+            CaptureDefaults(firstDelayMinutes: $0.firstDelayMinutes, repeatMinutes: $0.repeatMinutes,
+                            curve: $0.curve, escalateAfter: $0.escalateAfter)
+        } ?? defaults
         let start: Date
         if let delayOverride {
             start = now.addingTimeInterval(TimeInterval(delayOverride * 60))
         } else if let naturalStart = natural.start {
             start = naturalStart
         } else {
-            start = now.addingTimeInterval(TimeInterval(defaults.firstDelayMinutes * 60))
+            start = now.addingTimeInterval(TimeInterval(effective.firstDelayMinutes * 60))
         }
-        let repeatMinutes = once ? nil : (repeatOverride ?? natural.repeatMinutes ?? defaults.repeatMinutes)
+        let repeatMinutes = once ? nil : (repeatOverride ?? natural.repeatMinutes ?? effective.repeatMinutes)
         let reminder = Reminder(start: start, repeatMinutes: repeatMinutes,
-                                curve: curveOverride ?? defaults.curve, alarm: alarm)
+                                curve: curveOverride ?? effective.curve, alarm: alarm,
+                                escalateAfter: effective.escalateAfter)
         return CaptureResult(title: title, reminder: reminder, tags: tags, estimateMinutes: estimate)
     }
 

@@ -73,7 +73,8 @@ final class AlarmScheduler {
         let from: Date
         if reminder.alarm {
             from = now
-        } else if item.isOpen, let escalation = reminder.escalationDate(afterIgnored: policy.escalateAfter) {
+        } else if item.isOpen,
+                  let escalation = reminder.escalationDate(afterIgnored: reminder.escalateAfter ?? policy.escalateAfter) {
             from = max(now, escalation.addingTimeInterval(-1))
         } else {
             return []

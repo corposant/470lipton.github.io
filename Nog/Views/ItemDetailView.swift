@@ -163,6 +163,23 @@ private struct ItemEditor: View {
                     set(\.reminder, on ? NogSettings.defaultReminderFromNow : nil)
                 }))
             if let reminder = item.reminder {
+                Menu {
+                    ForEach(NogProfile.allCases) { profile in
+                        Button {
+                            editReminder { $0 = profile.apply(to: $0) }
+                        } label: {
+                            Label("\(profile.label): \(profile.summary)", systemImage: profile.systemImage)
+                        }
+                    }
+                } label: {
+                    HStack {
+                        Text("Profile").foregroundStyle(.primary)
+                        Spacer()
+                        let current = NogProfile.matching(reminder)
+                        Label(current?.label ?? "Custom", systemImage: current?.systemImage ?? "slider.horizontal.3")
+                            .foregroundStyle(current == .relentless ? Theme.pink : Theme.violet)
+                    }
+                }
                 DatePicker("Starts", selection: Binding(
                     get: { reminder.start },
                     set: { date in editReminder { $0.start = date } }))

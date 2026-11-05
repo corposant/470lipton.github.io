@@ -215,6 +215,8 @@ private struct NogsAlertsPage: View {
     @AppStorage(NogSettings.firstDelayKey) private var firstDelay = NogSettings.defaultFirstDelay
     @AppStorage(NogSettings.repeatKey) private var repeatMinutes = NogSettings.defaultRepeat
     @AppStorage(NogSettings.curveKey) private var curve: RepeatCurve = .steady
+    @AppStorage(NogSettings.escalateKey) private var profileEscalate = -1
+    @State private var showFineTune = false
     // Quiet hours
     @AppStorage(NogSettings.Key.quietEnabled) private var quietEnabled = false
     @AppStorage(NogSettings.Key.quietStart) private var quietStart = 22 * 60
@@ -234,24 +236,39 @@ private struct NogsAlertsPage: View {
     var body: some View {
         List {
             Section {
-                Stepper(value: $firstDelay, in: 0...240, step: 5) {
-                    LabeledContent("First nog", value: firstDelay == 0 ? "Right away" : "after \(IntervalFormat.short(firstDelay))")
-                }
-                Picker("Then", selection: $repeatMinutes) {
-                    ForEach(NogSettings.repeatChoices, id: \.self) { Text(NogSettings.repeatLabel($0)).tag($0) }
-                }
-                if repeatMinutes > 0 {
-                    Picker("Style", selection: $curve) {
-                        ForEach(RepeatCurve.allCases, id: \.self) { Text($0.label).tag($0) }
+                ForEach(NogProfile.allCases) { profile in
+                    Button {
+                        firstDelay = profile.firstDelayMinutes
+                        repeatMinutes = profile.repeatMinutes
+                        curve = profile.curve
+                        profileEscalate = profile.escalateAfter ?? -1
+                    } label: {
+                        ProfileCard(profile: profile, isSelected: currentProfile == profile)
                     }
-                    .pickerStyle(.segmented)
+                    .buttonStyle(.plain)
+                }
+                DisclosureGroup(isExpanded: $showFineTune) {
+                    Stepper(value: $firstDelay, in: 0...240, step: 1) {
+                        LabeledContent("First nog", value: firstDelay == 0 ? "Right away" : "after \(IntervalFormat.short(firstDelay))")
+                    }
+                    Picker("Then", selection: $repeatMinutes) {
+                        ForEach(Array(Set(NogSettings.repeatChoices + [repeatMinutes])).sorted(), id: \.self) {
+                            Text(NogSettings.repeatLabel($0)).tag($0)
+                        }
+                    }
+                    if repeatMinutes > 0 {
+                        Picker("Style", selection: $curve) {
+                            ForEach(RepeatCurve.allCases, id: \.self) { Text($0.label).tag($0) }
+                        }
+                        .pickerStyle(.segmented)
+                    }
+                } label: {
+                    Text(currentProfile == nil ? "Fine-tune · Custom" : "Fine-tune")
                 }
             } header: {
-                SectionLabel(title: "New captures")
+                SectionLabel(title: "Default profile")
             } footer: {
-                Text(curve == .logarithmic && repeatMinutes > 0
-                     ? "Logarithmic: the gap doubles after each nog until it reaches a day, then nogs daily until done."
-                     : "Every captured item gets this unless you type an override.")
+                Text("New captures use this profile unless you type one: !whisper, !easing, !relentless. Each item can switch profile on its own page.")
             }
             .listRowBackground(Theme.glass)
 
@@ -306,6 +323,48 @@ private struct NogsAlertsPage: View {
         .onDisappear {
             NotificationScheduler.shared.registerCategories()
             Task { await store.syncNow() }
+        }
+    }
+}
+
+extension NogsAlertsPage {
+    fileprivate var currentProfile: NogProfile? {
+        NogProfile.allCases.first {
+            $0.firstDelayMinutes == firstDelay && $0.repeatMinutes == repeatMinutes
+                && $0.curve == curve && ($0.escalateAfter ?? -1) == profileEscalate
+        }
+    }
+}
+
+/// One profile: icon, name, one-line description, checkmark when chosen.
+struct ProfileCard: View {
+    let profile: NogProfile
+    let isSelected: Bool
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: profile.systemImage)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(tint)
+                .frame(width: 34, height: 34)
+                .overlay(Circle().strokeBorder(tint.opacity(0.6), lineWidth: 1))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(profile.label).font(.headline)
+                Text(profile.summary).font(.caption).foregroundStyle(Theme.muted)
+            }
+            Spacer(minLength: 8)
+            Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                .foregroundStyle(isSelected ? tint : Theme.muted.opacity(0.5))
+        }
+        .padding(.vertical, 4)
+        .contentShape(Rectangle())
+    }
+
+    private var tint: Color {
+        switch profile {
+        case .whisper: Theme.blue
+        case .steady, .easing: Theme.violet
+        case .relentless: Theme.pink
         }
     }
 }
@@ -455,6 +514,7 @@ private struct CaptureCheatSheet: View {
                 line("!off", "no reminder (just an idea)")
                 line("!log  !steady", "gaps double each time, or stay the same")
                 line("!alarm", "ring like a real alarm")
+                line("!whisper  !easing  !relentless", "use a nog profile")
                 line("@30m  @2h  @now", "when to start nogging")
                 line("~30m  ~2h", "how long it'll take (▶︎ timebox)")
                 line("#tag", "add a tag")
