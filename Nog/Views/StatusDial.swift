@@ -76,8 +76,6 @@ struct StatusDial: View {
             .tracking(1.4)
             .foregroundStyle(isLit ? tint : Theme.muted.opacity(0.75))
             .shadow(color: isLit ? tint.opacity(0.8) : .clear, radius: 6)
-            // A touch of warm, top-lit glow, like an old receiver's dial window.
-            .shadow(color: isLit ? Color(red: 1, green: 0.78, blue: 0.5).opacity(0.45) : .clear, radius: 3, y: -2)
             .fixedSize()
             .position(x: center.x + sin(a) * labelRadius(degrees), y: center.y - cos(a) * labelRadius(degrees))
             .onTapGesture { onSelect(status) }
@@ -132,7 +130,8 @@ struct StatusDial: View {
     }
 }
 
-/// Brushed-silver knob with a knurled grip, a burl-walnut cap and a glowing LED pointer.
+/// A pro-app knob, after Final Cut / Logic / Aperture: a glossy graphite dome sitting in a
+/// recessed well, with a crisp bevel, a soft specular highlight and a glowing indicator.
 private struct Knob: View {
     let angle: Double
     let tint: Color
@@ -141,55 +140,56 @@ private struct Knob: View {
         GeometryReader { geo in
             let d = min(geo.size.width, geo.size.height)
             ZStack {
-                // Shadow it casts on the panel.
+                // Recessed well the knob sits in (darker, with an inner shadow).
                 Circle()
-                    .fill(.black.opacity(0.55))
-                    .blur(radius: 8)
-                    .offset(y: 5)
+                    .fill(Color(white: 0.06))
+                    .overlay(
+                        Circle().strokeBorder(
+                            LinearGradient(colors: [.black.opacity(0.9), .white.opacity(0.10)],
+                                           startPoint: .top, endPoint: .bottom),
+                            lineWidth: 1.5))
 
-                // Knurled grip ring.
+                // Shadow the dome casts into the well.
                 Circle()
-                    .fill(LinearGradient(colors: [Color(white: 0.78), Color(white: 0.38)],
-                                         startPoint: .top, endPoint: .bottom))
-                Circle()
-                    .strokeBorder(Color(white: 0.22).opacity(0.75),
-                                  style: StrokeStyle(lineWidth: d * 0.07, dash: [1.4, 2.4]))
-                    .padding(d * 0.015)
-                    .rotationEffect(.degrees(angle))
+                    .fill(.black.opacity(0.6))
+                    .padding(d * 0.09)
+                    .blur(radius: 4)
+                    .offset(y: 3)
 
-                // Brushed-silver body.
+                // Graphite dome.
                 Circle()
-                    .fill(AngularGradient(colors: [
-                        Color(white: 0.66), Color(white: 0.86), Color(white: 0.58), Color(white: 0.90),
-                        Color(white: 0.62), Color(white: 0.84), Color(white: 0.66),
-                    ], center: .center))
+                    .fill(RadialGradient(colors: [Color(white: 0.36), Color(white: 0.20), Color(white: 0.13)],
+                                         center: UnitPoint(x: 0.5, y: 0.28), startRadius: 0, endRadius: d * 0.5))
+                    .padding(d * 0.09)
+
+                // Very fine grip grooves, barely there.
+                Circle()
+                    .strokeBorder(Color.black.opacity(0.25), style: StrokeStyle(lineWidth: d * 0.035, dash: [1, 3]))
                     .padding(d * 0.1)
                     .rotationEffect(.degrees(angle))
-                    .overlay(Circle().strokeBorder(.white.opacity(0.35), lineWidth: 1).padding(d * 0.1))
 
-                // Burl-walnut centre cap.
+                // Bevel: lit from above, shaded below.
                 Circle()
-                    .fill(RadialGradient(colors: [Color(red: 0.42, green: 0.24, blue: 0.14),
-                                                  Color(red: 0.20, green: 0.10, blue: 0.05)],
-                                         center: UnitPoint(x: 0.35, y: 0.3), startRadius: 0, endRadius: d * 0.32))
-                    .overlay(
-                        // Faint growth rings give the burl figure.
-                        Circle()
-                            .strokeBorder(Color(red: 0.12, green: 0.05, blue: 0.02).opacity(0.35),
-                                          style: StrokeStyle(lineWidth: 1, dash: [3, 2]))
-                            .padding(d * 0.06)
-                            .rotationEffect(.degrees(angle)))
-                    .padding(d * 0.24)
-                    .shadow(color: .black.opacity(0.5), radius: 3, y: 2)
-                    .overlay(Circle().strokeBorder(.white.opacity(0.15), lineWidth: 1).padding(d * 0.24))
+                    .strokeBorder(
+                        LinearGradient(colors: [.white.opacity(0.38), .white.opacity(0.06), .black.opacity(0.55)],
+                                       startPoint: .top, endPoint: .bottom),
+                        lineWidth: 1.2)
+                    .padding(d * 0.09)
 
-                // LED pointer.
+                // Soft specular highlight across the top of the dome.
+                Ellipse()
+                    .fill(LinearGradient(colors: [.white.opacity(0.22), .white.opacity(0)],
+                                         startPoint: .top, endPoint: .bottom))
+                    .frame(width: d * 0.6, height: d * 0.34)
+                    .offset(y: -d * 0.2)
+
+                // Indicator.
                 Capsule()
                     .fill(tint)
-                    .frame(width: d * 0.05, height: d * 0.2)
-                    .shadow(color: tint, radius: 4)
-                    .shadow(color: tint.opacity(0.7), radius: 9)
-                    .offset(y: -d * 0.3)
+                    .frame(width: d * 0.045, height: d * 0.17)
+                    .shadow(color: tint, radius: 3)
+                    .shadow(color: tint.opacity(0.6), radius: 8)
+                    .offset(y: -d * 0.27)
                     .rotationEffect(.degrees(angle))
             }
             .frame(width: d, height: d)
