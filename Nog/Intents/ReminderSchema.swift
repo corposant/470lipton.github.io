@@ -48,29 +48,30 @@ struct ReminderEntity: IndexedEntity, SyncableEntity {
         func entities(for identifiers: [UUID]) async throws -> [ReminderEntity] {
             await MainActor.run {
                 let store = ItemStore.shared
-                return identifiers.compactMap { store.items[$0] }.map { ReminderEntity(item: $0, store: store) }
+                let found: [Item] = identifiers.compactMap { store.items[$0] }
+                return found.map { ReminderEntity(item: $0, store: store) }
             }
         }
 
         func entities(matching string: String) async throws -> [ReminderEntity] {
             await MainActor.run {
                 let store = ItemStore.shared
-                return store.items.values
-                    .filter { $0.title.localizedStandardContains(string) }
-                    .sorted { $0.updated > $1.updated }
-                    .prefix(20)
-                    .map { ReminderEntity(item: $0, store: store) }
+                var hits: [Item] = store.items.values.filter { $0.title.localizedStandardContains(string) }
+                hits.sort { $0.updated > $1.updated }
+                return hits.prefix(20).map { ReminderEntity(item: $0, store: store) }
             }
         }
 
         func suggestedEntities() async throws -> [ReminderEntity] {
             await MainActor.run {
                 let store = ItemStore.shared
-                return store.items.values
-                    .filter(\.isOpen)
-                    .sorted { ($0.reminder?.start ?? .distantFuture) < ($1.reminder?.start ?? .distantFuture) }
-                    .prefix(20)
-                    .map { ReminderEntity(item: $0, store: store) }
+                var open: [Item] = store.items.values.filter { $0.isOpen }
+                open.sort { a, b in
+                    let x: Date = a.reminder?.start ?? .distantFuture
+                    let y: Date = b.reminder?.start ?? .distantFuture
+                    return x < y
+                }
+                return open.prefix(20).map { ReminderEntity(item: $0, store: store) }
             }
         }
     }
@@ -105,12 +106,19 @@ struct ListEntity {
 
     /// Top-level items belong to this virtual list.
     static let inboxID = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
-    static let inbox = ListEntity(id: inboxID, name: "Inbox", type: .standard)
+    static let inbox = ListEntity(id: inboxID, name: "Inbox")
 
     let id: UUID
 
     var name: String
     var type: ListType
+
+    /// The schema macro turns these into entity properties, so set them one by one.
+    init(id: UUID, name: String, type: ListType = .standard) {
+        self.id = id
+        self.name = name
+        self.type = type
+    }
 
     var displayRepresentation: DisplayRepresentation {
         DisplayRepresentation(title: "\(name)", image: .init(systemName: "list.bullet"))
@@ -119,29 +127,33 @@ struct ListEntity {
     struct ListEntityQuery: EntityStringQuery {
         func entities(for identifiers: [UUID]) async throws -> [ListEntity] {
             await MainActor.run {
-                identifiers.compactMap { id in
-                    id == ListEntity.inboxID ? .inbox : ItemStore.shared.items[id].map(ListEntity.init(item:))
+                identifiers.compactMap { (id: UUID) -> ListEntity? in
+                    if id == ListEntity.inboxID { return ListEntity.inbox }
+                    guard let item = ItemStore.shared.items[id] else { return nil }
+                    return ListEntity(item: item)
                 }
             }
         }
 
         func entities(matching string: String) async throws -> [ListEntity] {
             await MainActor.run {
-                let matches = ItemStore.shared.items.values
-                    .filter { $0.status != .done && $0.title.localizedStandardContains(string) }
-                    .map(ListEntity.init(item:))
-                return "Inbox".localizedStandardContains(string) ? [.inbox] + matches : matches
+                let open: [Item] = ItemStore.shared.items.values.filter { $0.status != .done }
+                let hits: [Item] = open.filter { $0.title.localizedStandardContains(string) }
+                let matches: [ListEntity] = hits.map { ListEntity(item: $0) }
+                if "Inbox".localizedStandardContains(string) { return [ListEntity.inbox] + matches }
+                return matches
             }
         }
 
         func suggestedEntities() async throws -> [ListEntity] {
             await MainActor.run {
                 let store = ItemStore.shared
-                let parents = Set(store.items.values.compactMap(\.parentID))
-                return [.inbox] + parents.compactMap { store.items[$0] }
-                    .filter { $0.status != .done }
-                    .sorted { $0.updated > $1.updated }
-                    .map(ListEntity.init(item:))
+                let parentIDs: Set<UUID> = Set(store.items.values.compactMap { $0.parentID })
+                var parents: [Item] = parentIDs.compactMap { store.items[$0] }
+                parents = parents.filter { $0.status != .done }
+                parents.sort { $0.updated > $1.updated }
+                let lists: [ListEntity] = parents.map { ListEntity(item: $0) }
+                return [ListEntity.inbox] + lists
             }
         }
     }
@@ -149,7 +161,7 @@ struct ListEntity {
 
 extension ListEntity {
     init(item: Item) {
-        self.init(id: item.id, name: item.title, type: .standard)
+        self.init(id: item.id, name: item.title)
     }
 
     /// The Nog item this list maps to (nil for the Inbox).

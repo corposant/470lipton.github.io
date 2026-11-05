@@ -122,6 +122,8 @@ enum BackgroundRefresh {
     static func schedule() {
         let request = BGAppRefreshTaskRequest(identifier: identifier)
         request.earliestBeginDate = .now.addingTimeInterval(15 * 60)
-        try? BGTaskScheduler.shared.submit(request)
+        BGTaskScheduler.shared.submitTaskRequest(request) { error in
+            if let error { print("Nog: background refresh not scheduled: \(error)") }
+        }
     }
 }
