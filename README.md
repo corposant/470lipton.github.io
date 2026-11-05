@@ -50,7 +50,8 @@ As you type, a line above the capture field shows how Nog understood it. A day w
 | **Later today** | nogs that start later today |
 | **Nogs next** | tomorrow and beyond |
 | **Loose nogs** | no reminder: ideas, concepts, notes |
-| **Someday** / **Done** | parked, and finished (kept for reference) |
+| **Dream nogs** | someday / maybe |
+| **Nogged** | finished, kept for reference |
 
 ## ▶︎ Doing a nog (Nogitivity)
 

@@ -95,7 +95,7 @@ struct ItemListView: View {
                 section("Later today", laterToday)
                 section("Nogs next", onDeck)
                 section("Loose nogs", ideas)
-                section("Someday", someday)
+                section("Dream nogs", someday)
                 if !done.isEmpty {
                     Section {
                         DisclosureGroup {
@@ -104,7 +104,7 @@ struct ItemListView: View {
                             Text("\(done.count) finished").font(.nogMeta).foregroundStyle(Theme.muted)
                         }
                     } header: {
-                        SectionLabel(title: "Done")
+                        SectionLabel(title: "Nogged")
                     }
                     .listRowBackground(Theme.glass)
                 }
