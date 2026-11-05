@@ -131,8 +131,9 @@ final class ItemStore {
     func capture(_ text: String, parent: UUID? = nil, now: Date = .now) -> Item? {
         let parsed = CaptureParser.parse(text, defaults: NogSettings.captureDefaults, now: now)
         guard !parsed.title.isEmpty else { return nil }
-        let item = Item(title: parsed.title, created: now, updated: now,
+        var item = Item(title: parsed.title, created: now, updated: now,
                         parentID: parent, tags: parsed.tags, reminder: parsed.reminder)
+        item.estimateMinutes = parsed.estimateMinutes
         insert(item)
         return item
     }
@@ -155,16 +156,85 @@ final class ItemStore {
         guard let old = items[newValue.id] else { return insert(newValue) }
         guard old != newValue else { return }
         var item = newValue
+        let now = Date.now
         if old.status != .done && item.status == .done {
-            item.completed = .now
+            item.completed = now
             clearDelivered(item.id)
         } else if item.status != .done {
             item.completed = nil
         }
-        item.updated = .now
+        // ▶︎ Doing: start a session / bank the time when it ends
+        if old.status != .doing && item.status == .doing {
+            item.doingSince = now
+            clearDelivered(item.id)
+        } else if old.status == .doing && item.status != .doing {
+            if let since = old.doingSince { item.timeSpent += max(0, now.timeIntervalSince(since)) }
+            item.doingSince = nil
+            item.timeboxMinutes = nil
+        }
+        item.updated = now
         items[item.id] = item
         write(item)
+        if old.status != item.status || old.doingSince != item.doingSince
+            || old.timeboxMinutes != item.timeboxMinutes || old.title != item.title {
+            updateLiveActivities()
+            // Doing changes should nog (or stop nogging) right away.
+            if old.status != item.status || old.timeboxMinutes != item.timeboxMinutes {
+                Task { await syncNow() }
+                return
+            }
+        }
         scheduleSync()
+    }
+
+    // MARK: - Doing (▶︎)
+
+    /// The timebox ▶︎ would use for this item right now.
+    func suggestedTimebox(for id: UUID) -> TimeboxSuggestion {
+        guard let item = items[id] else { return TimeboxSuggestion(minutes: nil, reason: "open-ended") }
+        return TimeboxAdvisor.suggest(for: item, among: Array(items.values),
+                                      defaultMinutes: NogSettings.timeboxMinutes, now: .now)
+    }
+
+    /// Starts working on an item. `timebox` nil = open-ended.
+    func start(_ id: UUID, timebox: Int?) {
+        guard var item = items[id] else { return }
+        if item.isDoing { // restart with a new timebox
+            item.status = .open
+            update(item)
+            guard let refreshed = items[id] else { return }
+            item = refreshed
+        }
+        item.status = .doing
+        item.timeboxMinutes = timebox
+        update(item)
+    }
+
+    /// Starts with the suggested timebox.
+    func start(_ id: UUID) {
+        start(id, timebox: suggestedTimebox(for: id).minutes)
+    }
+
+    /// Adds time to the current timebox (or turns an open-ended session into one).
+    func extend(_ id: UUID, minutes: Int) {
+        guard var item = items[id], item.isDoing, let since = item.doingSince else { return }
+        let elapsed = Int(Date.now.timeIntervalSince(since) / 60)
+        let currentEnd = item.timeboxMinutes ?? elapsed
+        item.timeboxMinutes = max(currentEnd, elapsed) + minutes
+        clearDelivered(id)
+        update(item)
+    }
+
+    /// Stops working without finishing; the item goes back to Open.
+    func stopDoing(_ id: UUID) {
+        guard var item = items[id], item.isDoing else { return }
+        item.status = .open
+        update(item)
+    }
+
+    private func updateLiveActivities() {
+        guard schedulesNotifications else { return }
+        DoingActivities.shared.reconcile(Array(items.values))
     }
 
     func markDone(_ id: UUID) {
@@ -194,8 +264,10 @@ final class ItemStore {
     }
 
     func delete(_ id: UUID) {
+        let wasDoing = items[id]?.isDoing == true
         items[id] = nil
         recentlyDeleted[id] = .now
+        if wasDoing { updateLiveActivities() }
         storage.delete(fileURL(for: id))
         clearDelivered(id)
         scheduleSync()
@@ -258,6 +330,7 @@ final class ItemStore {
     func syncNow() async {
         guard schedulesNotifications else { return }
         syncDebounce?.cancel()
+        DoingActivities.shared.reconcile(Array(items.values))
         await NotificationScheduler.shared.sync(items: Array(items.values))
         await SpotlightIndexer.update(self)
     }

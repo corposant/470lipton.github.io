@@ -2,6 +2,7 @@
 *.xcodeproj/
 Nog/Info.plist
 Nog/Nog.entitlements
+NogWidgets/Info.plist
 xcuserdata/
 DerivedData/
 build/

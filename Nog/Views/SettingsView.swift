@@ -8,6 +8,7 @@ struct SettingsView: View {
     @AppStorage(NogSettings.firstDelayKey) private var firstDelay = NogSettings.defaultFirstDelay
     @AppStorage(NogSettings.repeatKey) private var repeatMinutes = NogSettings.defaultRepeat
     @AppStorage(NogSettings.curveKey) private var curve: RepeatCurve = .steady
+    @AppStorage(NogSettings.timeboxKey) private var timebox = NogSettings.defaultTimebox
     @State private var authorization: UNAuthorizationStatus = .notDetermined
     @State private var pending = 0
 
@@ -35,11 +36,23 @@ struct SettingsView: View {
                          : "Every captured item gets this unless you type an override.")
                 }
 
+                Section {
+                    Picker("Default timebox", selection: $timebox) {
+                        Text("Open-ended").tag(0)
+                        ForEach(NogSettings.timeboxChoices, id: \.self) { Text(IntervalFormat.short($0)).tag($0) }
+                    }
+                } header: {
+                    Text("▶︎ Doing")
+                } footer: {
+                    Text("Nog first suggests your estimate for the item, then how long similar items took you (same #tag or same project), then a short timebox if it's urgent or overdue. Otherwise it uses this default.")
+                }
+
                 Section("Capture shortcuts") {
                     shortcut("!8m  !2h  !1d", "repeat every 8 min / 2 h / 1 day")
                     shortcut("!once", "remind once, don't repeat")
                     shortcut("!log  !steady", "gaps double each time, or stay the same")
                     shortcut("!alarm", "ring like a real alarm, through Silent and Focus")
+                    shortcut("~30m  ~2h", "how long it'll take (the ▶︎ timebox)")
                     shortcut("!off", "no reminder (just an idea)")
                     shortcut("@30m  @2h  @now", "when to start nogging")
                     shortcut("#tag", "add a tag")

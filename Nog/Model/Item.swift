@@ -14,18 +14,61 @@ struct Item: Identifiable, Hashable {
     var tags: [String] = []
     var reminder: Reminder?
 
+    // Doing (the ▶︎ button)
+    /// When the current working session started (status == .doing).
+    var doingSince: Date?
+    /// Length of the current session's timebox; nil = open-ended (counts up).
+    var timeboxMinutes: Int?
+    /// How long you expect this to take; becomes the suggested timebox.
+    var estimateMinutes: Int?
+    /// Total time spent in finished sessions, in seconds.
+    var timeSpent: TimeInterval = 0
+
     var isOpen: Bool { status == .open }
+    var isDoing: Bool { status == .doing }
+
+    /// When the current timebox ends.
+    var timeboxEnd: Date? {
+        guard isDoing, let since = doingSince, let box = timeboxMinutes else { return nil }
+        return since.addingTimeInterval(TimeInterval(box * 60))
+    }
+
+    /// Time spent including the session in progress.
+    func totalTimeSpent(now: Date = .now) -> TimeInterval {
+        timeSpent + (isDoing ? doingSince.map { max(0, now.timeIntervalSince($0)) } ?? 0 : 0)
+    }
+
+    /// What should actually nog right now:
+    /// - open items: their reminder
+    /// - items being done: "time's up" when the timebox ends (then every 5 min),
+    ///   or an hourly "still on it?" check-in when open-ended
+    /// - someday / done: nothing
+    var effectiveReminder: Reminder? {
+        switch status {
+        case .open:
+            return reminder
+        case .doing:
+            guard let since = doingSince else { return nil }
+            if let end = timeboxEnd {
+                return Reminder(start: end, repeatMinutes: 5, alarm: reminder?.alarm ?? false)
+            }
+            return Reminder(start: since.addingTimeInterval(3600), repeatMinutes: 60)
+        case .someday, .done:
+            return nil
+        }
+    }
 
     /// Titles referenced with [[wiki links]] in the body.
     var outgoingLinkTitles: [String] { LinkParser.links(in: body) }
 }
 
 enum ItemStatus: String, CaseIterable, Hashable {
-    case open, someday, done
+    case open, doing, someday, done
 
     var label: String {
         switch self {
         case .open: "Open"
+        case .doing: "Doing"
         case .someday: "Someday"
         case .done: "Done"
         }
@@ -157,6 +200,16 @@ enum LinkParser {
             rest = after[close.upperBound...]
         }
         return result
+    }
+}
+
+enum DurationFormat {
+    /// 45 → "<1 min", 1500 → "25 min", 4800 → "1h 20m"
+    static func short(_ seconds: TimeInterval) -> String {
+        let minutes = Int(seconds / 60)
+        if minutes < 1 { return "<1 min" }
+        if minutes < 60 { return "\(minutes) min" }
+        return minutes % 60 == 0 ? "\(minutes / 60)h" : "\(minutes / 60)h \(minutes % 60)m"
     }
 }
 

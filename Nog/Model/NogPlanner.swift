@@ -16,6 +16,7 @@ struct PlannedNotification: Hashable {
     var title: String
     var body: String
     var trigger: Trigger
+    var category: String = NogPlanner.categoryNog
 
     var fireDate: Date? {
         if case .at(let date) = trigger { return date }
@@ -36,6 +37,8 @@ struct PlannedNotification: Hashable {
 ///   is recomputed and started items switch over to the repeating trigger.
 enum NogPlanner {
     static let prefix = "nog."
+    static let categoryNog = "NOG"
+    static let categoryDoing = "NOG_DOING"
     static let defaultBudget = 60
 
     static func plan(items: [Item], now: Date,
@@ -44,7 +47,7 @@ enum NogPlanner {
                      quietUntil: [UUID: Date] = [:]) -> [PlannedNotification] {
         let candidates: [(Item, Reminder)] = items
             .compactMap { item -> (Item, Reminder)? in
-                guard item.isOpen, let r = item.reminder else { return nil }
+                guard let r = item.effectiveReminder else { return nil }
                 return (item, r)
             }
             .sorted { a, b in
@@ -55,13 +58,18 @@ enum NogPlanner {
         var followUps: [PlannedNotification] = []
 
         for (item, r) in candidates {
-            let body = r.repeatSummary.map { "Nogging \($0) until done" } ?? "Reminder"
+            let doing = item.isDoing
+            let body = doing
+                ? (item.timeboxMinutes != nil ? "Time's up. Done, or 10 more minutes?" : "Still on it?")
+                : (r.repeatSummary.map { "Nogging \($0) until done" } ?? "Reminder")
+            let category = doing ? categoryDoing : categoryNog
             let titleTag = stableHash(item.title)
-            let base = "\(prefix)\(item.id.uuidString)"
+            let base = "\(prefix)\(item.id.uuidString)\(doing ? ".doing" : "")"
 
             func oneShot(_ date: Date) -> PlannedNotification {
                 PlannedNotification(identifier: "\(base).at.\(Int(date.timeIntervalSince1970)).\(titleTag)",
-                                    itemID: item.id, title: item.title, body: body, trigger: .at(date))
+                                    itemID: item.id, title: item.title, body: body, trigger: .at(date),
+                                    category: category)
             }
 
             // Items ringing as alarms stay quiet here until their alarms run out.
@@ -72,7 +80,8 @@ enum NogPlanner {
                 let seconds = max(60, settled.gap)
                 primaries.append(PlannedNotification(
                     identifier: "\(base).every.\(Int(seconds)).\(Int(settled.since.timeIntervalSince1970)).\(titleTag)",
-                    itemID: item.id, title: item.title, body: body, trigger: .every(seconds)))
+                    itemID: item.id, title: item.title, body: body, trigger: .every(seconds),
+                    category: category))
             } else {
                 // Still ahead of us (or easing off): exact times, re-planned whenever the app wakes.
                 let dates = r.fireDates(after: quiet ?? now, limit: 1 + max(0, maxFollowUpsPerItem))

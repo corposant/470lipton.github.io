@@ -5,6 +5,15 @@ enum NogSettings {
     static let firstDelayKey = "firstDelayMinutes"
     static let repeatKey = "repeatMinutes"
     static let curveKey = "repeatCurve"
+    static let timeboxKey = "defaultTimeboxMinutes"
+    static let defaultTimebox = 25
+
+    /// Default ▶︎ timebox in minutes; 0 = open-ended.
+    static var timeboxMinutes: Int {
+        UserDefaults.standard.object(forKey: timeboxKey) as? Int ?? defaultTimebox
+    }
+
+    static let timeboxChoices = [5, 10, 15, 25, 30, 45, 60, 90, 120]
 
     static let defaultFirstDelay = 15
     static let defaultRepeat = 8

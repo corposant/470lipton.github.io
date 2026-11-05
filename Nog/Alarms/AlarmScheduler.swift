@@ -42,8 +42,9 @@ final class AlarmScheduler {
 
         var desired: [UUID: (item: Item, date: Date)] = [:]
         var coveredUntil: [UUID: Date] = [:]
-        for item in items where item.isOpen {
-            guard let reminder = item.reminder, reminder.alarm else { continue }
+        for item in items {
+            // Open items ring on their reminder; items being done ring when time's up.
+            guard let reminder = item.effectiveReminder, reminder.alarm else { continue }
             let dates = reminder.fireDates(after: now, limit: Self.alarmsPerItem)
             for date in dates {
                 desired[Self.alarmID(item: item, date: date)] = (item, date)
@@ -97,53 +98,5 @@ final class AlarmScheduler {
             for i in 0..<8 { raw[8 + i] ^= UInt8(truncatingIfNeeded: hash >> (8 * UInt64(i))) }
         }
         return UUID(uuid: bytes)
-    }
-}
-
-// MARK: - Button intents (also used by alarms; hidden from Shortcuts)
-
-struct CompleteItemIntent: LiveActivityIntent {
-    static var title: LocalizedStringResource = "Mark Nog Item Done"
-    static var isDiscoverable = false
-    static var openAppWhenRun = false
-
-    @Parameter(title: "Item ID")
-    var itemID: String
-
-    init() {}
-    init(itemID: String) { self.itemID = itemID }
-
-    @MainActor
-    func perform() async throws -> some IntentResult {
-        if let id = UUID(uuidString: itemID) {
-            ItemStore.shared.markDone(id)
-            await ItemStore.shared.syncNow()
-            await ItemStore.shared.flush()
-        }
-        return .result()
-    }
-}
-
-struct SnoozeItemIntent: LiveActivityIntent {
-    static var title: LocalizedStringResource = "Snooze Nog Item"
-    static var isDiscoverable = false
-    static var openAppWhenRun = false
-
-    @Parameter(title: "Item ID")
-    var itemID: String
-
-    init() {}
-    init(itemID: String) { self.itemID = itemID }
-
-    @MainActor
-    func perform() async throws -> some IntentResult {
-        if let id = UUID(uuidString: itemID), let item = ItemStore.shared.items[id] {
-            // Snooze by the item's own gap (at least 5 minutes).
-            let gap = max(300, item.reminder?.gap(after: 0) ?? 600)
-            ItemStore.shared.snooze(id, until: .now.addingTimeInterval(gap))
-            await ItemStore.shared.syncNow()
-            await ItemStore.shared.flush()
-        }
-        return .result()
     }
 }

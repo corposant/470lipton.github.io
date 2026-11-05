@@ -20,7 +20,9 @@ targets:
   Nog:
     type: application
     platform: iOS
-    sources: [Nog]
+    sources: [Nog, Shared]
+    dependencies:
+      - target: NogWidgets
     info:
       path: Nog/Info.plist
       properties:
@@ -33,6 +35,7 @@ targets:
         LSSupportsOpeningDocumentsInPlace: true
         UIBackgroundModes: [fetch]
         BGTaskSchedulerPermittedIdentifiers: [io.nogapp.nog.refresh]
+        NSSupportsLiveActivities: true
         NSAlarmKitUsageDescription: Nog rings like an alarm for the items you mark as can't-miss.
         # Shows the app's iCloud folder as "Nog" in iCloud Drive (Files app, Finder)
         NSUbiquitousContainers:
@@ -58,6 +61,23 @@ targets:
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
     scheme:
       testTargets: [NogTests]
+
+  # Live Activity for ▶︎ Doing (Lock Screen, Dynamic Island, Watch, CarPlay)
+  NogWidgets:
+    type: app-extension
+    platform: iOS
+    sources: [NogWidgets, Shared]
+    info:
+      path: NogWidgets/Info.plist
+      properties:
+        CFBundleDisplayName: Nog
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.nogapp.nog.widgets
+        TARGETED_DEVICE_FAMILY: "1"
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) WIDGET_EXTENSION"
 
   NogTests:
     type: bundle.unit-test

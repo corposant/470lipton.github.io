@@ -55,6 +55,8 @@ struct ItemListView: View {
                 ForEach(results) { ItemRow(item: $0, now: now) }
             }
         } else {
+            let doing = all.filter(\.isDoing)
+                .sorted { ($0.doingSince ?? .distantPast) < ($1.doingSince ?? .distantPast) }
             let open = all.filter(\.isOpen)
             let due = open.filter { $0.reminder?.isActive(at: now) == true }
                 .sorted { $0.reminder!.start < $1.reminder!.start }
@@ -68,6 +70,14 @@ struct ItemListView: View {
                 .sorted { ($0.completed ?? $0.updated) > ($1.completed ?? $1.updated) }
 
             List {
+                if !doing.isEmpty {
+                    Section("Doing now") {
+                        ForEach(doing) { item in
+                            DoingCard(item: item)
+                                .appEntityIdentifier(EntityIdentifier(for: ReminderEntity.self, identifier: item.id))
+                        }
+                    }
+                }
                 section("Nogging now", due)
                 section("Coming up", upcoming)
                 section("No reminder", ideas)
@@ -99,15 +109,20 @@ struct ItemRow: View {
     let now: Date
 
     var body: some View {
-        NavigationLink(value: item.id) {
-            HStack(alignment: .firstTextBaseline, spacing: 10) {
-                statusIcon
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(item.title.isEmpty ? "Untitled" : item.title)
-                        .strikethrough(item.status == .done)
-                        .foregroundStyle(item.status == .done ? .secondary : .primary)
-                    detailLine
+        HStack(spacing: 8) {
+            NavigationLink(value: item.id) {
+                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                    statusIcon
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(item.title.isEmpty ? "Untitled" : item.title)
+                            .strikethrough(item.status == .done)
+                            .foregroundStyle(item.status == .done ? .secondary : .primary)
+                        detailLine
+                    }
                 }
+            }
+            if item.status == .open || item.status == .someday {
+                StartButton(item: item)
             }
         }
         // iOS 27: Siri can act on whichever row you're looking at.
@@ -117,6 +132,9 @@ struct ItemRow: View {
                 Button("Reopen") { store.reopen(item.id) }.tint(.blue)
             } else {
                 Button("Done") { store.markDone(item.id) }.tint(.green)
+                if !item.isDoing {
+                    Button("Start") { store.start(item.id) }.tint(.orange)
+                }
             }
         }
         .swipeActions(edge: .trailing) {
@@ -130,6 +148,8 @@ struct ItemRow: View {
     private var statusIcon: some View {
         if item.status == .done {
             Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+        } else if item.isDoing {
+            Image(systemName: "play.circle.fill").foregroundStyle(.orange)
         } else if let r = item.reminder, item.isOpen {
             if r.alarm {
                 Image(systemName: "alarm.fill").foregroundStyle(r.isActive(at: now) ? Color.red : Color.orange)
@@ -147,6 +167,16 @@ struct ItemRow: View {
         let childCount = store.children(of: item.id).count
         var parts: [String] = []
         if let text = reminderText { parts.append(text) }
+        if item.isDoing, let end = item.timeboxEnd {
+            parts.append(end > now ? "Doing · \(end.formatted(.relative(presentation: .named))) left" : "Doing · time's up")
+        } else if item.isDoing {
+            parts.append("Doing · open-ended")
+        }
+        if item.status == .done, item.timeSpent >= 60 {
+            parts.append("took \(DurationFormat.short(item.timeSpent))")
+        } else if item.status != .done, let estimate = item.estimateMinutes {
+            parts.append("~\(IntervalFormat.short(estimate))")
+        }
         if childCount > 0 {
             let doneCount = store.children(of: item.id).filter { $0.status == .done }.count
             parts.append("\(doneCount)/\(childCount) sub-items")

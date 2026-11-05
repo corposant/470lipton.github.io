@@ -14,6 +14,8 @@ final class NotificationScheduler {
         case done = "NOG_DONE"
         case snoozeHour = "NOG_SNOOZE_1H"
         case morning = "NOG_MORNING"
+        case extend = "NOG_EXTEND_10"
+        case stopDoing = "NOG_STOP"
     }
 
     private let center = UNUserNotificationCenter.current()
@@ -28,7 +30,16 @@ final class NotificationScheduler {
                                               actions: [done, snooze, morning],
                                               intentIdentifiers: [],
                                               options: [])
-        center.setNotificationCategories([category])
+        let doing = UNNotificationCategory(
+            identifier: NogPlanner.categoryDoing,
+            actions: [
+                done,
+                UNNotificationAction(identifier: Action.extend.rawValue, title: "+10 minutes", options: []),
+                UNNotificationAction(identifier: Action.stopDoing.rawValue, title: "Stop for now", options: []),
+            ],
+            intentIdentifiers: [],
+            options: [])
+        center.setNotificationCategories([category, doing])
     }
 
     @discardableResult
@@ -91,7 +102,7 @@ final class NotificationScheduler {
         content.title = planned.title
         content.body = planned.body
         content.sound = .default
-        content.categoryIdentifier = Self.categoryID
+        content.categoryIdentifier = planned.category
         content.threadIdentifier = planned.itemID.uuidString
         content.userInfo = [Self.itemIDKey: planned.itemID.uuidString]
         // iOS 27: lets people say "Siri, mark that done" about the nog on screen.

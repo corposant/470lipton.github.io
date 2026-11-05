@@ -69,6 +69,10 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
                     store.snooze(id, until: .now.addingTimeInterval(3600))
                 case NotificationScheduler.Action.morning.rawValue:
                     store.snooze(id, until: NogSettings.nextMorning())
+                case NotificationScheduler.Action.extend.rawValue:
+                    store.extend(id, minutes: 10)
+                case NotificationScheduler.Action.stopDoing.rawValue:
+                    store.stopDoing(id)
                 case UNNotificationDefaultActionIdentifier:
                     Router.shared.open(id)
                 default:

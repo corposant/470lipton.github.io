@@ -63,6 +63,8 @@ private struct ItemEditor: View {
                 .pickerStyle(.segmented)
             }
 
+            doingSection
+
             reminderSection
 
             Section {
@@ -107,6 +109,40 @@ private struct ItemEditor: View {
         }
         // iOS 27 on-screen awareness: "Siri, snooze this", "mark this done".
         .appEntityIdentifier(EntityIdentifier(for: ReminderEntity.self, identifier: item.id))
+    }
+
+    // MARK: Doing
+
+    @ViewBuilder
+    private var doingSection: some View {
+        if item.isDoing {
+            Section("Doing now") {
+                DoingCard(item: item, showsTitle: false)
+            }
+        } else if item.status != .done {
+            Section {
+                StartButton(item: item, prominent: true)
+                    .listRowInsets(EdgeInsets())
+                    .listRowBackground(Color.clear)
+            } footer: {
+                Text("Tap to start with \(store.suggestedTimebox(for: item.id).label.lowercased()). Hold for other timeboxes.")
+            }
+        }
+        Section("Time") {
+            Picker("Estimate", selection: Binding(
+                get: { item.estimateMinutes ?? 0 },
+                set: { set(\.estimateMinutes, $0 > 0 ? $0 : nil) })) {
+                Text("None").tag(0)
+                ForEach(Array(Set(NogSettings.timeboxChoices + [item.estimateMinutes ?? 0])).filter { $0 > 0 }.sorted(),
+                        id: \.self) { Text(IntervalFormat.short($0)).tag($0) }
+            }
+            if item.totalTimeSpent() >= 60 {
+                LabeledContent("Time spent", value: DurationFormat.short(item.totalTimeSpent()))
+            }
+            if let completed = item.completed {
+                LabeledContent("Finished", value: completed.formatted(date: .abbreviated, time: .shortened))
+            }
+        }
     }
 
     // MARK: Reminder

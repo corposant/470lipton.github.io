@@ -270,3 +270,74 @@ final class AlarmHandoffTests: XCTestCase {
                           AlarmScheduler.alarmID(item: item, date: now.addingTimeInterval(60)))
     }
 }
+
+@MainActor
+final class DoingTests: XCTestCase {
+    let now = Date(timeIntervalSince1970: 1_800_000_000)
+
+    func done(_ title: String, tags: [String] = [], parent: UUID? = nil, minutes: Double) -> Item {
+        var item = Item(title: title, status: .done, parentID: parent, tags: tags)
+        item.timeSpent = minutes * 60
+        return item
+    }
+
+    func testSuggestionPrefersEstimateThenHistoryThenUrgencyThenDefault() {
+        var item = Item(title: "call bank", tags: ["calls"])
+        item.estimateMinutes = 20
+        let history = [done("a", tags: ["calls"], minutes: 9), done("b", tags: ["Calls"], minutes: 11),
+                       done("c", tags: ["calls"], minutes: 30)]
+        XCTAssertEqual(TimeboxAdvisor.suggest(for: item, among: history, defaultMinutes: 25, now: now).minutes, 20)
+
+        item.estimateMinutes = nil
+        let byTag = TimeboxAdvisor.suggest(for: item, among: history, defaultMinutes: 25, now: now)
+        XCTAssertEqual(byTag, TimeboxSuggestion(minutes: 10, reason: "like your other #calls"))
+
+        let lonely = Item(title: "x", reminder: Reminder(start: now.addingTimeInterval(-2 * 86_400), repeatMinutes: 8))
+        XCTAssertEqual(TimeboxAdvisor.suggest(for: lonely, among: [], defaultMinutes: 25, now: now).minutes, 10)
+
+        let urgent = Item(title: "y", reminder: Reminder(start: now, repeatMinutes: 8, alarm: true))
+        XCTAssertEqual(TimeboxAdvisor.suggest(for: urgent, among: [], defaultMinutes: 25, now: now).minutes, 15)
+
+        XCTAssertEqual(TimeboxAdvisor.suggest(for: Item(title: "z"), among: [], defaultMinutes: 25, now: now).minutes, 25)
+        XCTAssertNil(TimeboxAdvisor.suggest(for: Item(title: "z"), among: [], defaultMinutes: 0, now: now).minutes)
+    }
+
+    func testDoingNogsWhenTimeIsUpInsteadOfTheUsualReminder() {
+        var item = Item(title: "write", status: .doing, reminder: Reminder(start: now.addingTimeInterval(-3600), repeatMinutes: 8))
+        item.doingSince = now
+        item.timeboxMinutes = 25
+        XCTAssertEqual(item.effectiveReminder, Reminder(start: now.addingTimeInterval(1500), repeatMinutes: 5))
+
+        let plan = NogPlanner.plan(items: [item], now: now.addingTimeInterval(60), maxFollowUpsPerItem: 1)
+        XCTAssertEqual(plan.first?.fireDate, now.addingTimeInterval(1500))
+        XCTAssertEqual(plan.first?.category, NogPlanner.categoryDoing)
+    }
+
+    func testStartFinishBanksTimeAndKeepsTheItem() throws {
+        let folder = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        let store = ItemStore(folder: folder, schedulesNotifications: false)
+        let item = try XCTUnwrap(store.capture("write report ~45m"))
+        XCTAssertEqual(item.estimateMinutes, 45)
+        XCTAssertEqual(store.suggestedTimebox(for: item.id).minutes, 45)
+
+        store.start(item.id)
+        XCTAssertEqual(store.items[item.id]?.status, .doing)
+        XCTAssertEqual(store.items[item.id]?.timeboxMinutes, 45)
+        XCTAssertNotNil(store.items[item.id]?.doingSince)
+
+        store.extend(item.id, minutes: 10)
+        XCTAssertEqual(store.items[item.id]?.timeboxMinutes, 55)
+
+        store.markDone(item.id)
+        let finished = try XCTUnwrap(store.items[item.id])
+        XCTAssertEqual(finished.status, .done)
+        XCTAssertNil(finished.doingSince)
+        XCTAssertNotNil(finished.completed)
+        XCTAssertGreaterThanOrEqual(finished.timeSpent, 0)
+
+        store.flushForTesting()
+        let reloaded = ItemStore(folder: folder, schedulesNotifications: false)
+        XCTAssertEqual(reloaded.items[item.id]?.estimateMinutes, 45)
+        XCTAssertEqual(reloaded.items[item.id]?.status, .done)
+    }
+}

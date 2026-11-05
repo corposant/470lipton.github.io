@@ -34,6 +34,16 @@ As you type, a line above the capture field shows how Nog understood it. A day w
 - **Ring like an alarm.** Flip it on per item, or type `!alarm`, and that item's nogs become real AlarmKit alarms. They break through Silent mode and Focus, take over the Lock Screen and your Watch, and have Done / Snooze buttons. Regular nogs take over again after the scheduled alarms run out.
 - **Break it down.** On-device Apple Intelligence (Foundation Models) suggests 3–7 concrete first steps for any item, and you pick which ones become sub-items. It runs only on Apple Intelligence devices, and nothing leaves the phone.
 
+## ▶︎ Doing a nog
+
+Every nog has a play button. Tap it and the nog becomes **Doing**, the thing you're working on right now:
+
+- **A live timer on your Lock Screen and in the Dynamic Island** (plus StandBy, Apple Watch and CarPlay), with **Done / +10 min / Stop** buttons.
+- **A timebox Nog picks for you**, in this order: your estimate for the item (`~30m` when capturing, or set it on the item), how long similar items took you before (same #tag, or other steps in the same project), a short start if it's urgent (15 min) or has been waiting over a day (10 min), and otherwise your default (25 min). Hold the button to choose another length or no timer (counts up).
+- **While you're doing it, the usual nogs pause.** When the timebox ends, Nog nogs "Time's up. Done, or 10 more minutes?" every 5 minutes. Alarm items ring. Open-ended sessions get an hourly "Still on it?".
+- **Finishing keeps the item.** Done items stay with their notes, sub-items and the time you spent ("took 40 min"). That history makes future timeboxes smarter. **Stop** puts it back to Open and keeps the time.
+- **Siri:** *"Start write report in Nog."*
+
 ## Steady or logarithmic
 
 Each reminder has a style:
@@ -54,6 +64,7 @@ Type these anywhere in a capture line (all optional):
 | `!log` | logarithmic: the gap doubles after each nog |
 | `!steady` | same gap every time |
 | `!alarm` | ring like a real alarm |
+| `~30m` `~2h` | how long it'll take (the ▶︎ timebox) |
 | `!off` or `!idea` | no reminder |
 | `@30m` `@2h` `@1d` `@now` | when to start nogging |
 | `#tag` | add a tag |
@@ -109,6 +120,8 @@ Nog/Store                   ItemStore (in-memory + Markdown files), Router
 Nog/Notifications           Sync between the plan and iOS's notification center
 Nog/Intents                 Siri / Shortcuts / Action Button capture
 Nog/Views                   SwiftUI screens
+NogWidgets                  Live Activity for ▶︎ Doing (widget extension)
+Shared                      Code compiled into both the app and NogWidgets
 NogTests                    Unit tests for the model and planner
 design/AppIcon.svg          Source for the app icon
 ```

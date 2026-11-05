@@ -10,6 +10,7 @@ struct CaptureResult: Equatable {
     var title: String
     var reminder: Reminder?
     var tags: [String]
+    var estimateMinutes: Int? = nil
 }
 
 /// Turns a quick-capture line into an item. Everything gets the default nog
@@ -24,6 +25,7 @@ struct CaptureResult: Equatable {
 ///   `@30m` `@2h` `@1d`  start nogging in 30 minutes / 2 hours / 1 day
 ///   `@now`              start now
 ///   `#tag`              add a tag
+///   `~30m` `~2h`        how long it'll take (the ▶︎ timebox)
 ///
 /// …and plain English, via `NaturalDateParser`: "lunch next Tues",
 /// "call mom tomorrow at 3", "pills every 4 hours", "stretch in 20 min".
@@ -36,6 +38,7 @@ enum CaptureParser {
         var once = false
         var curveOverride: RepeatCurve?
         var alarm = false
+        var estimate: Int?
         var repeatOverride: Int?
         var delayOverride: Int?
 
@@ -72,6 +75,10 @@ enum CaptureParser {
                 delayOverride = m
                 continue
             }
+            if lower.hasPrefix("~"), let m = minutes(lower.dropFirst()), m > 0 {
+                estimate = m
+                continue
+            }
             if word.hasPrefix("#"), word.count > 1 {
                 tags.append(String(word.dropFirst()))
                 continue
@@ -82,7 +89,7 @@ enum CaptureParser {
         let natural = NaturalDateParser.parse(words.joined(separator: " "), now: now, calendar: calendar)
         let title = natural.title
         if noReminder {
-            return CaptureResult(title: title, reminder: nil, tags: tags)
+            return CaptureResult(title: title, reminder: nil, tags: tags, estimateMinutes: estimate)
         }
         let start: Date
         if let delayOverride {
@@ -95,7 +102,7 @@ enum CaptureParser {
         let repeatMinutes = once ? nil : (repeatOverride ?? natural.repeatMinutes ?? defaults.repeatMinutes)
         let reminder = Reminder(start: start, repeatMinutes: repeatMinutes,
                                 curve: curveOverride ?? defaults.curve, alarm: alarm)
-        return CaptureResult(title: title, reminder: reminder, tags: tags)
+        return CaptureResult(title: title, reminder: reminder, tags: tags, estimateMinutes: estimate)
     }
 
     /// "8m" → 8, "2h" → 120, "1d" → 1440, "15" → 15. Anything else → nil.

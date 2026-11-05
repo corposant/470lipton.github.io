@@ -27,6 +27,10 @@ enum ItemFile {
         let tags = item.tags.map { oneLine($0).replacingOccurrences(of: ",", with: " ") }
             .filter { !$0.isEmpty }
         if !tags.isEmpty { lines.append("tags: [\(tags.joined(separator: ", "))]") }
+        if let since = item.doingSince { lines.append("doing_since: \(iso(since))") }
+        if let box = item.timeboxMinutes { lines.append("timebox_minutes: \(box)") }
+        if let estimate = item.estimateMinutes { lines.append("estimate_minutes: \(estimate)") }
+        if item.timeSpent > 0 { lines.append("time_spent: \(Int(item.timeSpent))") }
         if let r = item.reminder {
             lines.append("remind_at: \(iso(r.start))")
             if let m = r.repeatMinutes { lines.append("repeat_minutes: \(m)") }
@@ -76,6 +80,10 @@ enum ItemFile {
                 .map { $0.trimmingCharacters(in: .whitespaces) }
                 .filter { !$0.isEmpty }
         }
+        item.doingSince = fields["doing_since"].flatMap(date)
+        item.timeboxMinutes = fields["timebox_minutes"].flatMap { Int($0) }
+        item.estimateMinutes = fields["estimate_minutes"].flatMap { Int($0) }
+        item.timeSpent = fields["time_spent"].flatMap { TimeInterval($0) } ?? 0
         if let start = fields["remind_at"].flatMap(date) {
             let repeatMinutes = fields["repeat_minutes"].flatMap { Int($0) }.flatMap { $0 > 0 ? $0 : nil }
             let curve = fields["repeat_curve"].flatMap(RepeatCurve.init(rawValue:)) ?? .steady
