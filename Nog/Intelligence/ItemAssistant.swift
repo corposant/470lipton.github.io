@@ -58,15 +58,20 @@ struct BreakdownSheet: View {
                             Button {
                                 if selected.contains(step) { selected.remove(step) } else { selected.insert(step) }
                             } label: {
-                                Label(step, systemImage: selected.contains(step) ? "checkmark.circle.fill" : "circle")
+                                Label {
+                                    Text(step).foregroundStyle(.primary)
+                                } icon: {
+                                    Image(systemName: selected.contains(step) ? "checkmark.circle" : "circle")
+                                        .foregroundStyle(selected.contains(step) ? Theme.violet : Theme.muted)
+                                }
                             }
-                            .tint(.primary)
                         }
                     } footer: {
                         Text("Added as sub-items without their own nogs. \(item.title) keeps nogging you.")
                     }
                 }
             }
+            .nogListStyle()
             .navigationTitle("Break it down")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

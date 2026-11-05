@@ -13,7 +13,8 @@ struct RootView: View {
             TimelineView(.periodic(from: .now, by: 30)) { context in
                 ItemListView(now: context.date, search: search)
             }
-            .navigationTitle("Nog")
+            .background { NogBackground() }
+            .navigationTitle("NOG")
             .toolbarMinimizeBehavior(.onScrollDown, for: .navigationBar)
             .searchable(text: $search, placement: .navigationBarDrawer(displayMode: .automatic))
             .toolbar {
@@ -52,8 +53,14 @@ struct ItemListView: View {
                     || $0.tags.contains { $0.lowercased().contains(q) } }
                 .sorted { $0.updated > $1.updated }
             List {
-                ForEach(results) { ItemRow(item: $0, now: now) }
+                Section {
+                    ForEach(results) { ItemRow(item: $0, now: now) }
+                } header: {
+                    SectionLabel(title: "Results", count: results.count)
+                }
+                .listRowBackground(Theme.glass)
             }
+            .nogListStyle()
         } else {
             let doing = all.filter(\.isDoing)
                 .sorted { ($0.doingSince ?? .distantPast) < ($1.doingSince ?? .distantPast) }
@@ -71,11 +78,15 @@ struct ItemListView: View {
 
             List {
                 if !doing.isEmpty {
-                    Section("Doing now") {
+                    Section {
                         ForEach(doing) { item in
                             DoingCard(item: item)
                                 .appEntityIdentifier(EntityIdentifier(for: ReminderEntity.self, identifier: item.id))
+                                .listRowBackground(Color.clear)
+                                .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
                         }
+                    } header: {
+                        SectionLabel(title: "Doing now", tint: Theme.blue)
                     }
                 }
                 section("Nogging now", due)
@@ -84,21 +95,30 @@ struct ItemListView: View {
                 section("Someday", someday)
                 if !done.isEmpty {
                     Section {
-                        DisclosureGroup("Done (\(done.count))") {
+                        DisclosureGroup {
                             ForEach(done.prefix(50)) { ItemRow(item: $0, now: now) }
+                        } label: {
+                            Text("\(done.count) finished").font(.nogMeta).foregroundStyle(Theme.muted)
                         }
+                    } header: {
+                        SectionLabel(title: "Done")
                     }
+                    .listRowBackground(Theme.glass)
                 }
             }
+            .nogListStyle()
         }
     }
 
     @ViewBuilder
     private func section(_ title: String, _ items: [Item]) -> some View {
         if !items.isEmpty {
-            Section(title) {
+            Section {
                 ForEach(items) { ItemRow(item: $0, now: now) }
+            } header: {
+                SectionLabel(title: title, count: items.count)
             }
+            .listRowBackground(Theme.glass)
         }
     }
 }
@@ -129,37 +149,33 @@ struct ItemRow: View {
         .appEntityIdentifier(EntityIdentifier(for: ReminderEntity.self, identifier: item.id))
         .swipeActions(edge: .leading) {
             if item.status == .done {
-                Button("Reopen") { store.reopen(item.id) }.tint(.blue)
+                Button("Reopen") { store.reopen(item.id) }.tint(Theme.violet)
             } else {
-                Button("Done") { store.markDone(item.id) }.tint(.green)
+                Button("Done") { store.markDone(item.id) }.tint(Theme.blue)
                 if !item.isDoing {
-                    Button("Start") { store.start(item.id) }.tint(.orange)
+                    Button("Start") { store.start(item.id) }.tint(Theme.violet)
                 }
             }
         }
         .swipeActions(edge: .trailing) {
             Button("Delete", role: .destructive) { store.delete(item.id) }
-            Button("1 hour") { store.snooze(item.id, until: now.addingTimeInterval(3600)) }.tint(.orange)
-            Button("Morning") { store.snooze(item.id, until: NogSettings.nextMorning(after: now)) }.tint(.indigo)
+            Button("1 hour") { store.snooze(item.id, until: now.addingTimeInterval(3600)) }.tint(Theme.pink)
+            Button("Morning") { store.snooze(item.id, until: NogSettings.nextMorning(after: now)) }.tint(Theme.violet)
         }
     }
 
     @ViewBuilder
     private var statusIcon: some View {
+        // Pink = nogging, violet = coming up, blue = live/done, gray = idea.
         if item.status == .done {
-            Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+            Image(systemName: "checkmark.circle").foregroundStyle(Theme.blue)
         } else if item.isDoing {
-            Image(systemName: "play.circle.fill").foregroundStyle(.orange)
+            Image(systemName: "play.circle").foregroundStyle(Theme.blue)
         } else if let r = item.reminder, item.isOpen {
-            if r.alarm {
-                Image(systemName: "alarm.fill").foregroundStyle(r.isActive(at: now) ? Color.red : Color.orange)
-            } else if r.isActive(at: now) {
-                Image(systemName: "bell.badge.fill").foregroundStyle(.red)
-            } else {
-                Image(systemName: "bell").foregroundStyle(.orange)
-            }
+            Image(systemName: r.alarm ? "alarm" : "bell")
+                .foregroundStyle(r.isActive(at: now) ? Theme.pink : Theme.violet)
         } else {
-            Image(systemName: "lightbulb").foregroundStyle(.secondary)
+            Image(systemName: "lightbulb").foregroundStyle(Theme.muted)
         }
     }
 

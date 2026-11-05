@@ -8,12 +8,24 @@ struct NogApp: App {
     @Environment(\.scenePhase) private var scenePhase
     @State private var store = ItemStore.shared
     @State private var router = Router.shared
+    @AppStorage(ThemeMode.key) private var themeMode: ThemeMode = .auto
+
+    init() {
+        // SF Pro Expanded for navigation titles: the wide, technical "Dark Side" look.
+        let large = UIFont.systemFont(ofSize: 30, weight: .semibold, width: .expanded)
+        let inline = UIFont.systemFont(ofSize: 16, weight: .semibold, width: .expanded)
+        let appearance = UINavigationBar.appearance()
+        appearance.largeTitleTextAttributes = [.font: large, .kern: 2.5]
+        appearance.titleTextAttributes = [.font: inline, .kern: 1.2]
+    }
 
     var body: some Scene {
         WindowGroup {
             RootView()
                 .environment(store)
                 .environment(router)
+                .tint(Theme.blue)
+                .preferredColorScheme(themeMode == .auto ? nil : (themeMode == .dark ? .dark : .light))
                 .task {
                     await NotificationScheduler.shared.requestAuthorization()
                     await store.connectToICloud()

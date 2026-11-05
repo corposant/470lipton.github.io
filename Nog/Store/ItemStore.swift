@@ -56,6 +56,10 @@ final class ItemStore {
     /// moving any on-phone items there, then watches for changes from other devices.
     func connectToICloud() async {
         let local = StorageLocation.localFolder
+        guard StorageMode.current == .iCloud else {
+            await useLocalStorage()
+            return
+        }
         guard let cloud = await storage.resolveICloudFolder(migratingFrom: local) else {
             isUsingICloud = false
             UserDefaults.standard.removeObject(forKey: StorageLocation.lastFolderKey)
@@ -76,6 +80,37 @@ final class ItemStore {
         }
         await reloadFromDisk()
         startWatching()
+    }
+
+    /// Settings → Storage. Switching to on-phone copies every item to the phone
+    /// (the iCloud copies stay put); switching back merges, keeping the newest edits.
+    func setStorage(_ mode: StorageMode) async {
+        UserDefaults.standard.set(mode.rawValue, forKey: StorageMode.key)
+        switch mode {
+        case .local: await useLocalStorage()
+        case .iCloud: await connectToICloud()
+        }
+        await syncNow()
+    }
+
+    private func useLocalStorage() async {
+        stopWatching()
+        UserDefaults.standard.removeObject(forKey: StorageLocation.lastFolderKey)
+        let local = StorageLocation.localFolder
+        let wasElsewhere = folder.standardizedFileURL != local.standardizedFileURL
+        isUsingICloud = false
+        guard wasElsewhere else { return }
+        try? FileManager.default.createDirectory(at: local, withIntermediateDirectories: true)
+        folder = local
+        for item in items.values { write(item) }
+        await flush()
+    }
+
+    private func stopWatching() {
+        query?.stop()
+        query = nil
+        for observer in queryObservers { NotificationCenter.default.removeObserver(observer) }
+        queryObservers = []
     }
 
     /// Merges what's on disk (possibly changed by another device) into memory.

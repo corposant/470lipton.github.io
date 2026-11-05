@@ -62,6 +62,7 @@ private struct ItemEditor: View {
                 }
                 .pickerStyle(.segmented)
             }
+            .listRowBackground(Theme.glass)
 
             doingSection
 
@@ -71,12 +72,13 @@ private struct ItemEditor: View {
                 TextEditor(text: binding(\.body))
                     .frame(minHeight: 140)
             } header: {
-                Text("Notes")
+                SectionLabel(title: "Notes")
             } footer: {
                 Text(verbatim: "Link to other items with [[Their title]].")
             }
+            .listRowBackground(Theme.glass)
 
-            Section("Tags") {
+            GlassSection("Tags") {
                 TextField("comma, separated", text: $tagsText)
                     .textInputAutocapitalization(.never)
                     .onChange(of: tagsText) {
@@ -93,7 +95,9 @@ private struct ItemEditor: View {
             Section {
                 Button("Delete", role: .destructive) { confirmDelete = true }
             }
+            .listRowBackground(Theme.glass)
         }
+        .nogListStyle()
         .navigationBarTitleDisplayMode(.inline)
         .confirmationDialog("Delete this item?", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("Delete", role: .destructive) {
@@ -116,8 +120,12 @@ private struct ItemEditor: View {
     @ViewBuilder
     private var doingSection: some View {
         if item.isDoing {
-            Section("Doing now") {
+            Section {
                 DoingCard(item: item, showsTitle: false)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets())
+            } header: {
+                SectionLabel(title: "Doing now", tint: Theme.blue)
             }
         } else if item.status != .done {
             Section {
@@ -128,7 +136,7 @@ private struct ItemEditor: View {
                 Text("Tap to start with \(store.suggestedTimebox(for: item.id).label.lowercased()). Hold for other timeboxes.")
             }
         }
-        Section("Time") {
+        GlassSection("Time") {
             Picker("Estimate", selection: Binding(
                 get: { item.estimateMinutes ?? 0 },
                 set: { set(\.estimateMinutes, $0 > 0 ? $0 : nil) })) {
@@ -190,13 +198,13 @@ private struct ItemEditor: View {
                 }
                 HStack {
                     Button("Snooze 1h") { store.snooze(item.id, until: .now.addingTimeInterval(3600)) }
-                    Spacer()
+                        .buttonStyle(OutlineButtonStyle(tint: Theme.pink))
                     Button("Tomorrow 9 AM") { store.snooze(item.id, until: NogSettings.nextMorning()) }
+                        .buttonStyle(OutlineButtonStyle(tint: Theme.violet))
                 }
-                .buttonStyle(.borderless)
             }
         } header: {
-            Text("Reminder")
+            SectionLabel(title: "Reminder")
         } footer: {
             if item.isOpen, let reminder = item.reminder, let next = reminder.nextFire(after: .now) {
                 Text("Next nog about \(next.formatted(date: .abbreviated, time: .shortened))"
@@ -205,6 +213,8 @@ private struct ItemEditor: View {
                 Text("Paused: reminders only fire for open items.")
             }
         }
+        .listRowBackground(Theme.glass)
+        .tint(Theme.pink)
     }
 
     private func repeatChoices(including current: Int) -> [Int] {
@@ -215,14 +225,14 @@ private struct ItemEditor: View {
 
     private var childrenSection: some View {
         let children = store.children(of: item.id)
-        return Section("Sub-items") {
+        return GlassSection("Sub-items") {
             ForEach(children) { child in
                 HStack {
                     Button {
                         if child.status == .done { store.reopen(child.id) } else { store.markDone(child.id) }
                     } label: {
                         Image(systemName: child.status == .done ? "checkmark.circle.fill" : "circle")
-                            .foregroundStyle(child.status == .done ? .green : .secondary)
+                            .foregroundStyle(child.status == .done ? Theme.blue : Theme.muted)
                     }
                     .buttonStyle(.borderless)
                     NavigationLink(value: child.id) {
@@ -247,7 +257,7 @@ private struct ItemEditor: View {
     }
 
     private var parentSection: some View {
-        Section("Part of") {
+        GlassSection("Part of") {
             if let parent = store.parent(of: item) {
                 NavigationLink(value: parent.id) { Label(parent.title, systemImage: "arrow.up.circle") }
                 Button("Detach from \(parent.title)") { set(\.parentID, nil) }
@@ -261,7 +271,7 @@ private struct ItemEditor: View {
         let outgoing = item.outgoingLinkTitles
         let backlinks = store.backlinks(to: item)
         if !outgoing.isEmpty {
-            Section("Links") {
+            GlassSection("Links") {
                 ForEach(outgoing, id: \.self) { title in
                     if let target = store.resolve(title: title) {
                         NavigationLink(value: target.id) { Label(target.title, systemImage: "link") }
@@ -277,7 +287,7 @@ private struct ItemEditor: View {
             }
         }
         if !backlinks.isEmpty {
-            Section("Linked from") {
+            GlassSection("Linked from") {
                 ForEach(backlinks) { source in
                     NavigationLink(value: source.id) { Label(source.title, systemImage: "arrow.uturn.left") }
                 }
@@ -308,6 +318,7 @@ private struct ParentPicker: View {
                     }
                 }
             }
+            .nogListStyle()
             .searchable(text: $search)
             .navigationTitle("Put inside…")
             .navigationBarTitleDisplayMode(.inline)
@@ -315,5 +326,25 @@ private struct ParentPicker: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
             }
         }
+    }
+}
+
+/// A Form/List section with a frosted row background and a HUD label.
+struct GlassSection<Content: View>: View {
+    let title: String
+    let content: Content
+
+    init(_ title: String, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.content = content()
+    }
+
+    var body: some View {
+        Section {
+            content
+        } header: {
+            SectionLabel(title: title)
+        }
+        .listRowBackground(Theme.glass)
     }
 }

@@ -76,7 +76,7 @@ final class AlarmScheduler {
         let attributes = AlarmAttributes(
             presentation: AlarmPresentation(alert: alert),
             metadata: NogAlarmMetadata(itemID: item.id),
-            tintColor: Color.orange)
+            tintColor: Theme.pink)
         return .alarm(
             schedule: .fixed(date),
             attributes: attributes,

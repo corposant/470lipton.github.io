@@ -11,10 +11,13 @@ struct CaptureBar: View {
     var body: some View {
         VStack(spacing: 6) {
             if let preview {
-                Label(preview, systemImage: "wand.and.stars")
-                    .font(.caption)
-                    .foregroundStyle(.tint)
+                Text("→ " + preview.uppercased())
+                    .font(.nogMeta)
+                    .tracking(0.4)
+                    .foregroundStyle(Theme.blue)
+                    .lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 6)
             } else if let confirmation {
                 Text(confirmation)
                     .font(.caption)
@@ -27,18 +30,27 @@ struct CaptureBar: View {
                     .submitLabel(.send)
                     .onSubmit(submit)
                     .textFieldStyle(.plain)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-                    .background(Color(.secondarySystemBackground), in: Capsule())
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 11)
+                    .background(Theme.glass, in: Capsule())
+                    .overlay(Capsule().strokeBorder(Theme.edgeStrong, lineWidth: 1))
                 Button(action: submit) {
-                    Image(systemName: "arrow.up.circle.fill").font(.title)
+                    Image(systemName: "arrow.up")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(.primary)
+                        .frame(width: 40, height: 40)
+                        .overlay(Circle().strokeBorder(Theme.synth, lineWidth: 1.5))
+                        .contentShape(Circle())
                 }
+                .buttonStyle(.plain)
                 .disabled(text.trimmingCharacters(in: .whitespaces).isEmpty)
+                .opacity(text.trimmingCharacters(in: .whitespaces).isEmpty ? 0.45 : 1)
             }
         }
         .padding(.horizontal)
-        .padding(.vertical, 8)
-        .background(.bar)
+        .padding(.vertical, 10)
+        .background(.ultraThinMaterial)
+        .overlay(alignment: .top) { Rectangle().fill(Theme.edge).frame(height: 1) }
         .onAppear { focused = true }
         .onChange(of: router.captureFocusRequest) { focused = true }
     }

@@ -15,18 +15,19 @@ struct DoingLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: DoingAttributes.self) { context in
             DoingActivityView(context: context)
-                .activityBackgroundTint(Color.black.opacity(0.75))
-                .activitySystemActionForegroundColor(.orange)
+                .activityBackgroundTint(Color(red: 0.11, green: 0.11, blue: 0.15).opacity(0.72))
+                .activitySystemActionForegroundColor(Theme.blue)
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    Label("Doing", systemImage: "play.circle.fill")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.orange)
+                    Label("DOING", systemImage: "play.fill")
+                        .font(.nogLabel)
+                        .tracking(1.5)
+                        .foregroundStyle(Theme.blue)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
                     DoingTimer(context: context)
-                        .font(.title3.monospacedDigit().weight(.semibold))
+                        .font(.nogReadout(20))
                         .multilineTextAlignment(.trailing)
                 }
                 DynamicIslandExpandedRegion(.center) {
@@ -38,14 +39,14 @@ struct DoingLiveActivity: Widget {
                     DoingButtons(itemID: context.attributes.itemID)
                 }
             } compactLeading: {
-                Image(systemName: "play.circle.fill").foregroundStyle(.orange)
+                Image(systemName: "play.fill").foregroundStyle(Theme.blue)
             } compactTrailing: {
                 CompactTimer(context: context)
             } minimal: {
-                Image(systemName: context.isStale ? "bell.badge.fill" : "timer")
-                    .foregroundStyle(.orange)
+                Image(systemName: context.isStale ? "bell" : "timer")
+                    .foregroundStyle(context.isStale ? Theme.pink : Theme.blue)
             }
-            .keylineTint(.orange)
+            .keylineTint(Theme.blue)
         }
         // iOS 27: Apple Watch Smart Stack and CarPlay use the small family.
         .supplementalActivityFamilies([.small])
@@ -59,24 +60,25 @@ private struct DoingActivityView: View {
     var body: some View {
         if activityFamily == .small {
             VStack(alignment: .leading, spacing: 4) {
-                Label(context.attributes.title, systemImage: "play.circle.fill")
+                Label(context.attributes.title, systemImage: "play.fill")
                     .font(.caption.weight(.semibold))
                     .lineLimit(1)
                 DoingTimer(context: context)
-                    .font(.title2.monospacedDigit().weight(.bold))
+                    .font(.nogReadout(22))
             }
             .padding(10)
         } else {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(alignment: .firstTextBaseline) {
-                    Label("Doing", systemImage: "play.circle.fill")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.orange)
+                    Label("DOING", systemImage: "play.fill")
+                        .font(.nogLabel)
+                        .tracking(1.8)
+                        .foregroundStyle(Theme.blue)
                     Spacer()
-                    if context.state.priorSeconds >= 60 {
-                        Text("\(Int(context.state.priorSeconds / 60)) min before")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
+                    if let end = context.state.endsAt {
+                        Text("\(Int(end.timeIntervalSince(context.state.startedAt) / 60)) MIN BOX")
+                            .font(.nogMeta)
+                            .foregroundStyle(Theme.muted)
                     }
                 }
                 HStack(alignment: .center) {
@@ -85,7 +87,7 @@ private struct DoingActivityView: View {
                         .lineLimit(2)
                     Spacer(minLength: 12)
                     DoingTimer(context: context)
-                        .font(.system(size: 34, weight: .semibold).monospacedDigit())
+                        .font(.nogReadout(32))
                         .multilineTextAlignment(.trailing)
                 }
                 if let end = context.state.endsAt, !context.isStale {
@@ -94,7 +96,7 @@ private struct DoingActivityView: View {
                     } currentValueLabel: {
                         EmptyView()
                     }
-                    .tint(.orange)
+                    .tint(Theme.violet)
                 }
                 DoingButtons(itemID: context.attributes.itemID)
             }
@@ -110,7 +112,7 @@ private struct DoingTimer: View {
     var body: some View {
         if let end = context.state.endsAt {
             if context.isStale {
-                Text("Time's up").foregroundStyle(.orange)
+                Text("TIME'S UP").foregroundStyle(Theme.pink)
             } else {
                 Text(timerInterval: context.state.startedAt...end, countsDown: true)
             }
@@ -127,13 +129,13 @@ private struct CompactTimer: View {
 
     var body: some View {
         if isLimitedInWidth || context.isStale {
-            Image(systemName: context.isStale ? "bell.badge.fill" : "timer")
-                .foregroundStyle(.orange)
+            Image(systemName: context.isStale ? "bell" : "timer")
+                .foregroundStyle(context.isStale ? Theme.pink : Theme.blue)
         } else {
             DoingTimer(context: context)
-                .monospacedDigit()
+                .font(.nogReadout(14))
                 .frame(maxWidth: 56)
-                .foregroundStyle(.orange)
+                .foregroundStyle(Theme.blue)
         }
     }
 }
@@ -145,21 +147,16 @@ private struct DoingButtons: View {
         HStack(spacing: 8) {
             Button(intent: CompleteItemIntent(itemID: itemID.uuidString)) {
                 Label("Done", systemImage: "checkmark")
-                    .frame(maxWidth: .infinity)
             }
-            .tint(.green)
+            .buttonStyle(OutlineButtonStyle(tint: Theme.blue))
             Button(intent: ExtendTimeboxIntent(itemID: itemID.uuidString, minutes: 10)) {
-                Label("+10 min", systemImage: "plus")
-                    .frame(maxWidth: .infinity)
+                Text("+10 min")
             }
-            .tint(.orange)
+            .buttonStyle(OutlineButtonStyle(tint: Theme.pink))
             Button(intent: StopDoingIntent(itemID: itemID.uuidString)) {
-                Label("Stop", systemImage: "stop.fill")
-                    .labelStyle(.iconOnly)
+                Image(systemName: "stop.fill").font(.caption)
             }
-            .tint(.gray)
+            .buttonStyle(OutlineButtonStyle(tint: Theme.muted, expands: false))
         }
-        .buttonStyle(.borderedProminent)
-        .font(.subheadline.weight(.semibold))
     }
 }

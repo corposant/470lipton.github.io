@@ -153,6 +153,17 @@ final class FileStorage: @unchecked Sendable {
         for url in urls where url.pathExtension == "md" {
             let destination = cloud.appending(path: url.lastPathComponent)
             if fm.fileExists(atPath: destination.path) {
+                // Both exist (e.g. you switched to on-phone storage and back): keep the newer edit.
+                let localItem = read(url, coordinated: false).flatMap(ItemFile.decode)
+                let cloudItem = read(destination, coordinated: true).flatMap(ItemFile.decode)
+                if let localItem, (cloudItem?.updated ?? .distantPast) < localItem.updated,
+                   let data = try? Data(contentsOf: url) {
+                    var coordinationError: NSError?
+                    NSFileCoordinator(filePresenter: nil).coordinate(
+                        writingItemAt: destination, options: .forReplacing, error: &coordinationError) { target in
+                        try? data.write(to: target, options: .atomic)
+                    }
+                }
                 try? fm.removeItem(at: url)
             } else {
                 do { try fm.setUbiquitous(true, itemAt: url, destinationURL: destination) }

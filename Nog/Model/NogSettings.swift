@@ -56,3 +56,70 @@ enum NogSettings {
                                   matchingPolicy: .nextTime) ?? now.addingTimeInterval(12 * 3600)
     }
 }
+
+// MARK: - Control panel choices
+
+enum ThemeMode: String, CaseIterable, Identifiable {
+    case auto, dark, light
+    var id: String { rawValue }
+
+    static let key = "themeMode"
+
+    var label: String {
+        switch self {
+        case .auto: "Auto"
+        case .dark: "Dark"
+        case .light: "Light"
+        }
+    }
+}
+
+enum AppIconChoice: String, CaseIterable, Identifiable {
+    case synthwave, spectrum
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .synthwave: "Synthwave"
+        case .spectrum: "Spectrum"
+        }
+    }
+
+    /// nil = the primary icon.
+    var alternateIconName: String? {
+        switch self {
+        case .synthwave: nil
+        case .spectrum: "AppIcon-Spectrum"
+        }
+    }
+
+    /// Preview image in the asset catalog.
+    var previewImage: String {
+        switch self {
+        case .synthwave: "IconPreviewSynthwave"
+        case .spectrum: "IconPreviewSpectrum"
+        }
+    }
+
+    static func current(alternateIconName: String?) -> AppIconChoice {
+        allCases.first { $0.alternateIconName == alternateIconName } ?? .synthwave
+    }
+}
+
+enum StorageMode: String, CaseIterable, Identifiable {
+    case iCloud = "icloud", local
+    var id: String { rawValue }
+
+    static let key = "storageMode"
+
+    static var current: StorageMode {
+        UserDefaults.standard.string(forKey: key).flatMap(StorageMode.init(rawValue:)) ?? .iCloud
+    }
+
+    var label: String {
+        switch self {
+        case .iCloud: "iCloud Drive"
+        case .local: "On this iPhone"
+        }
+    }
+}

@@ -26,6 +26,13 @@ Type the way you'd say it and Nog works out the when:
 
 As you type, a line above the capture field shows how Nog understood it. A day with no time defaults to 9 AM, and meal words set sensible times (lunch at noon, dinner at 6:30).
 
+## Look & settings
+
+- **Theme: "Dark Side".** A charcoal base with frosted glass panels and synthwave pink/blue accents. Blue means live, pink means nogging, violet sits in between. Buttons are outlined, never filled. Pick **Auto / Dark / Light** in the Control Panel.
+- **Typography: Apple's own SF family**, so it matches iOS with no licensing or bundled font files. SF Pro for text, **SF Pro Expanded** for titles and section labels, **SF Mono** for timers and readouts.
+- **Two app icons**, Synthwave and Spectrum, switchable in the Control Panel. The sources are in `design/`.
+- **Control Panel** (gear icon): appearance, app icon, **storage (iCloud Drive or on this iPhone)**, nog defaults, Doing timebox, capture shortcuts, alerts & permissions, and Siri phrases.
+
 ## iOS 27 features
 
 - **Siri speaks Nog natively.** Nog adopts iOS 27's new Reminders App Schemas (`createReminder`, `updateReminder`, `deleteReminders`, `createList`). Try *"Remind me in Nog to call mom tomorrow at 3"*, *"Add milk to my Groceries list in Nog"*, *"Mark this as done"* and *"Set the due date for this to Friday"*. Any item with sub-items works as a list.
