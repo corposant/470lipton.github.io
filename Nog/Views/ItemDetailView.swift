@@ -45,6 +45,18 @@ private struct ItemEditor: View {
         store.update(current)
     }
 
+    /// The dial behaves like the matching buttons: Doing starts with the suggested
+    /// timebox, Nogged marks it done, Open stops or reopens, Dream parks it.
+    private func setStatus(_ new: ItemStatus) {
+        guard new != item.status else { return }
+        switch new {
+        case .doing: store.start(item.id)
+        case .done: store.markDone(item.id)
+        case .open: item.isDoing ? store.stopDoing(item.id) : store.reopen(item.id)
+        case .someday: set(\.status, .someday)
+        }
+    }
+
     private func editReminder(_ change: (inout Reminder) -> Void) {
         guard var current = store.items[item.id], var reminder = current.reminder else { return }
         change(&reminder)
@@ -57,10 +69,15 @@ private struct ItemEditor: View {
             Section {
                 TextField("Title", text: binding(\.title), axis: .vertical)
                     .font(.title3.weight(.semibold))
-                Picker("Status", selection: binding(\.status)) {
-                    ForEach(ItemStatus.allCases, id: \.self) { Text($0.label).tag($0) }
+                VStack(spacing: 2) {
+                    StatusDial(status: item.status) { setStatus($0) }
+                    Text(StatusDial.summary(item.status))
+                        .font(.caption)
+                        .foregroundStyle(Theme.muted)
+                        .multilineTextAlignment(.center)
                 }
-                .pickerStyle(.segmented)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 6)
             }
             .listRowBackground(Theme.glass)
 
