@@ -93,7 +93,7 @@ struct ItemListView: View {
                 }
                 section("Nogging now", due)
                 section("Later today", laterToday)
-                section("On deck", onDeck)
+                section("Nogs next", onDeck)
                 section("Loose nogs", ideas)
                 section("Someday", someday)
                 if !done.isEmpty {

@@ -48,7 +48,7 @@ As you type, a line above the capture field shows how Nog understood it. A day w
 | **Nogitivity** | what you've hit ▶︎ on, with its live timer |
 | **Nogging now** | reminders firing right now |
 | **Later today** | nogs that start later today |
-| **On deck** | tomorrow and beyond |
+| **Nogs next** | tomorrow and beyond |
 | **Loose nogs** | no reminder: ideas, concepts, notes |
 | **Someday** / **Done** | parked, and finished (kept for reference) |
 
