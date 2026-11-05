@@ -69,8 +69,8 @@ enum ItemStatus: String, CaseIterable, Hashable {
         switch self {
         case .open: "Open"
         case .doing: "Doing"
-        case .someday: "Someday"
-        case .done: "Done"
+        case .someday: "Dream"
+        case .done: "Nogged"
         }
     }
 }
