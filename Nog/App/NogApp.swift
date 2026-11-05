@@ -36,6 +36,10 @@ struct NogApp: App {
             switch phase {
             case .active:
                 Task {
+                    // iCloud was unavailable earlier (signing in, offline at launch): try again.
+                    if StorageMode.current == .iCloud && !store.isUsingICloud {
+                        await store.connectToICloud()
+                    }
                     await store.reloadFromDisk()
                     await store.syncNow()
                 }

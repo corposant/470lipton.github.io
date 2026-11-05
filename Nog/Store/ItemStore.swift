@@ -97,6 +97,8 @@ final class ItemStore {
             await useLocalStorage()
             return
         }
+        // Launch and "app became active" can both ask at once; one connect at a time.
+        guard !isSwitchingFolder else { return }
         writePending()
         isSwitchingFolder = true
         defer { isSwitchingFolder = false }
