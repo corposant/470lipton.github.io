@@ -4,11 +4,10 @@ import UIKit
 // "Dark Side": charcoal + frosted glass + synthwave pink/blue, outlined controls.
 // Light mode keeps the same accents on a cool, pale-gray base.
 //
-// Typography is Apple's own SF family, so it matches iOS perfectly and needs
-// no licensing or bundled files:
-//   • SF Pro            body text (system default)
-//   • SF Pro Expanded   titles and section labels: the wide, technical look
-//   • SF Mono           readouts: timers, times, intervals
+// Typography uses fonts built into iOS, so there's nothing to license or bundle:
+//   • Futura    titles, section labels, dial and panel labels: geometric, mid-century
+//   • SF Pro    body text (system default)
+//   • SF Mono   readouts: timers, times, intervals
 
 enum Theme {
     // Accents
@@ -48,13 +47,17 @@ extension UIColor {
 }
 
 extension Font {
-    /// SF Pro Expanded, for titles.
+    /// Futura, for titles. Bold and heavier weights use Futura Bold, the rest Futura Medium.
     static func nogTitle(_ size: CGFloat, weight: Font.Weight = .semibold) -> Font {
-        .system(size: size, weight: weight).width(.expanded)
+        let bold = weight == .bold || weight == .heavy || weight == .black
+        return .custom(bold ? "Futura-Bold" : "Futura-Medium", size: size)
     }
 
-    /// SF Pro Expanded, small caps-style section labels.
-    static let nogLabel = Font.system(size: 11, weight: .semibold).width(.expanded)
+    /// Futura, small caps-style section labels.
+    static let nogLabel = Font.custom("Futura-Medium", size: 11.5)
+
+    /// Futura, tiny labels inside panels and displays.
+    static let nogMicroLabel = Font.custom("Futura-Medium", size: 9)
 
     /// SF Mono, for timers and readouts.
     static func nogReadout(_ size: CGFloat, weight: Font.Weight = .medium) -> Font {

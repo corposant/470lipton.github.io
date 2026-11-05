@@ -11,9 +11,9 @@ struct NogApp: App {
     @AppStorage(ThemeMode.key) private var themeMode: ThemeMode = .auto
 
     init() {
-        // SF Pro Expanded for navigation titles: the wide, technical "Dark Side" look.
-        let large = UIFont.systemFont(ofSize: 30, weight: .semibold, width: .expanded)
-        let inline = UIFont.systemFont(ofSize: 16, weight: .semibold, width: .expanded)
+        // Futura for navigation titles (falls back to the system font if ever missing).
+        let large = UIFont(name: "Futura-Bold", size: 32) ?? .systemFont(ofSize: 30, weight: .bold)
+        let inline = UIFont(name: "Futura-Medium", size: 17) ?? .systemFont(ofSize: 16, weight: .semibold)
         let appearance = UINavigationBar.appearance()
         appearance.largeTitleTextAttributes = [.font: large, .kern: 2.5]
         appearance.titleTextAttributes = [.font: inline, .kern: 1.2]

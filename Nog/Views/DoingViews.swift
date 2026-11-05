@@ -119,7 +119,7 @@ struct TimeboxPanel: View {
 
     private func group(_ title: String) -> some View {
         Text(title.uppercased())
-            .font(.system(size: 8.5, weight: .semibold).width(.expanded))
+            .font(.nogMicroLabel)
             .tracking(2)
             .foregroundStyle(Color(white: 0.45))
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -172,7 +172,7 @@ struct RecessedTimer: View {
                 Spacer()
                 if let box = item.timeboxMinutes { Text("BOX \(clock(TimeInterval(box * 60)))") }
             }
-            .font(.system(size: 8.5, weight: .semibold).width(.expanded))
+            .font(.nogMicroLabel)
             .tracking(1.8)
             .foregroundStyle(Color(red: 0.36, green: 0.42, blue: 0.5))
 

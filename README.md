@@ -29,7 +29,7 @@ As you type, a line above the capture field shows how Nog understood it. A day w
 ## Look & settings
 
 - **Theme: "Dark Side".** A charcoal base with frosted glass panels and synthwave pink/blue accents. Blue means live, pink means nogging, violet sits in between. Buttons are outlined, never filled. Pick **Auto / Dark / Light** in the Control Panel.
-- **Typography: Apple's own SF family**, so it matches iOS with no licensing or bundled font files. SF Pro for text, **SF Pro Expanded** for titles and section labels, **SF Mono** for timers and readouts.
+- **Typography: fonts built into iOS**, so nothing to license or bundle. **Futura** for titles and labels (geometric, mid-century), SF Pro for text, **SF Mono** for timers and readouts.
 - **Two app icons**, Synthwave and Spectrum, switchable in the Control Panel. The sources are in `design/`.
 - **Nogs & alerts** (Control Panel): defaults for new captures, **quiet hours** (optionally all weekend), a **heads-up** before dated nogs, **ring as an alarm after N ignored nogs**, snooze length, what "morning" means, Time Sensitive, sound, **hide titles on the Lock Screen**, and an app icon badge. **Nogitivity**: default timebox, how often "time's up" repeats, the open-ended check-in, and the Live Activity on/off.
 - **Control Panel** (gear icon): appearance, app icon, **storage (iCloud Drive or on this iPhone)**, nog defaults, Doing timebox, capture shortcuts, alerts & permissions, and Siri phrases.
