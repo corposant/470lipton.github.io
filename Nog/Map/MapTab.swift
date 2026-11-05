@@ -445,11 +445,11 @@ struct OutlineView: View {
     }
 
     /// Items inside a folder, at any depth.
-    static func count(_ node: Node) -> Int {
+    nonisolated static func count(_ node: Node) -> Int {
         (node.children ?? []).reduce(0) { $0 + 1 + count($1) }
     }
 
-    static func tree(_ items: [Item], showNogged: Bool) -> [Node] {
+    nonisolated static func tree(_ items: [Item], showNogged: Bool) -> [Node] {
         let visible = items.filter { showNogged || $0.status != .done }
         let ids = Set(visible.map(\.id))
         var byParent: [UUID?: [Item]] = [:]

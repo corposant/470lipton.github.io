@@ -96,7 +96,7 @@ struct StopDoingIntent: LiveActivityIntent {
 #if !WIDGET_EXTENSION
 enum NogActions {
     @MainActor
-    static func run(_ itemID: String, _ action: (ItemStore, UUID) -> Void) async {
+    static func run(_ itemID: String, _ action: @MainActor (ItemStore, UUID) -> Void) async {
         guard let id = UUID(uuidString: itemID) else { return }
         let store = ItemStore.shared
         action(store, id)

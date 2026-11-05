@@ -19,7 +19,7 @@ final class AlarmScheduler {
     static let shared = AlarmScheduler()
 
     /// Upcoming alarms kept scheduled per item.
-    static let alarmsPerItem = 5
+    nonisolated static let alarmsPerItem = 5
 
     private let manager = AlarmManager.shared
 
@@ -68,7 +68,7 @@ final class AlarmScheduler {
     /// Which upcoming nogs ring as alarms: all of them for "ring like an alarm" items
     /// (and their time's-up), or, with escalation on, every nog after N ignored ones.
     /// Quiet hours apply to alarms too.
-    static func alarmDates(for item: Item, policy: NogPolicy, now: Date, limit: Int = alarmsPerItem) -> [Date] {
+    nonisolated static func alarmDates(for item: Item, policy: NogPolicy, now: Date, limit: Int = alarmsPerItem) -> [Date] {
         guard let reminder = item.effectiveReminder(policy: policy) else { return [] }
         let from: Date
         if reminder.alarm {
@@ -104,7 +104,7 @@ final class AlarmScheduler {
     }
 
     /// Stable per (item, time, title), so unchanged alarms are left alone.
-    static func alarmID(item: Item, date: Date) -> UUID {
+    nonisolated static func alarmID(item: Item, date: Date) -> UUID {
         var bytes = item.id.uuid
         var hash: UInt64 = 14_695_981_039_346_656_037
         for byte in "\(Int(date.timeIntervalSince1970))|\(item.title)".utf8 {
