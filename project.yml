@@ -43,14 +43,15 @@ targets:
             NSUbiquitousContainerIsDocumentScopePublic: true
             NSUbiquitousContainerName: Nog
             NSUbiquitousContainerSupportedFolderLevels: Any
-    # iCloud Drive sync. Needs the paid Apple Developer Program — on a free
-    # account, delete this block and re-run xcodegen (items stay on the phone).
-    entitlements:
-      path: Nog/Nog.entitlements
-      properties:
-        com.apple.developer.icloud-container-identifiers: [iCloud.io.nogapp.nog]
-        com.apple.developer.ubiquity-container-identifiers: [iCloud.io.nogapp.nog]
-        com.apple.developer.icloud-services: [CloudDocuments]
+    # iCloud Drive sync needs the paid Apple Developer Program, so it's off for now:
+    # items are stored on the phone. When you upgrade, uncomment these 6 lines and
+    # re-run xcodegen; Nog moves your items into iCloud Drive on its next launch.
+    # entitlements:
+    #   path: Nog/Nog.entitlements
+    #   properties:
+    #     com.apple.developer.icloud-container-identifiers: [iCloud.io.nogapp.nog]
+    #     com.apple.developer.ubiquity-container-identifiers: [iCloud.io.nogapp.nog]
+    #     com.apple.developer.icloud-services: [CloudDocuments]
     settings:
       base:
         # Bundle IDs are globally unique. If Xcode says this one is taken,

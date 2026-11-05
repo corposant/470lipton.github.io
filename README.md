@@ -136,7 +136,7 @@ In Xcode:
 
 Run the tests with **⌘U**.
 
-**iCloud needs the paid Apple Developer Program.** With automatic signing, Xcode registers the iCloud container `iCloud.io.nogapp.nog` for you. If you change the bundle identifier, change the container ID in `project.yml` to match (`iCloud.<your bundle id>`). On a free account, delete the `entitlements:` block in `project.yml`, re-run `xcodegen`, and Nog stores items on the phone only.
+**Free developer account (current setup):** iCloud sync is switched off in `project.yml`, so items live on the phone (Files → On My iPhone → Nog). Everything else works: notifications, AlarmKit alarms, Live Activities, Siri, widgets, and on-device Apple Intelligence. Two limits of a free account: the app stops opening after **7 days** (just press ⌘R again; your data stays), and you can have at most 3 sideloaded apps. **When you go paid**, uncomment the `entitlements:` block in `project.yml` and run `xcodegen`. Nog moves your items into iCloud Drive on its next launch. If you change the bundle identifier, change the container ID to match (`iCloud.<your bundle id>`).
 
 **Free vs paid developer account:** with a free (personal team) account the app stops opening after **7 days** and you have to press ⌘R again. With the paid program ($99/yr) it lasts a year and you can use TestFlight. To check which you have, go to developer.apple.com/account. If you see a **Membership** section with a renewal date, you're on the paid program.
 
