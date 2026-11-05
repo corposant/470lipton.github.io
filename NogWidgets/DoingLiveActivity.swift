@@ -70,7 +70,7 @@ private struct DoingActivityView: View {
         } else {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(alignment: .firstTextBaseline) {
-                    Label("DOING", systemImage: "play.fill")
+                    Label("NOGITIVITY", systemImage: "play.fill")
                         .font(.nogLabel)
                         .tracking(1.8)
                         .foregroundStyle(Theme.blue)

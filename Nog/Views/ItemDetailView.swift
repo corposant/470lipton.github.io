@@ -125,7 +125,7 @@ private struct ItemEditor: View {
                     .listRowBackground(Color.clear)
                     .listRowInsets(EdgeInsets())
             } header: {
-                SectionLabel(title: "Doing now", tint: Theme.blue)
+                SectionLabel(title: "Nogitivity", tint: Theme.blue)
             }
         } else if item.status != .done {
             Section {

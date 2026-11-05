@@ -41,7 +41,18 @@ As you type, a line above the capture field shows how Nog understood it. A day w
 - **Ring like an alarm.** Flip it on per item, or type `!alarm`, and that item's nogs become real AlarmKit alarms. They break through Silent mode and Focus, take over the Lock Screen and your Watch, and have Done / Snooze buttons. Regular nogs take over again after the scheduled alarms run out.
 - **Break it down.** On-device Apple Intelligence (Foundation Models) suggests 3–7 concrete first steps for any item, and you pick which ones become sub-items. It runs only on Apple Intelligence devices, and nothing leaves the phone.
 
-## ▶︎ Doing a nog
+## The list
+
+| Section | What's in it |
+|---|---|
+| **Nogitivity** | what you've hit ▶︎ on, with its live timer |
+| **Nogging now** | reminders firing right now |
+| **Later today** | nogs that start later today |
+| **On deck** | tomorrow and beyond |
+| **Loose nogs** | no reminder: ideas, concepts, notes |
+| **Someday** / **Done** | parked, and finished (kept for reference) |
+
+## ▶︎ Doing a nog (Nogitivity)
 
 Every nog has a play button. Tap it and the nog becomes **Doing**, the thing you're working on right now:
 

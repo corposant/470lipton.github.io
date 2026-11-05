@@ -69,6 +69,8 @@ struct ItemListView: View {
                 .sorted { $0.reminder!.start < $1.reminder!.start }
             let upcoming = open.filter { $0.reminder.map { !$0.isActive(at: now) } ?? false }
                 .sorted { $0.reminder!.start < $1.reminder!.start }
+            let laterToday = upcoming.filter { Calendar.current.isDate($0.reminder!.start, inSameDayAs: now) }
+            let onDeck = upcoming.filter { !Calendar.current.isDate($0.reminder!.start, inSameDayAs: now) }
             let ideas = open.filter { $0.reminder == nil }
                 .sorted { $0.updated > $1.updated }
             let someday = all.filter { $0.status == .someday }
@@ -86,12 +88,13 @@ struct ItemListView: View {
                                 .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
                         }
                     } header: {
-                        SectionLabel(title: "Doing now", tint: Theme.blue)
+                        SectionLabel(title: "Nogitivity", tint: Theme.blue)
                     }
                 }
                 section("Nogging now", due)
-                section("Coming up", upcoming)
-                section("No reminder", ideas)
+                section("Later today", laterToday)
+                section("On deck", onDeck)
+                section("Loose nogs", ideas)
                 section("Someday", someday)
                 if !done.isEmpty {
                     Section {

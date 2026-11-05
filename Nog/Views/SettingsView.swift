@@ -142,7 +142,7 @@ struct SettingsView: View {
             NavigationLink {
                 DoingPage()
             } label: {
-                row("Doing", "play.circle", Theme.blue,
+                row("Nogitivity", "play.circle", Theme.blue,
                     detail: timebox > 0 ? "\(IntervalFormat.short(timebox)) box" : "open-ended")
             }
             NavigationLink {
@@ -253,14 +253,14 @@ private struct DoingPage: View {
                     ForEach(NogSettings.timeboxChoices, id: \.self) { Text(IntervalFormat.short($0)).tag($0) }
                 }
             } header: {
-                SectionLabel(title: "▶︎ Doing")
+                SectionLabel(title: "▶︎ Nogitivity")
             } footer: {
                 Text("Nog suggests, in order: the item's estimate, how long similar items took you (same #tag or project), a short box if it's urgent or overdue, then this default.")
             }
             .listRowBackground(Theme.glass)
         }
         .nogListStyle()
-        .navigationTitle("Doing")
+        .navigationTitle("Nogitivity")
     }
 }
 
