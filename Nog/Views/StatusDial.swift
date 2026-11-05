@@ -76,6 +76,8 @@ struct StatusDial: View {
             .tracking(1.4)
             .foregroundStyle(isLit ? tint : Theme.muted.opacity(0.75))
             .shadow(color: isLit ? tint.opacity(0.8) : .clear, radius: 6)
+            // A touch of warm, top-lit glow, like an old receiver's dial window.
+            .shadow(color: isLit ? Color(red: 1, green: 0.78, blue: 0.5).opacity(0.45) : .clear, radius: 3, y: -2)
             .fixedSize()
             .position(x: center.x + sin(a) * labelRadius(degrees), y: center.y - cos(a) * labelRadius(degrees))
             .onTapGesture { onSelect(status) }
@@ -130,7 +132,7 @@ struct StatusDial: View {
     }
 }
 
-/// Brushed gunmetal knob with a knurled grip and a glowing LED pointer.
+/// Brushed-silver knob with a knurled grip, a burl-walnut cap and a glowing LED pointer.
 private struct Knob: View {
     let angle: Double
     let tint: Color
@@ -147,31 +149,39 @@ private struct Knob: View {
 
                 // Knurled grip ring.
                 Circle()
-                    .fill(LinearGradient(colors: [Color(white: 0.42), Color(white: 0.16)],
+                    .fill(LinearGradient(colors: [Color(white: 0.78), Color(white: 0.38)],
                                          startPoint: .top, endPoint: .bottom))
                 Circle()
-                    .strokeBorder(Color(white: 0.08).opacity(0.8),
+                    .strokeBorder(Color(white: 0.22).opacity(0.75),
                                   style: StrokeStyle(lineWidth: d * 0.07, dash: [1.4, 2.4]))
                     .padding(d * 0.015)
                     .rotationEffect(.degrees(angle))
 
-                // Brushed-metal body.
+                // Brushed-silver body.
                 Circle()
                     .fill(AngularGradient(colors: [
-                        Color(white: 0.30), Color(white: 0.47), Color(white: 0.24), Color(white: 0.52),
-                        Color(white: 0.27), Color(white: 0.45), Color(white: 0.30),
+                        Color(white: 0.66), Color(white: 0.86), Color(white: 0.58), Color(white: 0.90),
+                        Color(white: 0.62), Color(white: 0.84), Color(white: 0.66),
                     ], center: .center))
                     .padding(d * 0.1)
                     .rotationEffect(.degrees(angle))
-                    .overlay(Circle().strokeBorder(.white.opacity(0.18), lineWidth: 1).padding(d * 0.1))
+                    .overlay(Circle().strokeBorder(.white.opacity(0.35), lineWidth: 1).padding(d * 0.1))
 
-                // Raised centre cap.
+                // Burl-walnut centre cap.
                 Circle()
-                    .fill(RadialGradient(colors: [Color(white: 0.38), Color(white: 0.17)],
+                    .fill(RadialGradient(colors: [Color(red: 0.42, green: 0.24, blue: 0.14),
+                                                  Color(red: 0.20, green: 0.10, blue: 0.05)],
                                          center: UnitPoint(x: 0.35, y: 0.3), startRadius: 0, endRadius: d * 0.32))
+                    .overlay(
+                        // Faint growth rings give the burl figure.
+                        Circle()
+                            .strokeBorder(Color(red: 0.12, green: 0.05, blue: 0.02).opacity(0.35),
+                                          style: StrokeStyle(lineWidth: 1, dash: [3, 2]))
+                            .padding(d * 0.06)
+                            .rotationEffect(.degrees(angle)))
                     .padding(d * 0.24)
                     .shadow(color: .black.opacity(0.5), radius: 3, y: 2)
-                    .overlay(Circle().strokeBorder(.white.opacity(0.12), lineWidth: 1).padding(d * 0.24))
+                    .overlay(Circle().strokeBorder(.white.opacity(0.15), lineWidth: 1).padding(d * 0.24))
 
                 // LED pointer.
                 Capsule()

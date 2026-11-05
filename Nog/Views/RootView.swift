@@ -93,7 +93,7 @@ struct ItemListView: View {
                 section("Later today", laterToday, stats: stats)
                 section("Nogs next", onDeck, stats: stats)
                 section("Loose nogs", ideas, stats: stats)
-                section("Dream nogs", someday, stats: stats)
+                section("Dream nogs", someday, stats: stats, dreamy: true)
                 if !done.isEmpty {
                     Section {
                         DisclosureGroup {
@@ -112,14 +112,14 @@ struct ItemListView: View {
     }
 
     @ViewBuilder
-    private func section(_ title: String, _ items: [Item], stats: ChildStats) -> some View {
+    private func section(_ title: String, _ items: [Item], stats: ChildStats, dreamy: Bool = false) -> some View {
         if !items.isEmpty {
             Section {
                 ForEach(items) { ItemRow(item: $0, now: now, stats: stats) }
             } header: {
-                SectionLabel(title: title, count: items.count)
+                SectionLabel(title: title, count: items.count, tint: dreamy ? Theme.violet : Theme.muted)
             }
-            .listRowBackground(Theme.glass)
+            .listRowBackground(dreamy ? AnyView(DreamHaze()) : AnyView(Theme.glass))
         }
     }
 }
@@ -241,5 +241,16 @@ struct ItemRow: View {
                 + (r.curve == .logarithmic ? " · easing off" : "")
         }
         return "Was due \(r.start.formatted(.relative(presentation: .named)))"
+    }
+}
+
+/// A faint lavender haze behind Dream nogs.
+struct DreamHaze: View {
+    var body: some View {
+        ZStack {
+            Theme.glass
+            LinearGradient(colors: [Theme.violet.opacity(0.14), Theme.pink.opacity(0.05), Theme.violet.opacity(0.08)],
+                           startPoint: .topLeading, endPoint: .bottomTrailing)
+        }
     }
 }
