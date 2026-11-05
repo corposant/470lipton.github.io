@@ -16,8 +16,11 @@ struct StatusDial: View {
         (.open, -105), (.doing, -35), (.someday, 35), (.done, 105),
     ]
 
-    private var labelRadius: CGFloat { knobSize * 0.5 + 34 }
-    private var size: CGSize { CGSize(width: knobSize + 150, height: knobSize + 74) }
+    /// Side labels sit further out so they clear the knob and the scale.
+    private func labelRadius(_ degrees: Double) -> CGFloat {
+        knobSize * 0.5 + (abs(degrees) > 60 ? 60 : 34)
+    }
+    private var size: CGSize { CGSize(width: knobSize + 200, height: knobSize + 46) }
     private var center: CGPoint { CGPoint(x: size.width / 2, y: knobSize * 0.5 + 34) }
 
     var body: some View {
@@ -74,7 +77,7 @@ struct StatusDial: View {
             .foregroundStyle(isLit ? tint : Theme.muted.opacity(0.75))
             .shadow(color: isLit ? tint.opacity(0.8) : .clear, radius: 6)
             .fixedSize()
-            .position(x: center.x + sin(a) * labelRadius, y: center.y - cos(a) * labelRadius)
+            .position(x: center.x + sin(a) * labelRadius(degrees), y: center.y - cos(a) * labelRadius(degrees))
             .onTapGesture { onSelect(status) }
     }
 
