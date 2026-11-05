@@ -26,8 +26,10 @@ struct PlannedNotification: Hashable {
 /// Decides which notifications should be pending, within iOS's limit of
 /// 64 pending notifications per app.
 ///
-/// - An item that is already nogging gets ONE repeating trigger that keeps
-///   firing every N minutes forever, even if the app never runs again.
+/// - An item that is already nogging at a fixed gap gets ONE repeating trigger
+///   that keeps firing forever, even if the app never runs again.
+/// - A logarithmic item that's still easing off gets exact one-shots for its
+///   growing gaps; once the gap reaches a day it switches to the repeating trigger.
 /// - An item whose nog starts in the future gets a one-shot at the start time,
 ///   plus follow-ups at start + N, start + 2N… while there's room. Whenever the
 ///   app wakes up (opened, notification action, background refresh), the plan
@@ -52,7 +54,7 @@ enum NogPlanner {
         var followUps: [PlannedNotification] = []
 
         for (item, r) in candidates {
-            let body = r.repeatMinutes.map { "Every \(IntervalFormat.short($0)) until done" } ?? "Reminder"
+            let body = r.repeatSummary.map { "Nogging \($0) until done" } ?? "Reminder"
             let titleTag = stableHash(item.title)
             let base = "\(prefix)\(item.id.uuidString)"
 
@@ -61,19 +63,18 @@ enum NogPlanner {
                                     itemID: item.id, title: item.title, body: body, trigger: .at(date))
             }
 
-            if r.start <= now {
-                guard let interval = r.repeatInterval else { continue } // one-shot already fired
-                let seconds = max(60, interval)
+            if let settled = r.settledPhase, settled.since <= now {
+                // Gap no longer changes: one trigger iOS repeats forever.
+                let seconds = max(60, settled.gap)
                 primaries.append(PlannedNotification(
-                    identifier: "\(base).every.\(Int(seconds)).\(Int(r.start.timeIntervalSince1970)).\(titleTag)",
+                    identifier: "\(base).every.\(Int(seconds)).\(Int(settled.since.timeIntervalSince1970)).\(titleTag)",
                     itemID: item.id, title: item.title, body: body, trigger: .every(seconds)))
             } else {
-                primaries.append(oneShot(r.start))
-                if let interval = r.repeatInterval, maxFollowUpsPerItem > 0 {
-                    for k in 1...maxFollowUpsPerItem {
-                        followUps.append(oneShot(r.start.addingTimeInterval(Double(k) * interval)))
-                    }
-                }
+                // Still ahead of us (or easing off): exact times, re-planned whenever the app wakes.
+                let dates = r.fireDates(after: now, limit: 1 + max(0, maxFollowUpsPerItem))
+                guard let first = dates.first else { continue } // one-shot already fired
+                primaries.append(oneShot(first))
+                followUps.append(contentsOf: dates.dropFirst().map(oneShot))
             }
         }
 

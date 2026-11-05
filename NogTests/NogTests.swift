@@ -187,3 +187,56 @@ final class NaturalDateParserTests: XCTestCase {
         XCTAssertEqual(r.reminder, Reminder(start: date(2026, 11, 10, 12, 0), repeatMinutes: 8))
     }
 }
+
+final class LogarithmicReminderTests: XCTestCase {
+    let start = Date(timeIntervalSince1970: 1_800_000_000)
+    func minutes(_ m: Double) -> Date { start.addingTimeInterval(m * 60) }
+
+    var log8: Reminder { Reminder(start: start, repeatMinutes: 8, curve: .logarithmic) }
+
+    func testGapsDoubleThenCapAtADay() {
+        let gaps = (0..<10).map { log8.gap(after: $0)! / 60 }
+        XCTAssertEqual(gaps, [8, 16, 32, 64, 128, 256, 512, 1024, 1440, 1440])
+    }
+
+    func testFireDates() {
+        XCTAssertEqual(log8.fireDates(after: minutes(-1), limit: 5),
+                       [0, 8, 24, 56, 120].map(minutes))
+        XCTAssertEqual(log8.fireDates(after: minutes(10), limit: 2), [24, 56].map(minutes))
+    }
+
+    func testSettlesOnceTheGapReachesADay() {
+        let settled = try! XCTUnwrap(log8.settledPhase)
+        XCTAssertEqual(settled.since, minutes(8 + 16 + 32 + 64 + 128 + 256 + 512 + 1024))
+        XCTAssertEqual(settled.gap, 86_400)
+        // Fires continue daily after settling.
+        let after = log8.fireDates(after: settled.since, limit: 2)
+        XCTAssertEqual(after, [settled.since.addingTimeInterval(86_400), settled.since.addingTimeInterval(172_800)])
+    }
+
+    func testSteadyFireDatesJumpAhead() {
+        let steady = Reminder(start: start, repeatMinutes: 1)
+        XCTAssertEqual(steady.fireDates(after: minutes(100_000.5), limit: 1), [minutes(100_001)])
+    }
+
+    func testPlannerUsesOneShotsWhileEasingOffAndRepeatsOnceSettled() {
+        let easing = Item(title: "a", reminder: log8)
+        let plan = NogPlanner.plan(items: [easing], now: minutes(10), maxFollowUpsPerItem: 2)
+        XCTAssertEqual(plan.map(\.fireDate), [24, 56, 120].map(minutes))
+
+        let settledPlan = NogPlanner.plan(items: [easing], now: minutes(5000))
+        XCTAssertEqual(settledPlan.map(\.trigger), [.every(86_400)])
+    }
+
+    func testCaptureTokenAndFileRoundTrip() throws {
+        let defaults = CaptureDefaults(firstDelayMinutes: 15, repeatMinutes: 8)
+        let parsed = CaptureParser.parse("water plants !log", defaults: defaults, now: start)
+        XCTAssertEqual(parsed.title, "Water plants")
+        XCTAssertEqual(parsed.reminder?.curve, .logarithmic)
+
+        var item = Item(title: "x", reminder: log8)
+        item.created = start
+        item.updated = start
+        XCTAssertEqual(ItemFile.decode(ItemFile.encode(item)), item)
+    }
+}

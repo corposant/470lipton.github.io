@@ -26,6 +26,15 @@ Type the way you'd say it and Nog works out the when:
 
 As you type, a line above the capture field shows how Nog understood it. A day with no time defaults to 9 AM, and meal words set sensible times (lunch at noon, dinner at 6:30).
 
+## Steady or logarithmic
+
+Each reminder has a style:
+
+- **Steady**: the same gap every time, e.g. every 8 min until done.
+- **Logarithmic**: urgent at first, then easing off. The gap doubles after each nog (8 min, 16, 32, 1 h, 2 h…) until it reaches a day, then Nog nogs daily until it's done. It never goes quiet.
+
+Pick the default in Settings, change it per item, or type `!log` / `!steady` when capturing.
+
 ## Capture shortcuts
 
 Type these anywhere in a capture line (all optional):
@@ -34,6 +43,8 @@ Type these anywhere in a capture line (all optional):
 |---|---|
 | `!8m` `!2h` `!1d` | repeat every 8 min / 2 hours / 1 day |
 | `!once` | remind once, don't repeat |
+| `!log` | logarithmic: the gap doubles after each nog |
+| `!steady` | same gap every time |
 | `!off` or `!idea` | no reminder |
 | `@30m` `@2h` `@1d` `@now` | when to start nogging |
 | `#tag` | add a tag |

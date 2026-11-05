@@ -32,11 +32,30 @@ enum ItemStatus: String, CaseIterable, Hashable {
     }
 }
 
+/// How the gap between nogs behaves.
+enum RepeatCurve: String, CaseIterable, Hashable {
+    /// Same gap every time: 8, 8, 8, 8…
+    case steady
+    /// Gap doubles each time, capped at a day: 8, 16, 32, 64… then daily, forever.
+    case logarithmic
+
+    var label: String {
+        switch self {
+        case .steady: "Steady"
+        case .logarithmic: "Logarithmic"
+        }
+    }
+}
+
 /// When to start nogging, and how often to repeat until the item is done.
 struct Reminder: Hashable {
     var start: Date
-    /// nil = fire once. Otherwise repeat every N minutes (minimum 1) until done.
+    /// nil = fire once. Otherwise the (first) gap between nogs, in minutes (minimum 1).
     var repeatMinutes: Int?
+    var curve: RepeatCurve = .steady
+
+    /// Logarithmic gaps stop growing here.
+    static let logarithmicCapMinutes = 1440
 
     var repeatInterval: TimeInterval? {
         repeatMinutes.map { TimeInterval(max(1, $0) * 60) }
@@ -44,12 +63,76 @@ struct Reminder: Hashable {
 
     func isActive(at now: Date) -> Bool { start <= now }
 
+    /// Gap in seconds after the k-th nog (k = 0 is the first nog).
+    func gap(after k: Int) -> TimeInterval? {
+        guard let base = repeatMinutes.map({ max(1, $0) }) else { return nil }
+        switch curve {
+        case .steady:
+            return TimeInterval(base * 60)
+        case .logarithmic:
+            let cap = max(base, Self.logarithmicCapMinutes)
+            var minutes = base
+            var i = 0
+            while i < k && minutes < cap {
+                minutes *= 2
+                i += 1
+            }
+            return TimeInterval(min(minutes, cap) * 60)
+        }
+    }
+
+    /// From this moment on the gap never changes again: (moment, gap).
+    /// Lets the planner hand iOS a single forever-repeating trigger.
+    var settledPhase: (since: Date, gap: TimeInterval)? {
+        guard let first = gap(after: 0) else { return nil }
+        var t = start
+        var k = 0
+        var current = first
+        while let next = gap(after: k + 1), next != current, k < 64 {
+            t = t.addingTimeInterval(current)
+            current = next
+            k += 1
+        }
+        return (t, current)
+    }
+
+    /// The next `limit` nog times strictly after `date`.
+    func fireDates(after date: Date, limit: Int) -> [Date] {
+        guard limit > 0 else { return [] }
+        guard repeatMinutes != nil else { return start > date ? [start] : [] }
+        var result: [Date] = []
+        var t = start
+        var k = 0
+        while result.count < limit && k < 100_000 {
+            guard let g = gap(after: k) else { break }
+            // In a steady stretch that's still in the past, jump ahead instead of stepping.
+            if t <= date, let next = gap(after: k + 1), next == g {
+                let skip = (date.timeIntervalSince(t) / g).rounded(.down)
+                if skip >= 1 {
+                    t = t.addingTimeInterval(skip * g)
+                    k += Int(skip)
+                    continue
+                }
+            }
+            if t > date { result.append(t) }
+            t = t.addingTimeInterval(g)
+            k += 1
+        }
+        return result
+    }
+
     /// Best estimate of the next time this reminder fires.
     func nextFire(after now: Date) -> Date? {
-        if start > now { return start }
-        guard let interval = repeatInterval else { return nil }
-        let k = (now.timeIntervalSince(start) / interval).rounded(.down) + 1
-        return start.addingTimeInterval(k * interval)
+        fireDates(after: now, limit: 1).first
+    }
+
+    /// "every 8 min" / "every 8 min, easing off to daily"
+    var repeatSummary: String? {
+        guard let m = repeatMinutes else { return nil }
+        switch curve {
+        case .steady: return "every \(IntervalFormat.short(m))"
+        case .logarithmic: return "every \(IntervalFormat.short(m)), easing off to daily"
+        }
     }
 }
 

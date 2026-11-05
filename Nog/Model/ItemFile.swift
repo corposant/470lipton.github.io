@@ -11,6 +11,7 @@ import Foundation
 ///     tags: [health, calls]
 ///     remind_at: 2026-11-05T18:15:00Z
 ///     repeat_minutes: 8
+///     repeat_curve: logarithmic      (omitted when steady)
 ///     ---
 ///     Notes go here. Link to other items with [[Another item]].
 enum ItemFile {
@@ -29,6 +30,7 @@ enum ItemFile {
         if let r = item.reminder {
             lines.append("remind_at: \(iso(r.start))")
             if let m = r.repeatMinutes { lines.append("repeat_minutes: \(m)") }
+            if r.curve != .steady { lines.append("repeat_curve: \(r.curve.rawValue)") }
         }
         lines.append("---")
         return lines.joined(separator: "\n") + "\n" + item.body
@@ -75,7 +77,8 @@ enum ItemFile {
         }
         if let start = fields["remind_at"].flatMap(date) {
             let repeatMinutes = fields["repeat_minutes"].flatMap { Int($0) }.flatMap { $0 > 0 ? $0 : nil }
-            item.reminder = Reminder(start: start, repeatMinutes: repeatMinutes)
+            let curve = fields["repeat_curve"].flatMap(RepeatCurve.init(rawValue:)) ?? .steady
+            item.reminder = Reminder(start: start, repeatMinutes: repeatMinutes, curve: curve)
         }
         return item
     }

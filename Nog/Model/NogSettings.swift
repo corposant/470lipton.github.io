@@ -4,6 +4,7 @@ import Foundation
 enum NogSettings {
     static let firstDelayKey = "firstDelayMinutes"
     static let repeatKey = "repeatMinutes"
+    static let curveKey = "repeatCurve"
 
     static let defaultFirstDelay = 15
     static let defaultRepeat = 8
@@ -19,8 +20,18 @@ enum NogSettings {
         return value > 0 ? value : nil
     }
 
+    /// Steady or logarithmic, for new captures.
+    static var curve: RepeatCurve {
+        UserDefaults.standard.string(forKey: curveKey).flatMap(RepeatCurve.init(rawValue:)) ?? .steady
+    }
+
     static var captureDefaults: CaptureDefaults {
-        CaptureDefaults(firstDelayMinutes: firstDelayMinutes, repeatMinutes: repeatMinutes)
+        CaptureDefaults(firstDelayMinutes: firstDelayMinutes, repeatMinutes: repeatMinutes, curve: curve)
+    }
+
+    static var defaultReminderFromNow: Reminder {
+        Reminder(start: .now.addingTimeInterval(TimeInterval(firstDelayMinutes * 60)),
+                 repeatMinutes: repeatMinutes, curve: curve)
     }
 
     /// Choices offered in pickers (0 = once).

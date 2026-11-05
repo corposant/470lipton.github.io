@@ -186,7 +186,7 @@ final class ItemStore {
             r.start = date
             item.reminder = r
         } else {
-            item.reminder = Reminder(start: date, repeatMinutes: NogSettings.repeatMinutes)
+            item.reminder = Reminder(start: date, repeatMinutes: NogSettings.repeatMinutes, curve: NogSettings.curve)
         }
         item.status = .open
         clearDelivered(id)

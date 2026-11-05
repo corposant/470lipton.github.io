@@ -7,6 +7,7 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @AppStorage(NogSettings.firstDelayKey) private var firstDelay = NogSettings.defaultFirstDelay
     @AppStorage(NogSettings.repeatKey) private var repeatMinutes = NogSettings.defaultRepeat
+    @AppStorage(NogSettings.curveKey) private var curve: RepeatCurve = .steady
     @State private var authorization: UNAuthorizationStatus = .notDetermined
     @State private var pending = 0
 
@@ -20,15 +21,24 @@ struct SettingsView: View {
                     Picker("Then", selection: $repeatMinutes) {
                         ForEach(NogSettings.repeatChoices, id: \.self) { Text(NogSettings.repeatLabel($0)).tag($0) }
                     }
+                    if repeatMinutes > 0 {
+                        Picker("Style", selection: $curve) {
+                            ForEach(RepeatCurve.allCases, id: \.self) { Text($0.label).tag($0) }
+                        }
+                        .pickerStyle(.segmented)
+                    }
                 } header: {
                     Text("Default for new captures")
                 } footer: {
-                    Text("Every captured item gets this unless you type an override.")
+                    Text(curve == .logarithmic && repeatMinutes > 0
+                         ? "Logarithmic: the gap doubles after each nog (\(Self.example(repeatMinutes))…) until it reaches a day, then nogs daily until done."
+                         : "Every captured item gets this unless you type an override.")
                 }
 
                 Section("Capture shortcuts") {
                     shortcut("!8m  !2h  !1d", "repeat every 8 min / 2 h / 1 day")
                     shortcut("!once", "remind once, don't repeat")
+                    shortcut("!log  !steady", "gaps double each time, or stay the same")
                     shortcut("!off", "no reminder (just an idea)")
                     shortcut("@30m  @2h  @now", "when to start nogging")
                     shortcut("#tag", "add a tag")
@@ -78,6 +88,16 @@ struct SettingsView: View {
             }
             .task { await refresh() }
         }
+    }
+
+    static func example(_ base: Int) -> String {
+        var gaps: [String] = []
+        var m = base
+        while gaps.count < 4 && m < Reminder.logarithmicCapMinutes {
+            gaps.append(IntervalFormat.short(m))
+            m *= 2
+        }
+        return gaps.joined(separator: ", ")
     }
 
     private func refresh() async {

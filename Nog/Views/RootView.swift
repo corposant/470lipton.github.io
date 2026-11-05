@@ -156,10 +156,13 @@ struct ItemRow: View {
         guard item.isOpen, let r = item.reminder else { return nil }
         if !r.isActive(at: now) {
             let when = r.start.formatted(.relative(presentation: .named))
-            if let m = r.repeatMinutes { return "Starts \(when), then every \(IntervalFormat.short(m))" }
+            if let summary = r.repeatSummary { return "Starts \(when), then \(summary)" }
             return "Reminds \(when)"
         }
-        if let m = r.repeatMinutes { return "Every \(IntervalFormat.short(m)) until done" }
+        if r.repeatMinutes != nil, let next = r.nextFire(after: now) {
+            return "Nogging until done · next \(next.formatted(.relative(presentation: .named)))"
+                + (r.curve == .logarithmic ? " · easing off" : "")
+        }
         return "Was due \(r.start.formatted(.relative(presentation: .named)))"
     }
 }

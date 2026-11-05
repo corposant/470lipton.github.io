@@ -3,6 +3,7 @@ import Foundation
 struct CaptureDefaults: Equatable {
     var firstDelayMinutes: Int
     var repeatMinutes: Int?
+    var curve: RepeatCurve = .steady
 }
 
 struct CaptureResult: Equatable {
@@ -16,6 +17,8 @@ struct CaptureResult: Equatable {
 ///
 ///   `!8m` `!2h` `!1d`   repeat every 8 minutes / 2 hours / 1 day
 ///   `!once`             remind once, don't repeat
+///   `!log`              logarithmic: gaps double each time (8, 16, 32…), capped at daily
+///   `!steady`           same gap every time
 ///   `!off` / `!idea`    no reminder at all
 ///   `@30m` `@2h` `@1d`  start nogging in 30 minutes / 2 hours / 1 day
 ///   `@now`              start now
@@ -30,6 +33,7 @@ enum CaptureParser {
         var tags: [String] = []
         var noReminder = false
         var once = false
+        var curveOverride: RepeatCurve?
         var repeatOverride: Int?
         var delayOverride: Int?
 
@@ -42,6 +46,12 @@ enum CaptureParser {
                 continue
             case "!once":
                 once = true
+                continue
+            case "!log", "!logarithmic", "!ease":
+                curveOverride = .logarithmic
+                continue
+            case "!steady":
+                curveOverride = .steady
                 continue
             case "@now":
                 delayOverride = 0
@@ -78,7 +88,8 @@ enum CaptureParser {
             start = now.addingTimeInterval(TimeInterval(defaults.firstDelayMinutes * 60))
         }
         let repeatMinutes = once ? nil : (repeatOverride ?? natural.repeatMinutes ?? defaults.repeatMinutes)
-        return CaptureResult(title: title, reminder: Reminder(start: start, repeatMinutes: repeatMinutes), tags: tags)
+        let reminder = Reminder(start: start, repeatMinutes: repeatMinutes, curve: curveOverride ?? defaults.curve)
+        return CaptureResult(title: title, reminder: reminder, tags: tags)
     }
 
     /// "8m" → 8, "2h" → 120, "1d" → 1440, "15" → 15. Anything else → nil.

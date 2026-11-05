@@ -109,10 +109,7 @@ private struct ItemEditor: View {
             Toggle("Nog me", isOn: Binding(
                 get: { item.reminder != nil },
                 set: { on in
-                    set(\.reminder, on
-                        ? Reminder(start: .now.addingTimeInterval(TimeInterval(NogSettings.firstDelayMinutes * 60)),
-                                   repeatMinutes: NogSettings.repeatMinutes)
-                        : nil)
+                    set(\.reminder, on ? NogSettings.defaultReminderFromNow : nil)
                 }))
             if let reminder = item.reminder {
                 DatePicker("Starts", selection: Binding(
@@ -125,6 +122,14 @@ private struct ItemEditor: View {
                         Text(NogSettings.repeatLabel($0)).tag($0)
                     }
                 }
+                if reminder.repeatMinutes != nil {
+                    Picker("Style", selection: Binding(
+                        get: { reminder.curve },
+                        set: { curve in editReminder { $0.curve = curve } })) {
+                        ForEach(RepeatCurve.allCases, id: \.self) { Text($0.label).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                }
                 HStack {
                     Button("Snooze 1h") { store.snooze(item.id, until: .now.addingTimeInterval(3600)) }
                     Spacer()
@@ -135,8 +140,9 @@ private struct ItemEditor: View {
         } header: {
             Text("Reminder")
         } footer: {
-            if item.isOpen, let next = item.reminder?.nextFire(after: .now) {
-                Text("Next nog about \(next.formatted(date: .omitted, time: .shortened)).")
+            if item.isOpen, let reminder = item.reminder, let next = reminder.nextFire(after: .now) {
+                Text("Next nog about \(next.formatted(date: .abbreviated, time: .shortened))"
+                     + (reminder.repeatSummary.map { ", then \($0)." } ?? "."))
             } else if item.reminder != nil, !item.isOpen {
                 Text("Paused: reminders only fire for open items.")
             }
