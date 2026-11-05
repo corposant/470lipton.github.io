@@ -128,7 +128,7 @@ open Nog.xcodeproj
 In Xcode:
 
 1. Click the **Nog** project → **Nog** target → **Signing & Capabilities** and pick your **Team**.
-   If it complains the bundle identifier is taken, change it to something like `com.yourname.nog`.
+   If it says the bundle identifier is unavailable, change `NOG_BUNDLE_ID` at the top of `project.yml` (one line; the widget follows) and run `./update.sh`.
    To avoid re-picking the team after each `xcodegen`, paste your Team ID into `DEVELOPMENT_TEAM` in `project.yml`.
 2. Plug in your iPhone (or use Wi-Fi pairing) and select it as the run destination.
 3. On the iPhone, the first time: **Settings → Privacy & Security → Developer Mode → On** (it restarts).

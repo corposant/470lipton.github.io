@@ -1,12 +1,16 @@
 name: Nog
 options:
-  bundleIdPrefix: io.nogapp
+  bundleIdPrefix: dev.nog
   deploymentTarget:
     iOS: "27.0"
   createIntermediateGroups: true
 
 settings:
   base:
+    # ▶︎ The app's bundle ID. Bundle IDs are unique across all developers, so if Xcode
+    #   says this one is unavailable, change just this line (e.g. com.<yourname>.nog)
+    #   and run ./update.sh. The widget's ID follows automatically.
+    NOG_BUNDLE_ID: dev.nog.k7q2
     SWIFT_VERSION: "5.0"
     MARKETING_VERSION: "0.1.0"
     CURRENT_PROJECT_VERSION: "1"
@@ -54,9 +58,7 @@ targets:
     #     com.apple.developer.icloud-services: [CloudDocuments]
     settings:
       base:
-        # Bundle IDs are globally unique. If Xcode says this one is taken,
-        # change it to something like com.<yourname>.nog
-        PRODUCT_BUNDLE_IDENTIFIER: io.nogapp.nog
+        PRODUCT_BUNDLE_IDENTIFIER: $(NOG_BUNDLE_ID)
         TARGETED_DEVICE_FAMILY: "1"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         # Settings → Appearance → App icon
@@ -79,7 +81,7 @@ targets:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: io.nogapp.nog.widgets
+        PRODUCT_BUNDLE_IDENTIFIER: $(NOG_BUNDLE_ID).widgets
         TARGETED_DEVICE_FAMILY: "1"
         SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) WIDGET_EXTENSION"
 
