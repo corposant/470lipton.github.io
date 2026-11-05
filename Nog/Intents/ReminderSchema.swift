@@ -192,8 +192,9 @@ struct LocationTriggerEntity {
         DisplayRepresentation(title: "\(event.rawValue.capitalized)")
     }
 
-    struct LocationTriggerEntityQuery: EntityQuery {
+    struct LocationTriggerEntityQuery: EntityStringQuery {
         func entities(for identifiers: [String]) async throws -> [LocationTriggerEntity] { [] }
+        func entities(matching string: String) async throws -> [LocationTriggerEntity] { [] }
     }
 }
 
@@ -348,8 +349,9 @@ struct SectionEntity {
         DisplayRepresentation(title: "\(name)")
     }
 
-    struct SectionEntityQuery: EntityQuery {
+    struct SectionEntityQuery: EntityStringQuery {
         func entities(for identifiers: [String]) async throws -> [SectionEntity] { [] }
+        func entities(matching string: String) async throws -> [SectionEntity] { [] }
     }
 }
 

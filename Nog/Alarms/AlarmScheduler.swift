@@ -85,10 +85,11 @@ final class AlarmScheduler {
     }
 
     private func configuration(for item: Item, at date: Date) -> AlarmManager.AlarmConfiguration<NogAlarmMetadata> {
+        // Since iOS 26.1 the system supplies its own Stop button (it just silences this ring;
+        // the item keeps nogging). Our one custom button finishes the item.
         let alert = AlarmPresentation.Alert(
             title: "\(item.title)",
-            stopButton: AlarmButton(text: "Done", textColor: .white, systemImageName: "checkmark"),
-            secondaryButton: AlarmButton(text: "Snooze", textColor: .white, systemImageName: "zzz"),
+            secondaryButton: AlarmButton(text: "Done", textColor: .white, systemImageName: "checkmark"),
             secondaryButtonBehavior: .custom)
         let attributes = AlarmAttributes(
             presentation: AlarmPresentation(alert: alert),
@@ -99,8 +100,8 @@ final class AlarmScheduler {
             attributes: attributes,
             // iOS 27: lets people say "Siri, snooze it" while it rings.
             appEntityIdentifier: EntityIdentifier(for: ReminderEntity.self, identifier: item.id),
-            stopIntent: CompleteItemIntent(itemID: item.id.uuidString),
-            secondaryIntent: SnoozeItemIntent(itemID: item.id.uuidString))
+            stopIntent: nil,
+            secondaryIntent: CompleteItemIntent(itemID: item.id.uuidString))
     }
 
     /// Stable per (item, time, title), so unchanged alarms are left alone.
