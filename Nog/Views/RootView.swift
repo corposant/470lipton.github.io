@@ -16,7 +16,6 @@ struct NogsTab: View {
             }
             .background { NogBackground() }
             .navigationTitle("NOG")
-            .toolbarMinimizeBehavior(.onScrollDown, for: .navigationBar)
             .searchable(text: $search, placement: .navigationBarDrawer(displayMode: .automatic))
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -90,11 +89,11 @@ struct ItemListView: View {
                         SectionLabel(title: "Nogitivity", tint: Theme.blue)
                     }
                 }
-                section("Nogging now", due)
-                section("Later today", laterToday)
-                section("Nogs next", onDeck)
-                section("Loose nogs", ideas)
-                section("Dream nogs", someday)
+                section("Nogging now", due, stats: stats)
+                section("Later today", laterToday, stats: stats)
+                section("Nogs next", onDeck, stats: stats)
+                section("Loose nogs", ideas, stats: stats)
+                section("Dream nogs", someday, stats: stats)
                 if !done.isEmpty {
                     Section {
                         DisclosureGroup {
@@ -113,7 +112,7 @@ struct ItemListView: View {
     }
 
     @ViewBuilder
-    private func section(_ title: String, _ items: [Item]) -> some View {
+    private func section(_ title: String, _ items: [Item], stats: ChildStats) -> some View {
         if !items.isEmpty {
             Section {
                 ForEach(items) { ItemRow(item: $0, now: now, stats: stats) }

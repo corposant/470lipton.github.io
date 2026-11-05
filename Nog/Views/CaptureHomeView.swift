@@ -228,5 +228,6 @@ struct RootView: View {
                 MapTab()
             }
         }
+        .tabBarMinimizeBehavior(.onScrollDown)
     }
 }
