@@ -1,7 +1,8 @@
 import AppIntents
 import SwiftUI
 
-struct RootView: View {
+/// The full overview (Nogs tab).
+struct NogsTab: View {
     @Environment(Router.self) private var router
     @State private var search = ""
     @State private var showSettings = false
@@ -25,9 +26,6 @@ struct RootView: View {
             .navigationDestination(for: UUID.self) { id in
                 ItemDetailView(id: id)
             }
-            .safeAreaInset(edge: .bottom) {
-                CaptureBar()
-            }
             .sheet(isPresented: $showSettings) {
                 SettingsView()
             }
@@ -42,19 +40,20 @@ struct ItemListView: View {
 
     var body: some View {
         let all = Array(store.items.values)
+        let stats = ChildStats(all)
+        let query = search.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         if all.isEmpty {
             ContentUnavailableView("Nothing captured yet",
                                    systemImage: "tray",
-                                   description: Text("Type below and hit return. Everything nogs you until it's done."))
-        } else if !search.trimmingCharacters(in: .whitespaces).isEmpty {
-            let q = search.lowercased()
+                                   description: Text("Capture something on the Capture tab. Everything nogs you until it's done."))
+        } else if !query.isEmpty {
             let results = all
-                .filter { $0.title.lowercased().contains(q) || $0.body.lowercased().contains(q)
-                    || $0.tags.contains { $0.lowercased().contains(q) } }
+                .filter { $0.title.lowercased().contains(query) || $0.body.lowercased().contains(query)
+                    || $0.tags.contains { $0.lowercased().contains(query) } }
                 .sorted { $0.updated > $1.updated }
             List {
                 Section {
-                    ForEach(results) { ItemRow(item: $0, now: now) }
+                    ForEach(results) { ItemRow(item: $0, now: now, stats: stats) }
                 } header: {
                     SectionLabel(title: "Results", count: results.count)
                 }
@@ -99,7 +98,7 @@ struct ItemListView: View {
                 if !done.isEmpty {
                     Section {
                         DisclosureGroup {
-                            ForEach(done.prefix(50)) { ItemRow(item: $0, now: now) }
+                            ForEach(done.prefix(50)) { ItemRow(item: $0, now: now, stats: stats) }
                         } label: {
                             Text("\(done.count) finished").font(.nogMeta).foregroundStyle(Theme.muted)
                         }
@@ -117,7 +116,7 @@ struct ItemListView: View {
     private func section(_ title: String, _ items: [Item]) -> some View {
         if !items.isEmpty {
             Section {
-                ForEach(items) { ItemRow(item: $0, now: now) }
+                ForEach(items) { ItemRow(item: $0, now: now, stats: stats) }
             } header: {
                 SectionLabel(title: title, count: items.count)
             }
@@ -126,10 +125,28 @@ struct ItemListView: View {
     }
 }
 
+/// Sub-item counts for every item, computed once per render instead of per row.
+struct ChildStats {
+    private var counts: [UUID: (done: Int, total: Int)] = [:]
+
+    init(_ items: [Item]) {
+        for item in items {
+            guard let parent = item.parentID else { continue }
+            var entry = counts[parent] ?? (0, 0)
+            entry.total += 1
+            if item.status == .done { entry.done += 1 }
+            counts[parent] = entry
+        }
+    }
+
+    subscript(id: UUID) -> (done: Int, total: Int) { counts[id] ?? (0, 0) }
+}
+
 struct ItemRow: View {
     @Environment(ItemStore.self) private var store
     let item: Item
     let now: Date
+    var stats: ChildStats? = nil
 
     var body: some View {
         HStack(spacing: 8) {
@@ -162,8 +179,12 @@ struct ItemRow: View {
         }
         .swipeActions(edge: .trailing) {
             Button("Delete", role: .destructive) { store.delete(item.id) }
-            Button("1 hour") { store.snooze(item.id, until: now.addingTimeInterval(3600)) }.tint(Theme.pink)
-            Button("Morning") { store.snooze(item.id, until: NogSettings.nextMorning(after: now)) }.tint(Theme.violet)
+            if item.status == .open || item.status == .someday {
+                Button("1 hour") { store.snooze(item.id, until: now.addingTimeInterval(3600)) }.tint(Theme.pink)
+                Button("Morning") { store.snooze(item.id, until: NogSettings.nextMorning(after: now)) }.tint(Theme.violet)
+            } else if item.isDoing {
+                Button("+10 min") { store.extend(item.id, minutes: 10) }.tint(Theme.pink)
+            }
         }
     }
 
@@ -183,7 +204,8 @@ struct ItemRow: View {
     }
 
     private var detailLine: some View {
-        let childCount = store.children(of: item.id).count
+        let counts = stats?[item.id] ?? ChildStats(Array(store.items.values))[item.id]
+        let childCount = counts.total
         var parts: [String] = []
         if let text = reminderText { parts.append(text) }
         if item.isDoing, let end = item.timeboxEnd {
@@ -197,8 +219,7 @@ struct ItemRow: View {
             parts.append("~\(IntervalFormat.short(estimate))")
         }
         if childCount > 0 {
-            let doneCount = store.children(of: item.id).filter { $0.status == .done }.count
-            parts.append("\(doneCount)/\(childCount) sub-items")
+            parts.append("\(counts.done)/\(childCount) sub-items")
         }
         if let parent = store.parent(of: item) { parts.append("in \(parent.title)") }
         if !item.tags.isEmpty { parts.append(item.tags.map { "#\($0)" }.joined(separator: " ")) }

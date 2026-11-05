@@ -278,7 +278,7 @@ private struct ItemEditor: View {
                     } else {
                         Button {
                             let created = store.createIdea(title: title)
-                            router.path.append(created.id)
+                            router.push(created.id)
                         } label: {
                             Label("Create “\(title)”", systemImage: "plus")
                         }

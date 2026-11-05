@@ -13,7 +13,7 @@ final class DoingActivities {
         var live = Set<UUID>()
         for activity in Activity<DoingAttributes>.activities {
             let id = activity.attributes.itemID
-            if let item = doing[id], !live.contains(id), activity.attributes.title == item.title {
+            if let item = doing[id], !live.contains(id) {
                 live.insert(id)
                 let content = Self.content(for: item)
                 if activity.content.state != content.state {

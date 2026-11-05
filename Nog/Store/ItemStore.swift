@@ -20,6 +20,10 @@ final class ItemStore {
     @ObservationIgnored private var recentlyDeleted: [UUID: Date] = [:]
     @ObservationIgnored private var query: NSMetadataQuery?
     @ObservationIgnored private var queryObservers: [NSObjectProtocol] = []
+    @ObservationIgnored private var pendingWrites: [UUID: Item] = [:]
+    @ObservationIgnored private var writeDebounce: Task<Void, Never>?
+    /// True while moving between on-phone and iCloud folders; reloads wait.
+    @ObservationIgnored private var isSwitchingFolder = false
 
     init(folder: URL? = nil, schedulesNotifications: Bool = true) {
         self.folder = folder ?? StorageLocation.localFolder
@@ -40,15 +44,48 @@ final class ItemStore {
         folder.appending(path: "\(id.uuidString).md")
     }
 
+    /// Debounced: a burst of edits (typing) becomes one write per item.
     private func write(_ item: Item) {
         recentlyWritten[item.id] = .now
-        storage.write(ItemFile.encode(item), to: fileURL(for: item.id))
+        pendingWrites[item.id] = item
+        writeDebounce?.cancel()
+        writeDebounce = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(600))
+            guard !Task.isCancelled else { return }
+            self?.writePending()
+        }
     }
 
-    /// Waits for pending disk writes (call before the app may be suspended).
-    func flush() async { await storage.flush() }
+    private func writePending() {
+        let batch = pendingWrites
+        pendingWrites = [:]
+        for item in batch.values {
+            storage.write(ItemFile.encode(item), to: fileURL(for: item.id))
+        }
+    }
 
-    func flushForTesting() { storage.flushSync() }
+    /// Writes everything pending and waits for the disk (call before the app may be suspended).
+    func flush() async {
+        writeDebounce?.cancel()
+        writePending()
+        await storage.flush()
+    }
+
+    func flushForTesting() {
+        writeDebounce?.cancel()
+        writePending()
+        storage.flushSync()
+    }
+
+    // MARK: - Sidecar files (e.g. the mind map), stored and synced next to the items
+
+    func readSidecar(_ name: String) -> Data? {
+        try? Data(contentsOf: folder.appending(path: name))
+    }
+
+    func writeSidecar(_ name: String, data: Data) {
+        storage.write(data: data, to: folder.appending(path: name))
+    }
 
     // MARK: - iCloud
 
@@ -60,14 +97,13 @@ final class ItemStore {
             await useLocalStorage()
             return
         }
+        writePending()
+        isSwitchingFolder = true
+        defer { isSwitchingFolder = false }
         guard let cloud = await storage.resolveICloudFolder(migratingFrom: local) else {
+            // iCloud is unavailable right now (signing in, Drive toggled, offline at launch).
+            // Keep what's loaded and the folder we have; we'll try again next time the app is active.
             isUsingICloud = false
-            UserDefaults.standard.removeObject(forKey: StorageLocation.lastFolderKey)
-            if folder.standardizedFileURL != local.standardizedFileURL {
-                folder = local
-                try? FileManager.default.createDirectory(at: local, withIntermediateDirectories: true)
-                load()
-            }
             return
         }
         UserDefaults.standard.set(cloud.path, forKey: StorageLocation.lastFolderKey)
@@ -94,6 +130,7 @@ final class ItemStore {
     }
 
     private func useLocalStorage() async {
+        writePending()
         stopWatching()
         UserDefaults.standard.removeObject(forKey: StorageLocation.lastFolderKey)
         let local = StorageLocation.localFolder
@@ -115,7 +152,11 @@ final class ItemStore {
 
     /// Merges what's on disk (possibly changed by another device) into memory.
     func reloadFromDisk() async {
-        let snapshot = await storage.readAll(in: folder, coordinated: isUsingICloud)
+        guard !isSwitchingFolder else { return }
+        let readFolder = folder
+        let snapshot = await storage.readAll(in: readFolder, coordinated: isUsingICloud)
+        // The folder changed (or a switch started) while we were reading: this snapshot is stale.
+        guard !isSwitchingFolder, readFolder == folder else { return }
         let now = Date.now
         func isRecent(_ date: Date?) -> Bool { date.map { now.timeIntervalSince($0) < 60 } ?? false }
 
@@ -182,6 +223,7 @@ final class ItemStore {
     }
 
     func insert(_ item: Item) {
+        let item = firingSoonIfPast(item, previous: nil)
         items[item.id] = item
         write(item)
         scheduleSync()
@@ -207,11 +249,12 @@ final class ItemStore {
             item.doingSince = nil
             item.timeboxMinutes = nil
         }
+        item = firingSoonIfPast(item, previous: old)
         item.updated = now
         items[item.id] = item
         write(item)
         if old.status != item.status || old.doingSince != item.doingSince
-            || old.timeboxMinutes != item.timeboxMinutes || old.title != item.title {
+            || old.timeboxMinutes != item.timeboxMinutes {
             updateLiveActivities()
             // Doing changes should nog (or stop nogging) right away.
             if old.status != item.status || old.timeboxMinutes != item.timeboxMinutes {
@@ -220,6 +263,22 @@ final class ItemStore {
             }
         }
         scheduleSync()
+    }
+
+    /// A reminder that's new, moved, or revived with a start that's already
+    /// here (e.g. `@now`, "eod" after 5pm, a past time picked in the editor)
+    /// fires in a few seconds instead of never (once) or a whole gap late (repeating).
+    private func firingSoonIfPast(_ item: Item, previous: Item?) -> Item {
+        guard var reminder = item.reminder, item.isOpen else { return item }
+        let now = Date.now
+        let isNew = previous?.reminder == nil
+        let moved = previous?.reminder?.start != reminder.start
+        let revived = previous.map { $0.status == .done || $0.status == .someday } ?? false
+        guard isNew || moved || revived, reminder.start <= now.addingTimeInterval(2) else { return item }
+        reminder.start = now.addingTimeInterval(5)
+        var item = item
+        item.reminder = reminder
+        return item
     }
 
     // MARK: - Doing (▶︎)
@@ -285,8 +344,15 @@ final class ItemStore {
     }
 
     /// Pushes the nog start to `date` (creating a default reminder if the item had none).
+    /// While you're doing it, snooze means "more time" (extends the timebox).
+    /// Finished items aren't snoozed.
     func snooze(_ id: UUID, until date: Date) {
         guard var item = items[id] else { return }
+        if item.isDoing {
+            extend(id, minutes: max(5, Int((date.timeIntervalSinceNow / 60).rounded())))
+            return
+        }
+        guard item.status != .done else { return }
         if var r = item.reminder {
             r.start = date
             item.reminder = r
@@ -301,6 +367,7 @@ final class ItemStore {
     func delete(_ id: UUID) {
         let wasDoing = items[id]?.isDoing == true
         items[id] = nil
+        pendingWrites[id] = nil
         recentlyDeleted[id] = .now
         if wasDoing { updateLiveActivities() }
         storage.delete(fileURL(for: id))
@@ -376,19 +443,41 @@ final class ItemStore {
     }
 }
 
+enum AppTab: Hashable {
+    case capture, nogs, map
+}
+
 /// Navigation state shared with the notification delegate (tapping a nog opens its item).
 @MainActor
 @Observable
 final class Router {
     static let shared = Router()
+    var tab: AppTab = .capture
+    var capturePath: [UUID] = []
+    /// The Nogs tab's stack.
     var path: [UUID] = []
+    var mapPath: [UUID] = []
     /// Bumped to ask the capture field to take focus.
     var captureFocusRequest = 0
 
-    func open(_ id: UUID) { path = [id] }
+    /// Opens an item on the current tab's stack.
+    func push(_ id: UUID) {
+        switch tab {
+        case .capture: capturePath.append(id)
+        case .nogs: path.append(id)
+        case .map: mapPath.append(id)
+        }
+    }
+
+    /// From a notification or Siri: show the item in the Nogs tab.
+    func open(_ id: UUID) {
+        tab = .nogs
+        path = [id]
+    }
 
     func focusCapture() {
-        path = []
+        tab = .capture
+        capturePath = []
         captureFocusRequest += 1
     }
 }

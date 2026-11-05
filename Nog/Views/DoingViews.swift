@@ -62,7 +62,7 @@ struct DoingCard: View {
         VStack(alignment: .leading, spacing: 10) {
             if showsTitle {
                 Button {
-                    router.path.append(item.id)
+                    router.push(item.id)
                 } label: {
                     HStack {
                         Text(item.title).font(.headline)

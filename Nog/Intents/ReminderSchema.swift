@@ -227,7 +227,7 @@ struct CreateReminderIntent {
             item.body += (item.body.isEmpty ? "" : "\n\n") + urls.map(\.absoluteString).joined(separator: "\n")
         }
         item.tags = Array(Set(item.tags).union(tags)).sorted()
-        if let date = dueDate.flatMap({ Calendar.current.date(from: $0) }) {
+        if let date = dueDate.flatMap(Calendar.nogDate(from:)) {
             var reminder = item.reminder ?? NogSettings.defaultReminderFromNow
             reminder.start = date
             item.reminder = reminder
@@ -271,7 +271,7 @@ struct UpdateReminderIntent {
         if let title, !title.isEmpty { item.title = title }
         if let note { item.body = String(note.characters) }
         if let tags { item.tags = tags.sorted() }
-        if let date = dueDate.flatMap({ Calendar.current.date(from: $0) }) {
+        if let date = dueDate.flatMap(Calendar.nogDate(from:)) {
             var reminder = item.reminder ?? NogSettings.defaultReminderFromNow
             reminder.start = date
             item.reminder = reminder
@@ -283,7 +283,10 @@ struct UpdateReminderIntent {
             item.reminder = reminder
         }
         if let isFlagged, item.reminder != nil { item.reminder?.alarm = isFlagged }
-        if let list, list.id != item.id { item.parentID = list.parentID }
+        // Never move an item inside itself or one of its own sub-items.
+        if let list, list.id != item.id, !(list.parentID.map { store.isDescendant($0, of: item.id) } ?? false) {
+            item.parentID = list.parentID
+        }
         if let isCompleted { item.status = isCompleted ? .done : .open }
         store.update(item)
         await store.syncNow()
@@ -349,6 +352,20 @@ enum NogIntentError: Error, CustomLocalizedStringResourceConvertible {
     }
 }
 
+// MARK: - Siri dates
+
+extension Calendar {
+    /// Siri's due dates often carry only a day ("Friday"); those mean 9 AM, like typed captures.
+    static func nogDate(from components: DateComponents) -> Date? {
+        var components = components
+        if components.hour == nil {
+            components.hour = 9
+            components.minute = 0
+        }
+        return Calendar.current.date(from: components)
+    }
+}
+
 // MARK: - Recurrence ↔ repeat minutes
 
 extension Calendar.RecurrenceRule {
@@ -372,20 +389,26 @@ extension Calendar.RecurrenceRule {
 // MARK: - Spotlight semantic index
 
 /// Keeps Spotlight's semantic index (which Siri searches) in step with Nog.
+/// Only items that changed since the last pass are re-indexed.
 @MainActor
 enum SpotlightIndexer {
-    private static var indexed = Set<UUID>()
+    /// id → `updated` at the time it was indexed
+    private static var indexed: [UUID: Date] = [:]
 
     static func update(_ store: ItemStore) async {
-        let entities = store.items.values.map { ReminderEntity(item: $0, store: store) }
-        let current = Set(store.items.keys)
-        let removed = indexed.subtracting(current)
+        let changed = store.items.values.filter { indexed[$0.id] != $0.updated }
+        let removed = Set(indexed.keys).subtracting(store.items.keys)
+        guard !changed.isEmpty || !removed.isEmpty else { return }
         do {
-            try await CSSearchableIndex.default().indexAppEntities(entities)
+            if !changed.isEmpty {
+                try await CSSearchableIndex.default()
+                    .indexAppEntities(changed.map { ReminderEntity(item: $0, store: store) })
+            }
             if !removed.isEmpty {
                 try await CSSearchableIndex.default().deleteAppEntities(identifiedBy: Array(removed), ofType: ReminderEntity.self)
             }
-            indexed = current
+            for item in changed { indexed[item.id] = item.updated }
+            for id in removed { indexed[id] = nil }
         } catch {
             print("Nog: Spotlight indexing failed: \(error)")
         }

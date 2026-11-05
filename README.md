@@ -41,6 +41,14 @@ As you type, a line above the capture field shows how Nog understood it. A day w
 - **Ring like an alarm.** Flip it on per item, or type `!alarm`, and that item's nogs become real AlarmKit alarms. They break through Silent mode and Focus, take over the Lock Screen and your Watch, and have Done / Snooze buttons. Regular nogs take over again after the scheduled alarms run out.
 - **Break it down.** On-device Apple Intelligence (Foundation Models) suggests 3–7 concrete first steps for any item, and you pick which ones become sub-items. It runs only on Apple Intelligence devices, and nothing leaves the phone.
 
+## Three tabs
+
+- **Capture** (where Nog opens): one text box. Below it, **Just caught** (your latest captures) and **Next nogs** (the soonest few). Nothing else.
+- **Nogs**: the full overview, with the sections below.
+- **Map**: see your data.
+  - **Map mode:** every item is a node you can drag. Lines show sub-items and [[links]]. Each #tag gets its own coloured zone. Tap ✏︎ to scribble anywhere with finger or Pencil. Positions and scribbles are saved in `_nogmap.json` next to your items, so they sync too.
+  - **Outline mode:** an Obsidian-style folder tree, where projects open up into their sub-items.
+
 ## The list
 
 | Section | What's in it |

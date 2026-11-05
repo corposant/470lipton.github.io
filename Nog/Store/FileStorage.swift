@@ -32,7 +32,10 @@ final class FileStorage: @unchecked Sendable {
     // MARK: Writes
 
     func write(_ text: String, to url: URL) {
-        let data = Data(text.utf8)
+        write(data: Data(text.utf8), to: url)
+    }
+
+    func write(data: Data, to url: URL) {
         queue.async {
             var coordinationError: NSError?
             NSFileCoordinator(filePresenter: nil).coordinate(

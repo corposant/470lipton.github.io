@@ -341,3 +341,83 @@ final class DoingTests: XCTestCase {
         XCTAssertEqual(reloaded.items[item.id]?.status, .done)
     }
 }
+
+@MainActor
+final class ReviewFixTests: XCTestCase {
+    func makeStore() -> ItemStore {
+        ItemStore(folder: FileManager.default.temporaryDirectory.appending(path: UUID().uuidString),
+                  schedulesNotifications: false)
+    }
+
+    func testRemindersSetForNowStillFire() throws {
+        let store = makeStore()
+        let once = try XCTUnwrap(store.capture("call bank @now !once"))
+        let saved = try XCTUnwrap(store.items[once.id]?.reminder)
+        XCTAssertGreaterThan(saved.start, .now, "a reminder set for now should fire in a moment, not never")
+        XCTAssertFalse(NogPlanner.plan(items: Array(store.items.values), now: .now).isEmpty)
+    }
+
+    func testSnoozeWhileDoingAddsTimeInsteadOfStopping() throws {
+        let store = makeStore()
+        let item = try XCTUnwrap(store.capture("write report"))
+        store.start(item.id, timebox: 25)
+        store.snooze(item.id, until: .now.addingTimeInterval(600))
+        XCTAssertEqual(store.items[item.id]?.status, .doing)
+        XCTAssertEqual(store.items[item.id]?.timeboxMinutes, 35)
+    }
+
+    func testSnoozeDoesNotReopenFinishedItems() throws {
+        let store = makeStore()
+        let item = try XCTUnwrap(store.capture("done thing"))
+        store.markDone(item.id)
+        store.snooze(item.id, until: .now.addingTimeInterval(3600))
+        XCTAssertEqual(store.items[item.id]?.status, .done)
+    }
+
+    func testDayOnlySiriDatesMeanNineAM() throws {
+        let date = try XCTUnwrap(Calendar.nogDate(from: DateComponents(year: 2026, month: 11, day: 6)))
+        XCTAssertEqual(Calendar.current.component(.hour, from: date), 9)
+        let timed = try XCTUnwrap(Calendar.nogDate(from: DateComponents(year: 2026, month: 11, day: 6, hour: 15)))
+        XCTAssertEqual(Calendar.current.component(.hour, from: timed), 15)
+    }
+}
+
+final class MapLayoutTests: XCTestCase {
+    func testEdgesFromParentsAndLinks() {
+        let parent = Item(title: "Trip")
+        var child = Item(title: "Book flights")
+        child.parentID = parent.id
+        var note = Item(title: "Packing")
+        note.body = "see [[trip]] and [[Nowhere]]"
+        let edges = MapLayout.edges(for: [parent, child, note])
+        XCTAssertTrue(edges.contains(.init(from: parent.id, to: child.id, kind: .parent)))
+        XCTAssertTrue(edges.contains(.init(from: note.id, to: parent.id, kind: .link)))
+        XCTAssertEqual(edges.count, 2)
+    }
+
+    func testLayoutKeepsPinnedNodesAndIsDeterministic() {
+        let ids = (0..<12).map { _ in UUID() }
+        let edges = (1..<12).map { MapLayout.Edge(from: ids[0], to: ids[$0], kind: .parent) }
+        let pinned = [ids[0]: CGPoint(x: 40, y: -20)]
+        let a = MapLayout.layout(ids: ids, edges: edges, pinned: pinned)
+        let b = MapLayout.layout(ids: ids, edges: edges, pinned: pinned)
+        XCTAssertEqual(a.count, 12)
+        XCTAssertEqual(a[ids[0]], CGPoint(x: 40, y: -20))
+        XCTAssertEqual(a, b)
+        XCTAssertTrue(a.values.allSatisfy { $0.x.isFinite && $0.y.isFinite })
+    }
+
+    func testOutlineTreeNestsAndSurvivesCycles() {
+        var a = Item(title: "A")
+        var b = Item(title: "B")
+        b.parentID = a.id
+        a.parentID = b.id // a cycle that should never crash the outline
+        let c = Item(title: "C")
+        let tree = OutlineView.tree([a, b, c], showNogged: false)
+        func titles(_ nodes: [OutlineView.Node]) -> [String] {
+            nodes.flatMap { [$0.item.title] + titles($0.children ?? []) }
+        }
+        XCTAssertEqual(Set(titles(tree)), ["A", "B", "C"])
+        XCTAssertEqual(titles(tree).count, 3)
+    }
+}
