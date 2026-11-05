@@ -1,4 +1,4 @@
-# Nag
+# Nog
 
 A capture-first iPhone app where **every item can nag you, repeatedly, until it's done.**
 
@@ -6,7 +6,7 @@ A capture-first iPhone app where **every item can nag you, repeatedly, until it'
 - **Capture is instant.** The app opens with the keyboard already up. Type, hit return, and keep typing.
 - **Every capture gets a default nag** (out of the box: first nag 15 min after capture, then every 8 min until done). You can change that in Settings, or per item.
 - **Nags repeat forever.** They don't stop after one or two. Each nag has **Done ✓ / Snooze 1 hour / Tomorrow morning** buttons right on the notification.
-- **Your data is plain Markdown**, one file per item, in *Files → On My iPhone → Nag → Items*.
+- **Your data is plain Markdown**, one file per item, in *Files → On My iPhone → Nog → Items*.
 
 ## Capture shortcuts
 
@@ -28,17 +28,17 @@ You need a Mac with Xcode (16 or newer) and Homebrew.
 
 ```bash
 brew install xcodegen
-git clone https://github.com/corposant/470lipton.github.io.git Nag
-cd Nag
+git clone https://github.com/corposant/470lipton.github.io.git Nog
+cd Nog
 git checkout app
-xcodegen            # generates Nag.xcodeproj from project.yml
-open Nag.xcodeproj
+xcodegen            # generates Nog.xcodeproj from project.yml
+open Nog.xcodeproj
 ```
 
 In Xcode:
 
-1. Click the **Nag** project → **Nag** target → **Signing & Capabilities** and pick your **Team**.
-   If it complains the bundle identifier is taken, change it to something like `com.yourname.nag`.
+1. Click the **Nog** project → **Nog** target → **Signing & Capabilities** and pick your **Team**.
+   If it complains the bundle identifier is taken, change it to something like `com.yourname.nog`.
    To avoid re-picking the team after each `xcodegen`, paste your Team ID into `DEVELOPMENT_TEAM` in `project.yml`.
 2. Plug in your iPhone (or use Wi-Fi pairing) and select it as the run destination.
 3. On the iPhone, the first time: **Settings → Privacy & Security → Developer Mode → On** (it restarts).
@@ -50,7 +50,7 @@ Run the tests with **⌘U**.
 
 ### Optional: Time Sensitive notifications
 
-These let nags break through Focus modes. In **Signing & Capabilities → + Capability → Time Sensitive Notifications**. Then on the phone: **Settings → Notifications → Nag → Time Sensitive → On**. The code already marks nags as time-sensitive.
+These let nags break through Focus modes. In **Signing & Capabilities → + Capability → Time Sensitive Notifications**. Then on the phone: **Settings → Notifications → Nog → Time Sensitive → On**. The code already marks nags as time-sensitive.
 
 ## How the repeating nags work
 
@@ -63,11 +63,12 @@ iOS lets an app have at most 64 notifications scheduled at once, so `NagPlanner`
 
 ```
 project.yml                 XcodeGen spec (the .xcodeproj is generated, not committed)
-Nag/App                     App entry, notification delegate, background refresh
-Nag/Model                   Item, Markdown file format, capture parser, nag planner
-Nag/Store                   ItemStore (in-memory + Markdown files), Router
-Nag/Notifications           Sync between the plan and iOS's notification center
-Nag/Intents                 Siri / Shortcuts / Action Button capture
-Nag/Views                   SwiftUI screens
-NagTests                    Unit tests for the model and planner
+Nog/App                     App entry, notification delegate, background refresh
+Nog/Model                   Item, Markdown file format, capture parser, nag planner
+Nog/Store                   ItemStore (in-memory + Markdown files), Router
+Nog/Notifications           Sync between the plan and iOS's notification center
+Nog/Intents                 Siri / Shortcuts / Action Button capture
+Nog/Views                   SwiftUI screens
+NogTests                    Unit tests for the model and planner
+design/AppIcon.svg          Source for the app icon
 ```

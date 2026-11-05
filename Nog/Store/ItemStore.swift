@@ -45,7 +45,7 @@ final class ItemStore {
         do {
             try Data(ItemFile.encode(item).utf8).write(to: fileURL(for: item.id), options: .atomic)
         } catch {
-            print("Nag: failed to save \(item.id): \(error)")
+            print("Nog: failed to save \(item.id): \(error)")
         }
     }
 

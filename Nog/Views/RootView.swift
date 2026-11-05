@@ -12,7 +12,7 @@ struct RootView: View {
             TimelineView(.periodic(from: .now, by: 30)) { context in
                 ItemListView(now: context.date, search: search)
             }
-            .navigationTitle("Nag")
+            .navigationTitle("Nog")
             .searchable(text: $search, placement: .navigationBarDrawer(displayMode: .automatic))
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {

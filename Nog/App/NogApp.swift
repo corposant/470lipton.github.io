@@ -3,7 +3,7 @@ import UserNotifications
 import BackgroundTasks
 
 @main
-struct NagApp: App {
+struct NogApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @Environment(\.scenePhase) private var scenePhase
     @State private var store = ItemStore.shared
@@ -78,7 +78,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
 
 /// Periodically wakes the app (when iOS allows) to top up scheduled nags.
 enum BackgroundRefresh {
-    static let identifier = "io.nagme.nag.refresh"
+    static let identifier = "io.nogapp.nog.refresh"
 
     static func register() {
         BGTaskScheduler.shared.register(forTaskWithIdentifier: identifier, using: nil) { task in

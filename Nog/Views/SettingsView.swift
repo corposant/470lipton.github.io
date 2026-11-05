@@ -53,7 +53,7 @@ struct SettingsView: View {
                 }
 
                 Section {
-                    Text("Files app → On My iPhone → Nag → Items")
+                    Text("Files app → On My iPhone → Nog → Items")
                         .font(.footnote)
                 } header: {
                     Text("Your data")

@@ -1,6 +1,6 @@
 import AppIntents
 
-/// "Hey Siri, capture in Nag" → Siri asks what → item saved with the default nag.
+/// "Hey Siri, capture in Nog" → Siri asks what → item saved with the default nag.
 /// Also usable from Shortcuts and the Action Button without opening the app.
 struct CaptureIntent: AppIntent {
     static var title: LocalizedStringResource = "Capture"
@@ -23,7 +23,7 @@ struct CaptureIntent: AppIntent {
 /// Opens the app straight into the capture field (good for the Action Button).
 struct OpenCaptureIntent: AppIntent {
     static var title: LocalizedStringResource = "Quick Capture"
-    static var description = IntentDescription("Open Nag ready to type.")
+    static var description = IntentDescription("Open Nog ready to type.")
     static var openAppWhenRun = true
 
     @MainActor

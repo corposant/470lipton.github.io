@@ -70,7 +70,7 @@ final class NotificationScheduler {
             do {
                 try await center.add(request(for: planned))
             } catch {
-                print("Nag: failed to schedule \(id): \(error)")
+                print("Nog: failed to schedule \(id): \(error)")
             }
         }
         lastPlannedCount = desired.count
