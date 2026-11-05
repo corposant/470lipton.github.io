@@ -32,6 +32,20 @@ targets:
         LSSupportsOpeningDocumentsInPlace: true
         UIBackgroundModes: [fetch]
         BGTaskSchedulerPermittedIdentifiers: [io.nogapp.nog.refresh]
+        # Shows the app's iCloud folder as "Nog" in iCloud Drive (Files app, Finder)
+        NSUbiquitousContainers:
+          iCloud.io.nogapp.nog:
+            NSUbiquitousContainerIsDocumentScopePublic: true
+            NSUbiquitousContainerName: Nog
+            NSUbiquitousContainerSupportedFolderLevels: Any
+    # iCloud Drive sync. Needs the paid Apple Developer Program — on a free
+    # account, delete this block and re-run xcodegen (items stay on the phone).
+    entitlements:
+      path: Nog/Nog.entitlements
+      properties:
+        com.apple.developer.icloud-container-identifiers: [iCloud.io.nogapp.nog]
+        com.apple.developer.ubiquity-container-identifiers: [iCloud.io.nogapp.nog]
+        com.apple.developer.icloud-services: [CloudDocuments]
     settings:
       base:
         # Bundle IDs are globally unique. If Xcode says this one is taken,

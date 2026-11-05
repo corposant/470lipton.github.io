@@ -16,6 +16,7 @@ struct CaptureIntent: AppIntent {
             return .result(dialog: "There was nothing to capture.")
         }
         await ItemStore.shared.syncNow()
+        await ItemStore.shared.flush()
         return .result(dialog: "Got it: \(item.title)")
     }
 }

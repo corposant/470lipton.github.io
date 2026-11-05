@@ -10,7 +10,12 @@ struct CaptureBar: View {
 
     var body: some View {
         VStack(spacing: 6) {
-            if let confirmation {
+            if let preview {
+                Label(preview, systemImage: "wand.and.stars")
+                    .font(.caption)
+                    .foregroundStyle(.tint)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else if let confirmation {
                 Text(confirmation)
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -38,18 +43,37 @@ struct CaptureBar: View {
         .onChange(of: router.captureFocusRequest) { focused = true }
     }
 
+    /// Live read-back of how the text will be understood.
+    private var preview: String? {
+        let trimmed = text.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return nil }
+        let parsed = CaptureParser.parse(trimmed, defaults: NogSettings.captureDefaults, now: .now)
+        guard !parsed.title.isEmpty else { return nil }
+        return "\(parsed.title) — \(Self.describe(parsed.reminder))"
+    }
+
+    static func describe(_ reminder: Reminder?) -> String {
+        guard let r = reminder else { return "no reminder" }
+        let calendar = Calendar.current
+        let when: String
+        if r.start.timeIntervalSinceNow < 60 * 60 * 6 && calendar.isDateInToday(r.start) {
+            when = r.start.formatted(.relative(presentation: .named))
+        } else if calendar.isDateInToday(r.start) {
+            when = "today " + r.start.formatted(date: .omitted, time: .shortened)
+        } else if calendar.isDateInTomorrow(r.start) {
+            when = "tomorrow " + r.start.formatted(date: .omitted, time: .shortened)
+        } else {
+            when = r.start.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day().hour().minute())
+        }
+        guard let m = r.repeatMinutes else { return "once, \(when)" }
+        return "\(when), then every \(IntervalFormat.short(m))"
+    }
+
     private func submit() {
         guard let item = store.capture(text) else { return }
         text = ""
         focused = true // keep the keyboard up for the next thought
-        let message: String
-        if let r = item.reminder {
-            let start = r.start.formatted(.relative(presentation: .named))
-            message = r.repeatMinutes.map { "Nogging \(start), every \(IntervalFormat.short($0))" }
-                ?? "Reminding \(start)"
-        } else {
-            message = "Saved without a reminder"
-        }
+        let message = Self.describe(item.reminder)
         withAnimation { confirmation = "✓ \(item.title) — \(message)" }
         Task {
             try? await Task.sleep(for: .seconds(3))

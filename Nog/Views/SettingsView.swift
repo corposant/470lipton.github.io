@@ -32,6 +32,9 @@ struct SettingsView: View {
                     shortcut("!off", "no reminder (just an idea)")
                     shortcut("@30m  @2h  @now", "when to start nogging")
                     shortcut("#tag", "add a tag")
+                    shortcut("lunch next tues", "plain English works too")
+                    shortcut("call mom tomorrow at 3", "day + time")
+                    shortcut("pills every 4 hours", "sets the repeat")
                 }
 
                 Section("Notifications") {
@@ -53,12 +56,19 @@ struct SettingsView: View {
                 }
 
                 Section {
-                    Text("Files app → On My iPhone → Nog → Items")
-                        .font(.footnote)
+                    if store.isUsingICloud {
+                        Label("Syncing with iCloud Drive", systemImage: "icloud")
+                        Text("iCloud Drive → Nog → Items").font(.footnote)
+                    } else {
+                        Label("On this iPhone only", systemImage: "iphone")
+                        Text("Files app → On My iPhone → Nog → Items").font(.footnote)
+                    }
                 } header: {
                     Text("Your data")
                 } footer: {
-                    Text("Every item is a plain Markdown file.")
+                    Text(store.isUsingICloud
+                         ? "Every item is a plain Markdown file, also visible on your Mac in iCloud Drive."
+                         : "iCloud isn't available — check you're signed in and iCloud Drive is on. Items will move to iCloud automatically once it is.")
                 }
             }
             .navigationTitle("Settings")

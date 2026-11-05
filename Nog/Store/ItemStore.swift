@@ -1,40 +1,39 @@
 import Foundation
 import Observation
 
-/// Holds all items in memory and mirrors each one to `Documents/Items/<id>.md`.
+/// Holds all items in memory and mirrors each one to `<folder>/<id>.md`,
+/// where the folder is iCloud Drive/Nog/Items when iCloud is available.
 @MainActor
 @Observable
 final class ItemStore {
-    static let shared = ItemStore()
+    static let shared = ItemStore(folder: StorageLocation.lastKnownFolder())
 
     private(set) var items: [UUID: Item] = [:]
+    private(set) var folder: URL
+    private(set) var isUsingICloud = false
 
-    let folder: URL
     private let schedulesNotifications: Bool
+    private let storage = FileStorage()
     @ObservationIgnored private var syncDebounce: Task<Void, Never>?
+    @ObservationIgnored private var reloadDebounce: Task<Void, Never>?
+    @ObservationIgnored private var recentlyWritten: [UUID: Date] = [:]
+    @ObservationIgnored private var recentlyDeleted: [UUID: Date] = [:]
+    @ObservationIgnored private var query: NSMetadataQuery?
+    @ObservationIgnored private var queryObservers: [NSObjectProtocol] = []
 
     init(folder: URL? = nil, schedulesNotifications: Bool = true) {
-        self.folder = folder ?? Self.defaultFolder
+        self.folder = folder ?? StorageLocation.localFolder
         self.schedulesNotifications = schedulesNotifications
         try? FileManager.default.createDirectory(at: self.folder, withIntermediateDirectories: true)
         load()
     }
 
-    nonisolated static var defaultFolder: URL {
-        URL.documentsDirectory.appending(path: "Items", directoryHint: .isDirectory)
-    }
-
     // MARK: - Persistence
 
+    /// Fast, synchronous load of whatever is already on disk.
     func load() {
-        let urls = (try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)) ?? []
-        var loaded: [UUID: Item] = [:]
-        for url in urls where url.pathExtension == "md" {
-            guard let text = try? String(contentsOf: url, encoding: .utf8),
-                  let item = ItemFile.decode(text) else { continue }
-            loaded[item.id] = item
-        }
-        items = loaded
+        let snapshot = FileStorage.readAllNow(in: folder, coordinated: false)
+        items = Dictionary(snapshot.items.map { ($0.id, $0) }, uniquingKeysWith: { a, b in a.updated >= b.updated ? a : b })
     }
 
     private func fileURL(for id: UUID) -> URL {
@@ -42,10 +41,86 @@ final class ItemStore {
     }
 
     private func write(_ item: Item) {
-        do {
-            try Data(ItemFile.encode(item).utf8).write(to: fileURL(for: item.id), options: .atomic)
-        } catch {
-            print("Nog: failed to save \(item.id): \(error)")
+        recentlyWritten[item.id] = .now
+        storage.write(ItemFile.encode(item), to: fileURL(for: item.id))
+    }
+
+    /// Waits for pending disk writes (call before the app may be suspended).
+    func flush() async { await storage.flush() }
+
+    func flushForTesting() { storage.flushSync() }
+
+    // MARK: - iCloud
+
+    /// Switches storage to iCloud Drive/Nog/Items if iCloud is available,
+    /// moving any on-phone items there, then watches for changes from other devices.
+    func connectToICloud() async {
+        let local = StorageLocation.localFolder
+        guard let cloud = await storage.resolveICloudFolder(migratingFrom: local) else {
+            isUsingICloud = false
+            UserDefaults.standard.removeObject(forKey: StorageLocation.lastFolderKey)
+            if folder.standardizedFileURL != local.standardizedFileURL {
+                folder = local
+                try? FileManager.default.createDirectory(at: local, withIntermediateDirectories: true)
+                load()
+            }
+            return
+        }
+        UserDefaults.standard.set(cloud.path, forKey: StorageLocation.lastFolderKey)
+        isUsingICloud = true
+        if folder.standardizedFileURL != cloud.standardizedFileURL {
+            folder = cloud
+            // Anything captured while we were switching goes to the new folder too.
+            let snapshot = await storage.readAll(in: cloud, coordinated: true)
+            for item in items.values where !snapshot.presentIDs.contains(item.id) { write(item) }
+        }
+        await reloadFromDisk()
+        startWatching()
+    }
+
+    /// Merges what's on disk (possibly changed by another device) into memory.
+    func reloadFromDisk() async {
+        let snapshot = await storage.readAll(in: folder, coordinated: isUsingICloud)
+        let now = Date.now
+        func isRecent(_ date: Date?) -> Bool { date.map { now.timeIntervalSince($0) < 60 } ?? false }
+
+        var next = items
+        for disk in snapshot.items {
+            if let mine = next[disk.id] {
+                if disk.updated > mine.updated { next[disk.id] = disk }
+            } else if !isRecent(recentlyDeleted[disk.id]) {
+                next[disk.id] = disk
+            }
+        }
+        for id in Array(next.keys) where !snapshot.presentIDs.contains(id) && !isRecent(recentlyWritten[id]) {
+            next[id] = nil // deleted on another device
+        }
+        if next != items {
+            items = next
+            scheduleSync()
+        }
+    }
+
+    private func startWatching() {
+        guard query == nil else { return }
+        let query = NSMetadataQuery()
+        query.searchScopes = [NSMetadataQueryUbiquitousDocumentsScope]
+        query.predicate = NSPredicate(format: "%K LIKE '*.md'", NSMetadataItemFSNameKey)
+        for name in [Notification.Name.NSMetadataQueryDidFinishGathering, .NSMetadataQueryDidUpdate] {
+            queryObservers.append(NotificationCenter.default.addObserver(forName: name, object: query, queue: .main) { [weak self] _ in
+                Task { @MainActor in self?.scheduleReload() }
+            })
+        }
+        query.start()
+        self.query = query
+    }
+
+    private func scheduleReload() {
+        reloadDebounce?.cancel()
+        reloadDebounce = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(1))
+            guard !Task.isCancelled, let self else { return }
+            await self.reloadFromDisk()
         }
     }
 
@@ -120,7 +195,8 @@ final class ItemStore {
 
     func delete(_ id: UUID) {
         items[id] = nil
-        try? FileManager.default.removeItem(at: fileURL(for: id))
+        recentlyDeleted[id] = .now
+        storage.delete(fileURL(for: id))
         clearDelivered(id)
         scheduleSync()
     }

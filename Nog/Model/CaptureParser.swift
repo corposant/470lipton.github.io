@@ -20,8 +20,12 @@ struct CaptureResult: Equatable {
 ///   `@30m` `@2h` `@1d`  start nogging in 30 minutes / 2 hours / 1 day
 ///   `@now`              start now
 ///   `#tag`              add a tag
+///
+/// …and plain English, via `NaturalDateParser`: "lunch next Tues",
+/// "call mom tomorrow at 3", "pills every 4 hours", "stretch in 20 min".
 enum CaptureParser {
-    static func parse(_ text: String, defaults: CaptureDefaults, now: Date) -> CaptureResult {
+    static func parse(_ text: String, defaults: CaptureDefaults, now: Date,
+                      calendar: Calendar = .current) -> CaptureResult {
         var words: [String] = []
         var tags: [String] = []
         var noReminder = false
@@ -60,15 +64,21 @@ enum CaptureParser {
             words.append(word)
         }
 
-        let title = words.joined(separator: " ")
+        let natural = NaturalDateParser.parse(words.joined(separator: " "), now: now, calendar: calendar)
+        let title = natural.title
         if noReminder {
             return CaptureResult(title: title, reminder: nil, tags: tags)
         }
-        let delay = delayOverride ?? defaults.firstDelayMinutes
-        let repeatMinutes = once ? nil : (repeatOverride ?? defaults.repeatMinutes)
-        let reminder = Reminder(start: now.addingTimeInterval(TimeInterval(delay * 60)),
-                                repeatMinutes: repeatMinutes)
-        return CaptureResult(title: title, reminder: reminder, tags: tags)
+        let start: Date
+        if let delayOverride {
+            start = now.addingTimeInterval(TimeInterval(delayOverride * 60))
+        } else if let naturalStart = natural.start {
+            start = naturalStart
+        } else {
+            start = now.addingTimeInterval(TimeInterval(defaults.firstDelayMinutes * 60))
+        }
+        let repeatMinutes = once ? nil : (repeatOverride ?? natural.repeatMinutes ?? defaults.repeatMinutes)
+        return CaptureResult(title: title, reminder: Reminder(start: start, repeatMinutes: repeatMinutes), tags: tags)
     }
 
     /// "8m" → 8, "2h" → 120, "1d" → 1440, "15" → 15. Anything else → nil.

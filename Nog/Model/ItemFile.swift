@@ -88,10 +88,18 @@ enum ItemFile {
 
     private static let formatter: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
+
+    private static let plainFormatter: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
         f.formatOptions = [.withInternetDateTime]
         return f
     }()
 
     private static func iso(_ date: Date) -> String { formatter.string(from: date) }
-    private static func date(_ string: String) -> Date? { formatter.date(from: string) }
+    private static func date(_ string: String) -> Date? {
+        formatter.date(from: string) ?? plainFormatter.date(from: string)
+    }
 }

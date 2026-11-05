@@ -7,7 +7,24 @@ A capture-first iPhone app where **every item can nog you, repeatedly, until it'
 - **Every capture gets a default nog** (out of the box: first nog 15 min after capture, then every 8 min until done). You can change that in Settings, or per item.
 - **Nogs repeat forever.** They don't stop after one or two. Each nog has **Done ✓ / Snooze 1 hour / Tomorrow morning** buttons right on the notification.
 - **"Hey Siri, Nog me"** captures something hands-free (Siri asks what).
-- **Your data is plain Markdown**, one file per item, in *Files → On My iPhone → Nog → Items*.
+- **Syncs through iCloud Drive.** Each item is a plain Markdown file in *iCloud Drive → Nog → Items*, readable on your Mac too. If iCloud isn't available, files stay on the phone and move to iCloud automatically once it is.
+
+## Plain English
+
+Type the way you'd say it and Nog works out the when:
+
+| You type | Becomes |
+|---|---|
+| `lunch next Tues` | **Lunch**, Tuesday 12:00 |
+| `call mom tomorrow at 3` | **Call mom**, tomorrow 3 PM |
+| `dentist nov 12 at 2:30pm` | **Dentist**, Nov 12 2:30 PM |
+| `dinner with Sam on sat` | **Dinner with Sam**, Saturday 6:30 PM |
+| `standup tomorrow morning` | **Standup**, tomorrow 9 AM |
+| `submit report by eod` | **Submit report**, today 5 PM |
+| `stretch in 20 min` | **Stretch**, 20 minutes from now |
+| `take pills every 4 hours` | **Take pills**, nogs every 4 hours |
+
+As you type, a line above the capture field shows how Nog understood it. A day with no time defaults to 9 AM, and meal words set sensible times (lunch at noon, dinner at 6:30).
 
 ## Capture shortcuts
 
@@ -46,6 +63,8 @@ In Xcode:
 4. Press **⌘R**. Allow notifications when asked.
 
 Run the tests with **⌘U**.
+
+**iCloud needs the paid Apple Developer Program.** With automatic signing, Xcode registers the iCloud container `iCloud.io.nogapp.nog` for you. If you change the bundle identifier, change the container ID in `project.yml` to match (`iCloud.<your bundle id>`). On a free account, delete the `entitlements:` block in `project.yml`, re-run `xcodegen`, and Nog stores items on the phone only.
 
 **Free vs paid developer account:** with a free (personal team) account the app stops opening after **7 days** and you have to press ⌘R again. With the paid program ($99/yr) it lasts a year and you can use TestFlight. To check which you have, go to developer.apple.com/account. If you see a **Membership** section with a renewal date, you're on the paid program.
 

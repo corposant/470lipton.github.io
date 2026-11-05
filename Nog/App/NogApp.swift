@@ -16,15 +16,20 @@ struct NogApp: App {
                 .environment(router)
                 .task {
                     await NotificationScheduler.shared.requestAuthorization()
+                    await store.connectToICloud()
                     await store.syncNow()
                 }
         }
         .onChange(of: scenePhase) { _, phase in
             switch phase {
             case .active:
-                Task { await store.syncNow() }
+                Task {
+                    await store.reloadFromDisk()
+                    await store.syncNow()
+                }
             case .background:
                 BackgroundRefresh.schedule()
+                Task { await store.flush() }
             default:
                 break
             }
@@ -70,6 +75,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
                     break
                 }
                 await store.syncNow()
+                await store.flush()
             }
             completionHandler()
         }
@@ -84,7 +90,9 @@ enum BackgroundRefresh {
         BGTaskScheduler.shared.register(forTaskWithIdentifier: identifier, using: nil) { task in
             schedule()
             let work = Task { @MainActor in
+                await ItemStore.shared.reloadFromDisk()
                 await ItemStore.shared.syncNow()
+                await ItemStore.shared.flush()
                 task.setTaskCompleted(success: true)
             }
             task.expirationHandler = { work.cancel() }
