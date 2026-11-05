@@ -1,53 +1,254 @@
 import SwiftUI
 
-/// ▶︎ Tap to start with the suggested timebox; press and hold to choose.
+/// ▶︎ Tap to start with the suggested timebox; press and hold for the timebox panel.
 struct StartButton: View {
     @Environment(ItemStore.self) private var store
     let item: Item
     var prominent = false
+    @State private var showPanel = false
+    /// Set by a hold, so the button's tap (which fires on release) doesn't also start it.
+    @State private var didHold = false
 
     var body: some View {
         let suggestion = store.suggestedTimebox(for: item.id)
-        Menu {
-            Section("Suggested") {
-                Button {
-                    store.start(item.id, timebox: suggestion.minutes)
-                } label: {
-                    Label(suggestion.label, systemImage: "wand.and.stars")
-                }
-            }
-            Section("Timebox") {
-                ForEach(NogSettings.timeboxChoices, id: \.self) { minutes in
-                    Button(IntervalFormat.short(minutes)) { store.start(item.id, timebox: minutes) }
-                }
-                Button {
-                    store.start(item.id, timebox: nil)
-                } label: {
-                    Label("No timer (count up)", systemImage: "stopwatch")
-                }
-            }
-        } label: {
-            if prominent {
-                HStack(spacing: 10) {
-                    Image(systemName: "play.fill").font(.system(size: 12, weight: .bold))
-                    Text(suggestion.minutes.map { "START · \(IntervalFormat.short($0).uppercased())" } ?? "START")
-                        .font(.nogTitle(13))
-                        .tracking(2)
-                }
-                .foregroundStyle(.primary)
-                .padding(.vertical, 15)
-                .frame(maxWidth: .infinity)
-                .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Theme.synth, lineWidth: 1.5))
-                .shadow(color: Theme.violet.opacity(0.18), radius: 14)
-                .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            } else {
-                CircleOutlineIcon(systemName: "play.fill")
-                    .accessibilityLabel("Start \(item.title)")
-            }
-        } primaryAction: {
+        Button {
+            if didHold { didHold = false; return }
             store.start(item.id, timebox: suggestion.minutes)
+        } label: {
+            label(suggestion)
         }
         .buttonStyle(.borderless)
+        .simultaneousGesture(LongPressGesture(minimumDuration: 0.35).onEnded { _ in
+            didHold = true
+            showPanel = true
+        })
+            .sensoryFeedback(.impact(weight: .medium), trigger: showPanel) { _, isShowing in isShowing }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Start \(item.title)")
+            .accessibilityHint("Starts with \(suggestion.label.lowercased()). Hold to choose a timebox.")
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction { store.start(item.id, timebox: suggestion.minutes) }
+            .accessibilityAction(named: "Choose timebox") { showPanel = true }
+            .popover(isPresented: $showPanel) {
+                TimeboxPanel(suggestion: suggestion) { minutes in
+                    showPanel = false
+                    store.start(item.id, timebox: minutes)
+                } close: {
+                    showPanel = false
+                }
+                .presentationCompactAdaptation(.popover)
+                .presentationBackground(.clear)
+            }
+    }
+
+    @ViewBuilder
+    private func label(_ suggestion: TimeboxSuggestion) -> some View {
+        if prominent {
+            HStack(spacing: 10) {
+                Image(systemName: "play.fill").font(.system(size: 12, weight: .bold))
+                Text(suggestion.minutes.map { "START · \(IntervalFormat.short($0).uppercased())" } ?? "START")
+                    .font(.nogTitle(13))
+                    .tracking(2)
+            }
+            .foregroundStyle(.primary)
+            .padding(.vertical, 15)
+            .frame(maxWidth: .infinity)
+            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Theme.synth, lineWidth: 1.5))
+            .shadow(color: Theme.violet.opacity(0.18), radius: 14)
+            .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        } else {
+            CircleOutlineIcon(systemName: "play.fill")
+        }
+    }
+}
+
+/// Aperture-style floating panel: translucent black, thin light edge, small title bar,
+/// the suggestion highlighted in pro-app blue.
+struct TimeboxPanel: View {
+    let suggestion: TimeboxSuggestion
+    let choose: (Int?) -> Void
+    let close: () -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Title bar
+            ZStack {
+                Text("TIMEBOX")
+                    .font(.nogLabel)
+                    .tracking(2.2)
+                    .foregroundStyle(Color(white: 0.72))
+                HStack {
+                    Button(action: close) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 7, weight: .heavy))
+                            .foregroundStyle(Color(white: 0.15))
+                            .frame(width: 13, height: 13)
+                            .background(Color(white: 0.62), in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Close")
+                    Spacer()
+                }
+            }
+            .padding(.horizontal, 10)
+            .frame(height: 30)
+            .background(LinearGradient(colors: [.white.opacity(0.07), .clear], startPoint: .top, endPoint: .bottom))
+            .overlay(alignment: .bottom) { Rectangle().fill(.white.opacity(0.1)).frame(height: 1) }
+
+            group("Suggested")
+            row(suggestion.minutes.map(IntervalFormat.short) ?? "No timer", detail: suggestion.reason, isSelected: true) {
+                choose(suggestion.minutes)
+            }
+            separator
+            group("Choose")
+            ForEach(NogSettings.timeboxChoices, id: \.self) { minutes in
+                row(IntervalFormat.short(minutes),
+                    detail: minutes == NogSettings.timeboxMinutes ? "default" : nil) { choose(minutes) }
+            }
+            separator
+            row("No timer", detail: "count up") { choose(nil) }
+                .padding(.bottom, 4)
+        }
+        .frame(width: 290)
+        .background(Color(red: 0.055, green: 0.06, blue: 0.07).opacity(0.86))
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(.white.opacity(0.18), lineWidth: 1))
+        .environment(\.colorScheme, .dark)
+    }
+
+    private func group(_ title: String) -> some View {
+        Text(title.uppercased())
+            .font(.system(size: 8.5, weight: .semibold).width(.expanded))
+            .tracking(2)
+            .foregroundStyle(Color(white: 0.45))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 14)
+            .padding(.top, 9)
+            .padding(.bottom, 3)
+    }
+
+    private var separator: some View {
+        Rectangle().fill(.white.opacity(0.08)).frame(height: 1).padding(.vertical, 3)
+    }
+
+    private func row(_ title: String, detail: String?, isSelected: Bool = false, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack {
+                Text(title).font(.subheadline)
+                Spacer(minLength: 10)
+                if let detail {
+                    Text(detail).font(.nogMeta).lineLimit(1)
+                        .foregroundStyle(isSelected ? Color(white: 0.88) : Color(white: 0.5))
+                }
+            }
+            .foregroundStyle(isSelected ? .white : Color(white: 0.88))
+            .padding(.horizontal, 14)
+            .padding(.vertical, 9)
+            .frame(maxWidth: .infinity)
+            .background {
+                if isSelected {
+                    LinearGradient(colors: [Color(red: 0.25, green: 0.50, blue: 0.84), Color(red: 0.17, green: 0.37, blue: 0.70)],
+                                   startPoint: .top, endPoint: .bottom)
+                        .overlay(alignment: .top) { Rectangle().fill(.white.opacity(0.25)).frame(height: 1) }
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// Logic-transport-style readout: an inset display with faint "88:88" ghost segments
+/// behind softly glowing digits, its labels and progress bar inside the glass.
+struct RecessedTimer: View {
+    let item: Item
+    let now: Date
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack {
+                Text(isCountdown ? "REMAINING" : "ELAPSED")
+                Spacer()
+                if let box = item.timeboxMinutes { Text("BOX \(clock(TimeInterval(box * 60)))") }
+            }
+            .font(.system(size: 8.5, weight: .semibold).width(.expanded))
+            .tracking(1.8)
+            .foregroundStyle(Color(red: 0.36, green: 0.42, blue: 0.5))
+
+            ZStack(alignment: .leading) {
+                Text(ghost)
+                    .foregroundStyle(Theme.blue.opacity(0.07))
+                Text(display)
+                    .foregroundStyle(isOver ? Theme.pink : Color(red: 0.75, green: 0.89, blue: 1.0))
+                    .shadow(color: (isOver ? Theme.pink : Theme.blue).opacity(0.55), radius: 8)
+                    .shadow(color: (isOver ? Theme.pink : Theme.blue).opacity(0.9), radius: 1)
+            }
+            .font(.nogReadout(44))
+            .monospacedDigit()
+
+            if let fraction {
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(.white.opacity(0.06))
+                        Capsule().fill(isOver ? AnyShapeStyle(Theme.pink) : AnyShapeStyle(Theme.synth))
+                            .frame(width: geo.size.width * fraction)
+                    }
+                }
+                .frame(height: 3)
+                .padding(.top, 4)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.top, 10)
+        .padding(.bottom, 10)
+        .background {
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .fill(LinearGradient(colors: [Color(red: 0.027, green: 0.03, blue: 0.043),
+                                              Color(red: 0.05, green: 0.06, blue: 0.08)],
+                                     startPoint: .top, endPoint: .bottom))
+                // Inset: dark lip at the top, faint light catch at the bottom.
+                .overlay(
+                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .strokeBorder(LinearGradient(colors: [.black.opacity(0.95), .white.opacity(0.09)],
+                                                     startPoint: .top, endPoint: .bottom), lineWidth: 1.5))
+                .overlay(alignment: .top) {
+                    LinearGradient(colors: [.black.opacity(0.55), .clear], startPoint: .top, endPoint: .bottom)
+                        .frame(height: 8)
+                        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                }
+        }
+        .environment(\.colorScheme, .dark)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(isCountdown ? "Remaining" : "Elapsed") \(display)")
+    }
+
+    private var isCountdown: Bool { item.timeboxEnd != nil }
+    private var isOver: Bool { item.timeboxEnd.map { now >= $0 } ?? false }
+
+    private var seconds: TimeInterval {
+        if let end = item.timeboxEnd { return max(0, end.timeIntervalSince(now)) }
+        return item.doingSince.map { max(0, now.timeIntervalSince($0)) } ?? 0
+    }
+
+    private var display: String { isOver ? "TIME'S UP" : clock(seconds) }
+
+    /// Unlit segments matching the digit layout.
+    private var ghost: String {
+        if isOver { return "" }
+        return seconds >= 3600 ? "8:88:88" : "88:88"
+    }
+
+    private var fraction: Double? {
+        guard let since = item.doingSince, let end = item.timeboxEnd else { return nil }
+        return min(1, max(0, now.timeIntervalSince(since) / end.timeIntervalSince(since)))
+    }
+
+    private func clock(_ seconds: TimeInterval) -> String {
+        let s = max(0, Int(seconds.rounded(.up)))
+        return s >= 3600
+            ? String(format: "%d:%02d:%02d", s / 3600, (s % 3600) / 60, s % 60)
+            : String(format: "%02d:%02d", s / 60, s % 60)
     }
 }
 
@@ -72,34 +273,15 @@ struct DoingCard: View {
                 }
                 .buttonStyle(.plain)
             }
-            Text(metaLine)
-                .font(.nogMeta)
-                .tracking(0.6)
-                .foregroundStyle(Theme.muted)
+            if !metaLine.isEmpty {
+                Text(metaLine)
+                    .font(.nogMeta)
+                    .tracking(0.6)
+                    .foregroundStyle(Theme.muted)
+            }
 
             TimelineView(.periodic(from: .now, by: 1)) { context in
-                let now = context.date
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        timerText(now: now)
-                            .font(.nogReadout(44))
-                            .shadow(color: Theme.blue.opacity(0.35), radius: 14)
-                        Text(item.timeboxEnd.map { $0 > now ? "remaining" : "" } ?? "elapsed")
-                            .font(.subheadline)
-                            .foregroundStyle(Theme.muted)
-                    }
-                    if let since = item.doingSince, let end = item.timeboxEnd {
-                        GeometryReader { geo in
-                            let fraction = min(1, max(0, now.timeIntervalSince(since) / end.timeIntervalSince(since)))
-                            ZStack(alignment: .leading) {
-                                Capsule().fill(Theme.edge)
-                                Capsule().fill(now >= end ? AnyShapeStyle(Theme.pink) : AnyShapeStyle(Theme.synth))
-                                    .frame(width: geo.size.width * fraction)
-                            }
-                        }
-                        .frame(height: 3)
-                    }
-                }
+                RecessedTimer(item: item, now: context.date)
             }
 
             HStack(spacing: 8) {
@@ -135,32 +317,12 @@ struct DoingCard: View {
 
     private var metaLine: String {
         var parts: [String] = []
-        if let box = item.timeboxMinutes { parts.append("TIMEBOX \(IntervalFormat.short(box).uppercased())") }
-        else { parts.append("OPEN-ENDED") }
+        if item.timeboxMinutes == nil { parts.append("OPEN-ENDED") }
         if item.timeSpent >= 60 { parts.append("\(DurationFormat.short(item.timeSpent).uppercased()) BEFORE") }
         parts += item.tags.prefix(2).map { "#\($0.uppercased())" }
         return parts.joined(separator: " · ")
     }
 
-    @ViewBuilder
-    private func timerText(now: Date) -> some View {
-        if let end = item.timeboxEnd {
-            if now >= end {
-                Text("TIME'S UP").foregroundStyle(Theme.pink)
-            } else {
-                Text(clock(end.timeIntervalSince(now)))
-            }
-        } else if let since = item.doingSince {
-            Text(clock(now.timeIntervalSince(since)))
-        }
-    }
-
-    private func clock(_ seconds: TimeInterval) -> String {
-        let s = max(0, Int(seconds.rounded(.up)))
-        return s >= 3600
-            ? String(format: "%d:%02d:%02d", s / 3600, (s % 3600) / 60, s % 60)
-            : String(format: "%d:%02d", s / 60, s % 60)
-    }
 }
 
 /// HUD-style corner ticks (top-left and bottom-right).
