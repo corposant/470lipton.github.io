@@ -40,7 +40,8 @@ enum NogPlanner {
 
     static func plan(items: [Item], now: Date,
                      budget: Int = defaultBudget,
-                     maxFollowUpsPerItem: Int = 24) -> [PlannedNotification] {
+                     maxFollowUpsPerItem: Int = 24,
+                     quietUntil: [UUID: Date] = [:]) -> [PlannedNotification] {
         let candidates: [(Item, Reminder)] = items
             .compactMap { item -> (Item, Reminder)? in
                 guard item.isOpen, let r = item.reminder else { return nil }
@@ -63,7 +64,10 @@ enum NogPlanner {
                                     itemID: item.id, title: item.title, body: body, trigger: .at(date))
             }
 
-            if let settled = r.settledPhase, settled.since <= now {
+            // Items ringing as alarms stay quiet here until their alarms run out.
+            let quiet = quietUntil[item.id].flatMap { $0 > now ? $0 : nil }
+
+            if quiet == nil, let settled = r.settledPhase, settled.since <= now {
                 // Gap no longer changes: one trigger iOS repeats forever.
                 let seconds = max(60, settled.gap)
                 primaries.append(PlannedNotification(
@@ -71,7 +75,7 @@ enum NogPlanner {
                     itemID: item.id, title: item.title, body: body, trigger: .every(seconds)))
             } else {
                 // Still ahead of us (or easing off): exact times, re-planned whenever the app wakes.
-                let dates = r.fireDates(after: now, limit: 1 + max(0, maxFollowUpsPerItem))
+                let dates = r.fireDates(after: quiet ?? now, limit: 1 + max(0, maxFollowUpsPerItem))
                 guard let first = dates.first else { continue } // one-shot already fired
                 primaries.append(oneShot(first))
                 followUps.append(contentsOf: dates.dropFirst().map(oneShot))

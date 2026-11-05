@@ -1,3 +1,4 @@
+import AppIntents
 import SwiftUI
 
 struct ItemDetailView: View {
@@ -21,12 +22,13 @@ private struct ItemEditor: View {
 
     @State private var tagsText: String
     @State private var newChild = ""
+    @State private var showBreakdown = false
     @State private var showParentPicker = false
     @State private var confirmDelete = false
 
     init(item: Item) {
         self.item = item
-        _tagsText = State(initialValue: item.tags.joined(separator: ", "))
+        tagsText = item.tags.joined(separator: ", ")
     }
 
     /// Edits go straight to the store (and disk), so a "Done" tapped on a
@@ -100,6 +102,11 @@ private struct ItemEditor: View {
         .sheet(isPresented: $showParentPicker) {
             ParentPicker(item: item)
         }
+        .sheet(isPresented: $showBreakdown) {
+            BreakdownSheet(item: item)
+        }
+        // iOS 27 on-screen awareness: "Siri, snooze this", "mark this done".
+        .appEntityIdentifier(EntityIdentifier(for: ReminderEntity.self, identifier: item.id))
     }
 
     // MARK: Reminder
@@ -129,6 +136,21 @@ private struct ItemEditor: View {
                         ForEach(RepeatCurve.allCases, id: \.self) { Text($0.label).tag($0) }
                     }
                     .pickerStyle(.segmented)
+                }
+                Toggle(isOn: Binding(
+                    get: { reminder.alarm },
+                    set: { on in
+                        if on {
+                            Task {
+                                if await AlarmScheduler.shared.requestAuthorization() {
+                                    editReminder { $0.alarm = true }
+                                }
+                            }
+                        } else {
+                            editReminder { $0.alarm = false }
+                        }
+                    })) {
+                    Label("Ring like an alarm", systemImage: "alarm.waves.left.and.right")
                 }
                 HStack {
                     Button("Snooze 1h") { store.snooze(item.id, until: .now.addingTimeInterval(3600)) }
@@ -170,6 +192,13 @@ private struct ItemEditor: View {
                     NavigationLink(value: child.id) {
                         Text(child.title).strikethrough(child.status == .done)
                     }
+                }
+            }
+            if ItemAssistant.isAvailable {
+                Button {
+                    showBreakdown = true
+                } label: {
+                    Label("Break it down", systemImage: "sparkles")
                 }
             }
             TextField("Add sub-item…", text: $newChild)

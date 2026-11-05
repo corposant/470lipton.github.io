@@ -1,3 +1,4 @@
+import AppIntents
 import Foundation
 import UserNotifications
 
@@ -55,7 +56,8 @@ final class NotificationScheduler {
     }
 
     private func performSync(items: [Item]) async {
-        let plan = NogPlanner.plan(items: items, now: .now)
+        let alarmsCover = await AlarmScheduler.shared.sync(items: items)
+        let plan = NogPlanner.plan(items: items, now: .now, quietUntil: alarmsCover)
         var desired: [String: PlannedNotification] = [:]
         for p in plan { desired[p.identifier] = p }
 
@@ -92,6 +94,8 @@ final class NotificationScheduler {
         content.categoryIdentifier = Self.categoryID
         content.threadIdentifier = planned.itemID.uuidString
         content.userInfo = [Self.itemIDKey: planned.itemID.uuidString]
+        // iOS 27: lets people say "Siri, mark that done" about the nog on screen.
+        content.appEntityIdentifiers = [EntityIdentifier(for: ReminderEntity.self, identifier: planned.itemID)]
         // Takes effect once the Time Sensitive capability is added (see README).
         content.interruptionLevel = .timeSensitive
 

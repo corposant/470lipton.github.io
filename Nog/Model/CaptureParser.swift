@@ -19,6 +19,7 @@ struct CaptureResult: Equatable {
 ///   `!once`             remind once, don't repeat
 ///   `!log`              logarithmic: gaps double each time (8, 16, 32…), capped at daily
 ///   `!steady`           same gap every time
+///   `!alarm`            ring like a real alarm (through Silent and Focus)
 ///   `!off` / `!idea`    no reminder at all
 ///   `@30m` `@2h` `@1d`  start nogging in 30 minutes / 2 hours / 1 day
 ///   `@now`              start now
@@ -34,6 +35,7 @@ enum CaptureParser {
         var noReminder = false
         var once = false
         var curveOverride: RepeatCurve?
+        var alarm = false
         var repeatOverride: Int?
         var delayOverride: Int?
 
@@ -52,6 +54,9 @@ enum CaptureParser {
                 continue
             case "!steady":
                 curveOverride = .steady
+                continue
+            case "!alarm", "!ring":
+                alarm = true
                 continue
             case "@now":
                 delayOverride = 0
@@ -88,7 +93,8 @@ enum CaptureParser {
             start = now.addingTimeInterval(TimeInterval(defaults.firstDelayMinutes * 60))
         }
         let repeatMinutes = once ? nil : (repeatOverride ?? natural.repeatMinutes ?? defaults.repeatMinutes)
-        let reminder = Reminder(start: start, repeatMinutes: repeatMinutes, curve: curveOverride ?? defaults.curve)
+        let reminder = Reminder(start: start, repeatMinutes: repeatMinutes,
+                                curve: curveOverride ?? defaults.curve, alarm: alarm)
         return CaptureResult(title: title, reminder: reminder, tags: tags)
     }
 

@@ -250,6 +250,7 @@ final class ItemStore {
             try? await Task.sleep(for: .milliseconds(400))
             guard !Task.isCancelled, let self else { return }
             await NotificationScheduler.shared.sync(items: Array(self.items.values))
+            await SpotlightIndexer.update(self)
         }
     }
 
@@ -258,6 +259,7 @@ final class ItemStore {
         guard schedulesNotifications else { return }
         syncDebounce?.cancel()
         await NotificationScheduler.shared.sync(items: Array(items.values))
+        await SpotlightIndexer.update(self)
     }
 
     private func clearDelivered(_ id: UUID) {

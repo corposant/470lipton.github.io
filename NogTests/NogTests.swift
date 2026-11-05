@@ -240,3 +240,33 @@ final class LogarithmicReminderTests: XCTestCase {
         XCTAssertEqual(ItemFile.decode(ItemFile.encode(item)), item)
     }
 }
+
+final class AlarmHandoffTests: XCTestCase {
+    let now = Date(timeIntervalSince1970: 1_800_000_000)
+
+    func testNotificationsWaitUntilAlarmsRunOut() {
+        let item = Item(title: "meds", reminder: Reminder(start: now.addingTimeInterval(-600), repeatMinutes: 10, alarm: true))
+        let quiet = now.addingTimeInterval(3000)
+        let plan = NogPlanner.plan(items: [item], now: now, maxFollowUpsPerItem: 1, quietUntil: [item.id: quiet])
+        XCTAssertEqual(plan.compactMap(\.fireDate).count, 2)
+        XCTAssertTrue(plan.allSatisfy { ($0.fireDate ?? .distantPast) > quiet })
+    }
+
+    func testAlarmTokenAndRoundTrip() throws {
+        let defaults = CaptureDefaults(firstDelayMinutes: 15, repeatMinutes: 8)
+        let parsed = CaptureParser.parse("take meds 9pm !alarm", defaults: defaults, now: now)
+        XCTAssertEqual(parsed.reminder?.alarm, true)
+
+        var item = Item(title: "x", reminder: Reminder(start: now, repeatMinutes: 5, alarm: true))
+        item.created = now
+        item.updated = now
+        XCTAssertEqual(ItemFile.decode(ItemFile.encode(item)), item)
+    }
+
+    func testAlarmIDsAreStable() {
+        let item = Item(title: "meds")
+        XCTAssertEqual(AlarmScheduler.alarmID(item: item, date: now), AlarmScheduler.alarmID(item: item, date: now))
+        XCTAssertNotEqual(AlarmScheduler.alarmID(item: item, date: now),
+                          AlarmScheduler.alarmID(item: item, date: now.addingTimeInterval(60)))
+    }
+}

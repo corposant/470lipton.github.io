@@ -39,6 +39,7 @@ struct SettingsView: View {
                     shortcut("!8m  !2h  !1d", "repeat every 8 min / 2 h / 1 day")
                     shortcut("!once", "remind once, don't repeat")
                     shortcut("!log  !steady", "gaps double each time, or stay the same")
+                    shortcut("!alarm", "ring like a real alarm, through Silent and Focus")
                     shortcut("!off", "no reminder (just an idea)")
                     shortcut("@30m  @2h  @now", "when to start nogging")
                     shortcut("#tag", "add a tag")

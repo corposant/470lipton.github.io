@@ -2,7 +2,7 @@ name: Nog
 options:
   bundleIdPrefix: io.nogapp
   deploymentTarget:
-    iOS: "17.0"
+    iOS: "27.0"
   createIntermediateGroups: true
 
 settings:
@@ -10,6 +10,7 @@ settings:
     SWIFT_VERSION: "5.0"
     MARKETING_VERSION: "0.1.0"
     CURRENT_PROJECT_VERSION: "1"
+    # Needs Xcode 27 (iOS 27 SDK).
     # Put your Apple Team ID here (developer.apple.com/account → Membership)
     # so you don't have to re-pick it in Xcode every time you run xcodegen.
     DEVELOPMENT_TEAM: ""
@@ -32,6 +33,7 @@ targets:
         LSSupportsOpeningDocumentsInPlace: true
         UIBackgroundModes: [fetch]
         BGTaskSchedulerPermittedIdentifiers: [io.nogapp.nog.refresh]
+        NSAlarmKitUsageDescription: Nog rings like an alarm for the items you mark as can't-miss.
         # Shows the app's iCloud folder as "Nog" in iCloud Drive (Files app, Finder)
         NSUbiquitousContainers:
           iCloud.io.nogapp.nog:

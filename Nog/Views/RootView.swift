@@ -1,3 +1,4 @@
+import AppIntents
 import SwiftUI
 
 struct RootView: View {
@@ -13,6 +14,7 @@ struct RootView: View {
                 ItemListView(now: context.date, search: search)
             }
             .navigationTitle("Nog")
+            .toolbarMinimizeBehavior(.onScrollDown, for: .navigationBar)
             .searchable(text: $search, placement: .navigationBarDrawer(displayMode: .automatic))
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -108,6 +110,8 @@ struct ItemRow: View {
                 }
             }
         }
+        // iOS 27: Siri can act on whichever row you're looking at.
+        .appEntityIdentifier(EntityIdentifier(for: ReminderEntity.self, identifier: item.id))
         .swipeActions(edge: .leading) {
             if item.status == .done {
                 Button("Reopen") { store.reopen(item.id) }.tint(.blue)
@@ -127,7 +131,9 @@ struct ItemRow: View {
         if item.status == .done {
             Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
         } else if let r = item.reminder, item.isOpen {
-            if r.isActive(at: now) {
+            if r.alarm {
+                Image(systemName: "alarm.fill").foregroundStyle(r.isActive(at: now) ? Color.red : Color.orange)
+            } else if r.isActive(at: now) {
                 Image(systemName: "bell.badge.fill").foregroundStyle(.red)
             } else {
                 Image(systemName: "bell").foregroundStyle(.orange)

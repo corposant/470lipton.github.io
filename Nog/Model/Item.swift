@@ -53,6 +53,8 @@ struct Reminder: Hashable {
     /// nil = fire once. Otherwise the (first) gap between nogs, in minutes (minimum 1).
     var repeatMinutes: Int?
     var curve: RepeatCurve = .steady
+    /// Ring as a real alarm (AlarmKit) that breaks through Silent and Focus.
+    var alarm: Bool = false
 
     /// Logarithmic gaps stop growing here.
     static let logarithmicCapMinutes = 1440

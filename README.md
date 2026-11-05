@@ -26,6 +26,14 @@ Type the way you'd say it and Nog works out the when:
 
 As you type, a line above the capture field shows how Nog understood it. A day with no time defaults to 9 AM, and meal words set sensible times (lunch at noon, dinner at 6:30).
 
+## iOS 27 features
+
+- **Siri speaks Nog natively.** Nog adopts iOS 27's new Reminders App Schemas (`createReminder`, `updateReminder`, `deleteReminders`, `createList`). Try *"Remind me in Nog to call mom tomorrow at 3"*, *"Add milk to my Groceries list in Nog"*, *"Mark this as done"* and *"Set the due date for this to Friday"*. Any item with sub-items works as a list.
+- **"Siri, mark that done."** Nog notifications, list rows and item screens are tagged with their item (iOS 27 entity annotations), so Siri knows what "this" or "that" means.
+- **Spotlight's semantic index.** Items are indexed so Siri and Spotlight can find them by meaning, not just exact words.
+- **Ring like an alarm.** Flip it on per item, or type `!alarm`, and that item's nogs become real AlarmKit alarms. They break through Silent mode and Focus, take over the Lock Screen and your Watch, and have Done / Snooze buttons. Regular nogs take over again after the scheduled alarms run out.
+- **Break it down.** On-device Apple Intelligence (Foundation Models) suggests 3–7 concrete first steps for any item, and you pick which ones become sub-items. It runs only on Apple Intelligence devices, and nothing leaves the phone.
+
 ## Steady or logarithmic
 
 Each reminder has a style:
@@ -45,6 +53,7 @@ Type these anywhere in a capture line (all optional):
 | `!once` | remind once, don't repeat |
 | `!log` | logarithmic: the gap doubles after each nog |
 | `!steady` | same gap every time |
+| `!alarm` | ring like a real alarm |
 | `!off` or `!idea` | no reminder |
 | `@30m` `@2h` `@1d` `@now` | when to start nogging |
 | `#tag` | add a tag |
@@ -53,7 +62,7 @@ Example: `renew passport #admin !1h @2h`
 
 ## Running it on your iPhone
 
-You need a Mac with Xcode (16 or newer) and Homebrew.
+Nog targets **iOS 27**, so you need **Xcode 27** on your Mac, plus Homebrew. The iOS 27 features are below.
 
 ```bash
 brew install xcodegen
