@@ -244,12 +244,24 @@ final class LogarithmicReminderTests: XCTestCase {
 final class AlarmHandoffTests: XCTestCase {
     let now = Date(timeIntervalSince1970: 1_800_000_000)
 
-    func testNotificationsWaitUntilAlarmsRunOut() {
+    func testNotificationsSkipTimesThatRingAsAlarms() {
         let item = Item(title: "meds", reminder: Reminder(start: now.addingTimeInterval(-600), repeatMinutes: 10, alarm: true))
-        let quiet = now.addingTimeInterval(3000)
-        let plan = NogPlanner.plan(items: [item], now: now, maxFollowUpsPerItem: 1, quietUntil: [item.id: quiet])
+        let alarms = AlarmScheduler.alarmDates(for: item, policy: .standard, now: now, limit: 5)
+        XCTAssertEqual(alarms.count, 5)
+        let plan = NogPlanner.plan(items: [item], now: now, maxFollowUpsPerItem: 1, alarmDates: [item.id: alarms])
         XCTAssertEqual(plan.compactMap(\.fireDate).count, 2)
-        XCTAssertTrue(plan.allSatisfy { ($0.fireDate ?? .distantPast) > quiet })
+        XCTAssertTrue(plan.allSatisfy { ($0.fireDate ?? .distantPast) > alarms.last! })
+    }
+
+    func testEscalationRingsAfterIgnoredNogs() {
+        var policy = NogPolicy.standard
+        policy.escalateAfter = 3
+        let start = now.addingTimeInterval(-60)
+        let item = Item(title: "taxes", reminder: Reminder(start: start, repeatMinutes: 10))
+        let alarms = AlarmScheduler.alarmDates(for: item, policy: policy, now: now, limit: 2)
+        // Nogs at start, +10, +20 are ignored; the one at +30 rings.
+        XCTAssertEqual(alarms, [start.addingTimeInterval(1800), start.addingTimeInterval(2400)])
+        XCTAssertTrue(AlarmScheduler.alarmDates(for: item, policy: .standard, now: now).isEmpty)
     }
 
     func testAlarmTokenAndRoundTrip() throws {
@@ -419,5 +431,49 @@ final class MapLayoutTests: XCTestCase {
         }
         XCTAssertEqual(Set(titles(tree)), ["A", "B", "C"])
         XCTAssertEqual(titles(tree).count, 3)
+    }
+}
+
+
+final class PolicyTests: XCTestCase {
+    var calendar: Calendar = {
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = TimeZone(identifier: "UTC")!
+        return c
+    }()
+    func date(_ d: Int, _ h: Int, _ m: Int = 0) -> Date {
+        calendar.date(from: DateComponents(year: 2026, month: 11, day: d, hour: h, minute: m))!
+    }
+
+    func testQuietHoursOvernight() {
+        let quiet = QuietHours(enabled: true, start: 22 * 60, end: 7 * 60)
+        XCTAssertTrue(quiet.contains(date(5, 23), calendar: calendar))
+        XCTAssertTrue(quiet.contains(date(6, 6, 59), calendar: calendar))
+        XCTAssertFalse(quiet.contains(date(6, 7), calendar: calendar))
+        XCTAssertEqual(quiet.nextOpening(after: date(5, 23), calendar: calendar), date(6, 7))
+        XCTAssertEqual(quiet.nextOpening(after: date(6, 12), calendar: calendar), date(6, 12))
+    }
+
+    func testQuietWeekendsSkipToMonday() {
+        // Nov 7 2026 is a Saturday.
+        let quiet = QuietHours(enabled: true, start: 22 * 60, end: 7 * 60, weekends: true)
+        XCTAssertEqual(quiet.nextOpening(after: date(7, 12), calendar: calendar), date(9, 7))
+    }
+
+    func testPlannerPushesQuietNogsToMorningAndAddsHeadsUp() {
+        let now = date(5, 21)
+        var policy = NogPolicy.standard
+        policy.quiet = QuietHours(enabled: true, start: 22 * 60, end: 7 * 60)
+        policy.headsUpMinutes = 10
+
+        // 11 PM is quiet: the nog waits for 7 AM, and its 10:50 PM heads-up is dropped.
+        let late = Item(title: "late", reminder: Reminder(start: date(5, 23), repeatMinutes: nil))
+        let latePlan = NogPlanner.plan(items: [late], now: now, policy: policy, calendar: calendar)
+        XCTAssertEqual(latePlan.compactMap(\.fireDate).sorted(), [date(6, 7)])
+
+        // 9:30 PM isn't quiet: heads-up at 9:20, nog at 9:30.
+        let soon = Item(title: "soon", reminder: Reminder(start: date(5, 21, 30), repeatMinutes: nil))
+        let soonPlan = NogPlanner.plan(items: [soon], now: now, policy: policy, calendar: calendar)
+        XCTAssertEqual(soonPlan.compactMap(\.fireDate).sorted(), [date(5, 21, 20), date(5, 21, 30)])
     }
 }

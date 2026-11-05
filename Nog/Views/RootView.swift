@@ -180,7 +180,9 @@ struct ItemRow: View {
         .swipeActions(edge: .trailing) {
             Button("Delete", role: .destructive) { store.delete(item.id) }
             if item.status == .open || item.status == .someday {
-                Button("1 hour") { store.snooze(item.id, until: now.addingTimeInterval(3600)) }.tint(Theme.pink)
+                Button(IntervalFormat.short(NogSettings.snoozeMinutes)) {
+                    store.snooze(item.id, until: now.addingTimeInterval(TimeInterval(NogSettings.snoozeMinutes * 60)))
+                }.tint(Theme.pink)
                 Button("Morning") { store.snooze(item.id, until: NogSettings.nextMorning(after: now)) }.tint(Theme.violet)
             } else if item.isDoing {
                 Button("+10 min") { store.extend(item.id, minutes: 10) }.tint(Theme.pink)

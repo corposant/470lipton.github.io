@@ -43,16 +43,19 @@ struct Item: Identifiable, Hashable {
     /// - items being done: "time's up" when the timebox ends (then every 5 min),
     ///   or an hourly "still on it?" check-in when open-ended
     /// - someday / done: nothing
-    var effectiveReminder: Reminder? {
+    var effectiveReminder: Reminder? { effectiveReminder(policy: .standard) }
+
+    func effectiveReminder(policy: NogPolicy) -> Reminder? {
         switch status {
         case .open:
             return reminder
         case .doing:
             guard let since = doingSince else { return nil }
             if let end = timeboxEnd {
-                return Reminder(start: end, repeatMinutes: 5, alarm: reminder?.alarm ?? false)
+                return Reminder(start: end, repeatMinutes: max(1, policy.timesUpEvery), alarm: reminder?.alarm ?? false)
             }
-            return Reminder(start: since.addingTimeInterval(3600), repeatMinutes: 60)
+            guard let checkIn = policy.checkInEvery, checkIn > 0 else { return nil }
+            return Reminder(start: since.addingTimeInterval(TimeInterval(checkIn * 60)), repeatMinutes: checkIn)
         case .someday, .done:
             return nil
         }

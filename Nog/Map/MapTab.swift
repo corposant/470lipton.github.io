@@ -63,6 +63,8 @@ struct MindMapView: View {
     @State private var didCenter = false
     @State private var isScribbling = false
     @State private var dragging: [UUID: CGPoint] = [:]
+    /// The node a dragged node would be filed into if dropped now.
+    @State private var dropTarget: UUID?
 
     /// The map's virtual canvas; (0, 0) in layout space is its centre.
     static let world = CGSize(width: 4000, height: 4000)
@@ -81,10 +83,11 @@ struct MindMapView: View {
                     zones(items)
                     edgeLayer(edges)
                     ForEach(items) { item in
-                        MapNode(item: item, isProject: hasChildren.contains(item.id))
+                        MapNode(item: item, isFolder: hasChildren.contains(item.id), isDropTarget: dropTarget == item.id)
                             .position(worldPoint(item.id))
-                            .gesture(nodeDrag(item.id))
+                            .gesture(nodeDrag(item.id, among: items))
                             .onTapGesture { router.push(item.id) }
+                            .contextMenu { nodeMenu(item) }
                             .allowsHitTesting(!isScribbling)
                     }
                     ScribbleCanvas(drawing: doc.drawing, isActive: isScribbling) { doc.setDrawing($0) }
@@ -188,17 +191,65 @@ struct MindMapView: View {
 
     // MARK: Gestures
 
-    private func nodeDrag(_ id: UUID) -> some Gesture {
+    /// Drag to move. Drop onto another node to file it there (that node becomes its folder).
+    private func nodeDrag(_ id: UUID, among items: [Item]) -> some Gesture {
         DragGesture(minimumDistance: 5)
             .onChanged { value in
                 let start = doc.positions[id] ?? .zero
-                dragging[id] = CGPoint(x: start.x + value.translation.width / scale,
-                                       y: start.y + value.translation.height / scale)
+                let p = CGPoint(x: start.x + value.translation.width / scale,
+                                y: start.y + value.translation.height / scale)
+                dragging[id] = p
+                dropTarget = target(near: p, dragging: id, among: items)
             }
             .onEnded { _ in
-                if let p = dragging[id] { doc.move(id, to: p) }
+                guard let p = dragging[id] else { return }
+                if let folder = dropTarget, var item = store.items[id] {
+                    item.parentID = folder
+                    store.update(item)
+                    // Settle just beside the folder rather than on top of it.
+                    let anchor = doc.positions[folder] ?? p
+                    doc.move(id, to: CGPoint(x: anchor.x + 40, y: anchor.y + 70))
+                } else {
+                    doc.move(id, to: p)
+                }
                 dragging[id] = nil
+                dropTarget = nil
             }
+    }
+
+    /// The node under `point`, if filing into it is allowed (not itself, not one of its own sub-items).
+    private func target(near point: CGPoint, dragging id: UUID, among items: [Item]) -> UUID? {
+        items.lazy
+            .filter { $0.id != id && !store.isDescendant($0.id, of: id) }
+            .first { other in
+                guard let q = doc.positions[other.id] else { return false }
+                return abs(q.x - point.x) < 70 && abs(q.y - point.y) < 26
+            }?.id
+    }
+
+    @ViewBuilder
+    private func nodeMenu(_ item: Item) -> some View {
+        Button {
+            router.push(item.id)
+        } label: {
+            Label("Open", systemImage: "arrow.up.right")
+        }
+        if let parent = store.parent(of: item) {
+            Button {
+                var unfiled = item
+                unfiled.parentID = nil
+                store.update(unfiled)
+            } label: {
+                Label("Take out of “\(parent.title)”", systemImage: "folder.badge.minus")
+            }
+        }
+        if item.status == .open || item.status == .someday {
+            Button {
+                store.start(item.id)
+            } label: {
+                Label("Start", systemImage: "play")
+            }
+        }
     }
 
     private func panAndZoom(viewSize: CGSize) -> some Gesture {
@@ -280,14 +331,21 @@ struct MindMapView: View {
     }
 }
 
-/// A node: frosted chip, coloured by status, bigger for projects.
+/// A node: frosted chip, coloured by status. Folders (nodes with things filed in them)
+/// are bigger and show a folder icon.
 private struct MapNode: View {
     let item: Item
-    let isProject: Bool
+    let isFolder: Bool
+    var isDropTarget = false
+    private var isProject: Bool { isFolder }
 
     var body: some View {
         HStack(spacing: 8) {
-            Circle().fill(tint).frame(width: 7, height: 7)
+            if isFolder {
+                Image(systemName: "folder.fill").font(.caption).foregroundStyle(tint)
+            } else {
+                Circle().fill(tint).frame(width: 7, height: 7)
+            }
             Text(item.title.isEmpty ? "Untitled" : item.title)
                 .font(isProject ? .subheadline.weight(.semibold) : .footnote.weight(.medium))
                 .lineLimit(2)
@@ -298,7 +356,11 @@ private struct MapNode: View {
         .padding(.vertical, isProject ? 10 : 7)
         .frame(maxWidth: 190)
         .nogPanel(cornerRadius: 12)
-        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(tint.opacity(0.55), lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
+            .strokeBorder(isDropTarget ? Theme.blue : tint.opacity(0.55), lineWidth: isDropTarget ? 2.5 : 1))
+        .shadow(color: isDropTarget ? Theme.blue.opacity(0.6) : .clear, radius: 12)
+        .scaleEffect(isDropTarget ? 1.08 : 1)
+        .animation(.snappy, value: isDropTarget)
     }
 
     private var tint: Color {
@@ -323,15 +385,68 @@ struct OutlineView: View {
         var id: UUID { item.id }
     }
 
+    @Environment(Router.self) private var router
+    /// Collapsed folder ids, remembered between launches.
+    @AppStorage("outlineCollapsed") private var collapsedRaw = ""
+    static let unfiledID = UUID(uuidString: "00000000-0000-0000-0000-00000000F11E")!
+
     var body: some View {
-        let nodes = Self.tree(Array(store.items.values), showNogged: showNogged)
-        List(nodes, children: \.children) { node in
-            NavigationLink(value: node.item.id) {
-                OutlineRow(item: node.item, childCount: node.children?.count ?? 0)
+        let roots = Self.tree(Array(store.items.values), showNogged: showNogged)
+        let folders = roots.filter { $0.children != nil }
+        let unfiled = roots.filter { $0.children == nil }
+
+        List {
+            // Every node with things connected under it on the map is a folder.
+            ForEach(folders) { folder in
+                Section(isExpanded: expanded(folder.id)) {
+                    ForEach(folder.children ?? []) { child in
+                        OutlineBranch(node: child, expanded: expanded)
+                    }
+                } header: {
+                    FolderHeader(item: folder.item, count: Self.count(folder)) { router.push(folder.item.id) }
+                }
             }
-            .listRowBackground(Theme.glass)
+            if !unfiled.isEmpty {
+                Section(isExpanded: expanded(Self.unfiledID)) {
+                    ForEach(unfiled) { node in
+                        OutlineBranch(node: node, expanded: expanded)
+                    }
+                } header: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "tray").foregroundStyle(Theme.muted)
+                        Text("UNFILED").font(.nogLabel).tracking(2).foregroundStyle(Theme.muted)
+                        Text(String(format: "%02d", unfiled.count)).font(.nogMeta).foregroundStyle(Theme.muted.opacity(0.7))
+                    }
+                }
+            }
         }
+        .listStyle(.sidebar) // makes section headers collapsible
         .nogListStyle()
+        .overlay {
+            if roots.isEmpty {
+                ContentUnavailableView("No items yet", systemImage: "folder",
+                                       description: Text("On the map, drop a node onto another to file it there."))
+            }
+        }
+    }
+
+    private var collapsed: Set<UUID> {
+        Set(collapsedRaw.split(separator: ",").compactMap { UUID(uuidString: String($0)) })
+    }
+
+    private func expanded(_ id: UUID) -> Binding<Bool> {
+        Binding(
+            get: { !collapsed.contains(id) },
+            set: { isOpen in
+                var set = collapsed
+                if isOpen { set.remove(id) } else { set.insert(id) }
+                collapsedRaw = set.map(\.uuidString).sorted().joined(separator: ",")
+            })
+    }
+
+    /// Items inside a folder, at any depth.
+    static func count(_ node: Node) -> Int {
+        (node.children ?? []).reduce(0) { $0 + 1 + count($1) }
     }
 
     static func tree(_ items: [Item], showNogged: Bool) -> [Node] {
@@ -363,6 +478,62 @@ struct OutlineView: View {
             roots.append(Node(item: item, children: children.isEmpty ? nil : children))
         }
         return roots
+    }
+}
+
+/// A row, or a collapsible sub-folder with its own rows.
+private struct OutlineBranch: View {
+    let node: OutlineView.Node
+    let expanded: (UUID) -> Binding<Bool>
+
+    var body: some View {
+        if let children = node.children {
+            DisclosureGroup(isExpanded: expanded(node.id)) {
+                ForEach(children) { child in
+                    AnyView(OutlineBranch(node: child, expanded: expanded))
+                }
+            } label: {
+                NavigationLink(value: node.item.id) {
+                    OutlineRow(item: node.item, childCount: OutlineView.count(node))
+                }
+            }
+            .listRowBackground(Theme.glass)
+        } else {
+            NavigationLink(value: node.item.id) {
+                OutlineRow(item: node.item, childCount: 0)
+            }
+            .listRowBackground(Theme.glass)
+        }
+    }
+}
+
+/// Section header for a top-level folder: tap the header to collapse, the arrow to open it.
+private struct FolderHeader: View {
+    let item: Item
+    let count: Int
+    let open: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "folder.fill").foregroundStyle(Theme.blue)
+            Text(item.title.uppercased())
+                .font(.nogLabel)
+                .tracking(1.6)
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+            Text(String(format: "%02d", count)).font(.nogMeta).foregroundStyle(Theme.muted)
+            ForEach(item.tags.prefix(2), id: \.self) { tag in
+                let pair = TagPalette.color(for: tag)
+                Text("#\(tag)").font(.caption2.weight(.medium)).foregroundStyle(Color(light: pair.light, dark: pair.dark))
+            }
+            Spacer()
+            Button(action: open) {
+                Image(systemName: "arrow.up.right.circle").foregroundStyle(Theme.blue)
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel("Open \(item.title)")
+        }
+        .textCase(nil)
     }
 }
 

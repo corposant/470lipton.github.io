@@ -50,10 +50,11 @@ enum NogSettings {
         minutes == 0 ? "Once" : "Every \(IntervalFormat.short(minutes))"
     }
 
-    /// The next 9 AM.
+    /// The next "morning" (9 AM unless changed in Nogs & alerts).
     static func nextMorning(after now: Date = .now) -> Date {
-        Calendar.current.nextDate(after: now, matching: DateComponents(hour: 9, minute: 0),
-                                  matchingPolicy: .nextTime) ?? now.addingTimeInterval(12 * 3600)
+        let m = morningMinutes
+        return Calendar.current.nextDate(after: now, matching: DateComponents(hour: m / 60, minute: m % 60),
+                                         matchingPolicy: .nextTime) ?? now.addingTimeInterval(12 * 3600)
     }
 }
 
@@ -122,4 +123,60 @@ enum StorageMode: String, CaseIterable, Identifiable {
         case .local: "On this iPhone"
         }
     }
+}
+
+// MARK: - Nogs & alerts (Control Panel)
+
+extension NogSettings {
+    enum Key {
+        static let quietEnabled = "quietEnabled"
+        static let quietStart = "quietStart"          // minutes after midnight
+        static let quietEnd = "quietEnd"
+        static let quietWeekends = "quietWeekends"
+        static let headsUp = "headsUpMinutes"
+        static let escalateAfter = "escalateAfter"
+        static let snoozeMinutes = "snoozeMinutes"
+        static let morningMinutes = "morningMinutes"  // minutes after midnight
+        static let timeSensitive = "timeSensitive"
+        static let sound = "notificationSound"
+        static let showTitles = "showTitlesOnLockScreen"
+        static let badge = "appIconBadge"
+        static let timesUpEvery = "timesUpEvery"
+        static let checkInEvery = "checkInEvery"     // 0 = off
+        static let liveActivity = "liveActivityEnabled"
+    }
+
+    private static func int(_ key: String, _ fallback: Int) -> Int {
+        UserDefaults.standard.object(forKey: key) as? Int ?? fallback
+    }
+
+    private static func bool(_ key: String, _ fallback: Bool) -> Bool {
+        UserDefaults.standard.object(forKey: key) as? Bool ?? fallback
+    }
+
+    static var policy: NogPolicy {
+        NogPolicy(
+            quiet: QuietHours(enabled: bool(Key.quietEnabled, false),
+                              start: int(Key.quietStart, 22 * 60),
+                              end: int(Key.quietEnd, 7 * 60),
+                              weekends: bool(Key.quietWeekends, false)),
+            headsUpMinutes: int(Key.headsUp, 0),
+            escalateAfter: int(Key.escalateAfter, 0),
+            timesUpEvery: int(Key.timesUpEvery, 5),
+            checkInEvery: { let v = int(Key.checkInEvery, 60); return v > 0 ? v : nil }())
+    }
+
+    static var snoozeMinutes: Int { int(Key.snoozeMinutes, 60) }
+    static var morningMinutes: Int { int(Key.morningMinutes, 9 * 60) }
+    static var timeSensitive: Bool { bool(Key.timeSensitive, true) }
+    static var playsSound: Bool { bool(Key.sound, true) }
+    static var showTitles: Bool { bool(Key.showTitles, true) }
+    static var showsBadge: Bool { bool(Key.badge, false) }
+    static var liveActivityEnabled: Bool { bool(Key.liveActivity, true) }
+
+    static let headsUpChoices = [0, 5, 10, 15, 30, 60]
+    static let escalateChoices = [0, 3, 5, 10, 20]
+    static let snoozeChoices = [5, 10, 15, 30, 60, 120]
+    static let timesUpChoices = [1, 2, 5, 10, 15]
+    static let checkInChoices = [0, 30, 60, 120]
 }

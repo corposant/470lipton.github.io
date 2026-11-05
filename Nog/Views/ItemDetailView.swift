@@ -197,9 +197,11 @@ private struct ItemEditor: View {
                     Label("Ring like an alarm", systemImage: "alarm.waves.left.and.right")
                 }
                 HStack {
-                    Button("Snooze 1h") { store.snooze(item.id, until: .now.addingTimeInterval(3600)) }
+                    Button("Snooze \(IntervalFormat.short(NogSettings.snoozeMinutes))") {
+                        store.snooze(item.id, until: .now.addingTimeInterval(TimeInterval(NogSettings.snoozeMinutes * 60)))
+                    }
                         .buttonStyle(OutlineButtonStyle(tint: Theme.pink))
-                    Button("Tomorrow 9 AM") { store.snooze(item.id, until: NogSettings.nextMorning()) }
+                    Button("Morning") { store.snooze(item.id, until: NogSettings.nextMorning()) }
                         .buttonStyle(OutlineButtonStyle(tint: Theme.violet))
                 }
             }

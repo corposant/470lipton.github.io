@@ -24,7 +24,8 @@ final class NotificationScheduler {
 
     func registerCategories() {
         let done = UNNotificationAction(identifier: Action.done.rawValue, title: "Done ✓", options: [])
-        let snooze = UNNotificationAction(identifier: Action.snoozeHour.rawValue, title: "Snooze 1 hour", options: [])
+        let snooze = UNNotificationAction(identifier: Action.snoozeHour.rawValue,
+                                          title: "Snooze \(IntervalFormat.short(NogSettings.snoozeMinutes))", options: [])
         let morning = UNNotificationAction(identifier: Action.morning.rawValue, title: "Tomorrow morning", options: [])
         let category = UNNotificationCategory(identifier: Self.categoryID,
                                               actions: [done, snooze, morning],
@@ -67,13 +68,22 @@ final class NotificationScheduler {
     }
 
     private func performSync(items: [Item]) async {
-        let alarmsCover = await AlarmScheduler.shared.sync(items: items)
-        let plan = NogPlanner.plan(items: items, now: .now, quietUntil: alarmsCover)
+        let policy = NogSettings.policy
+        let ringing = await AlarmScheduler.shared.sync(items: items, policy: policy)
+        let plan = NogPlanner.plan(items: items, now: .now, policy: policy, alarmDates: ringing)
         var desired: [String: PlannedNotification] = [:]
         for p in plan { desired[p.identifier] = p }
 
         let pending = await center.pendingNotificationRequests()
-        let pendingIDs = Set(pending.map(\.identifier).filter { $0.hasPrefix(NogPlanner.prefix) })
+        var pendingIDs = Set(pending.map(\.identifier).filter { $0.hasPrefix(NogPlanner.prefix) })
+
+        // Sound / Time Sensitive / title settings changed: everything already scheduled is out of date.
+        let signature = Self.contentSignature
+        if UserDefaults.standard.string(forKey: Self.signatureKey) != signature {
+            center.removePendingNotificationRequests(withIdentifiers: Array(pendingIDs))
+            pendingIDs = []
+            UserDefaults.standard.set(signature, forKey: Self.signatureKey)
+        }
 
         let stale = pendingIDs.subtracting(desired.keys)
         if !stale.isEmpty {
@@ -87,6 +97,18 @@ final class NotificationScheduler {
             }
         }
         lastPlannedCount = desired.count
+
+        // App icon badge: how many things are nogging right now.
+        let nogging = NogSettings.showsBadge
+            ? items.filter { $0.isOpen && ($0.reminder?.isActive(at: .now) ?? false) }.count
+            : 0
+        try? await center.setBadgeCount(nogging)
+    }
+
+    private static let signatureKey = "appliedNotificationSignature"
+
+    private static var contentSignature: String {
+        "\(NogSettings.playsSound)|\(NogSettings.timeSensitive)|\(NogSettings.showTitles)"
     }
 
     func clearDelivered(for itemID: UUID) async {
@@ -99,16 +121,22 @@ final class NotificationScheduler {
 
     private func request(for planned: PlannedNotification) -> UNNotificationRequest {
         let content = UNMutableNotificationContent()
-        content.title = planned.title
-        content.body = planned.body
-        content.sound = .default
+        if NogSettings.showTitles {
+            content.title = planned.title
+            content.body = planned.body
+        } else {
+            // Private: details only after unlocking and opening Nog.
+            content.title = "Nog"
+            content.body = "Something's nogging you."
+        }
+        content.sound = NogSettings.playsSound ? .default : nil
         content.categoryIdentifier = planned.category
         content.threadIdentifier = planned.itemID.uuidString
         content.userInfo = [Self.itemIDKey: planned.itemID.uuidString]
         // iOS 27: lets people say "Siri, mark that done" about the nog on screen.
         content.appEntityIdentifiers = [EntityIdentifier(for: ReminderEntity.self, identifier: planned.itemID)]
         // Takes effect once the Time Sensitive capability is added (see README).
-        content.interruptionLevel = .timeSensitive
+        content.interruptionLevel = NogSettings.timeSensitive ? .timeSensitive : .active
 
         let trigger: UNNotificationTrigger
         switch planned.trigger {

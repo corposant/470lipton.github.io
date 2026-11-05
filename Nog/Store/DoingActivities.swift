@@ -8,7 +8,9 @@ final class DoingActivities {
 
     func reconcile(_ items: [Item]) {
         var doing: [UUID: Item] = [:]
-        for item in items where item.isDoing && item.doingSince != nil { doing[item.id] = item }
+        if NogSettings.liveActivityEnabled {
+            for item in items where item.isDoing && item.doingSince != nil { doing[item.id] = item }
+        }
 
         var live = Set<UUID>()
         for activity in Activity<DoingAttributes>.activities {

@@ -44,10 +44,12 @@ enum NogPlanner {
     static func plan(items: [Item], now: Date,
                      budget: Int = defaultBudget,
                      maxFollowUpsPerItem: Int = 24,
-                     quietUntil: [UUID: Date] = [:]) -> [PlannedNotification] {
+                     policy: NogPolicy = .standard,
+                     alarmDates: [UUID: [Date]] = [:],
+                     calendar: Calendar = .current) -> [PlannedNotification] {
         let candidates: [(Item, Reminder)] = items
             .compactMap { item -> (Item, Reminder)? in
-                guard let r = item.effectiveReminder else { return nil }
+                guard let r = item.effectiveReminder(policy: policy) else { return nil }
                 return (item, r)
             }
             .sorted { a, b in
@@ -66,16 +68,25 @@ enum NogPlanner {
             let titleTag = stableHash(item.title)
             let base = "\(prefix)\(item.id.uuidString)\(doing ? ".doing" : "")"
 
-            func oneShot(_ date: Date) -> PlannedNotification {
-                PlannedNotification(identifier: "\(base).at.\(Int(date.timeIntervalSince1970)).\(titleTag)",
+            func oneShot(_ date: Date, body: String = body, kind: String = "at") -> PlannedNotification {
+                PlannedNotification(identifier: "\(base).\(kind).\(Int(date.timeIntervalSince1970)).\(titleTag)",
                                     itemID: item.id, title: item.title, body: body, trigger: .at(date),
                                     category: category)
             }
 
-            // Items ringing as alarms stay quiet here until their alarms run out.
-            let quiet = quietUntil[item.id].flatMap { $0 > now ? $0 : nil }
+            // Heads-up before a dated nog starts.
+            if !doing, policy.headsUpMinutes > 0 {
+                let headsUp = r.start.addingTimeInterval(TimeInterval(-policy.headsUpMinutes * 60))
+                if headsUp > now, !policy.quiet.contains(headsUp, calendar: calendar) {
+                    followUps.append(oneShot(headsUp, body: "Coming up in \(IntervalFormat.short(policy.headsUpMinutes))",
+                                             kind: "heads"))
+                }
+            }
 
-            if quiet == nil, let settled = r.settledPhase, settled.since <= now {
+            let ringing = Set(alarmDates[item.id] ?? [])
+            let needsExactTimes = policy.quiet.enabled || !ringing.isEmpty
+
+            if !needsExactTimes, let settled = r.settledPhase, settled.since <= now {
                 // Gap no longer changes: one trigger iOS repeats forever.
                 let seconds = max(60, settled.gap)
                 primaries.append(PlannedNotification(
@@ -83,11 +94,18 @@ enum NogPlanner {
                     itemID: item.id, title: item.title, body: body, trigger: .every(seconds),
                     category: category))
             } else {
-                // Still ahead of us (or easing off): exact times, re-planned whenever the app wakes.
-                let dates = r.fireDates(after: quiet ?? now, limit: 1 + max(0, maxFollowUpsPerItem))
+                // Exact times: skip the ones an alarm already covers, push quiet-hour ones to when quiet ends.
+                var dates: [Date] = []
+                var seen = Set<Date>()
+                for date in r.fireDates(after: now, limit: 1 + max(0, maxFollowUpsPerItem) + ringing.count) {
+                    guard !ringing.contains(date) else { continue }
+                    let when = policy.quiet.nextOpening(after: date, calendar: calendar)
+                    if seen.insert(when).inserted { dates.append(when) }
+                    if dates.count > maxFollowUpsPerItem { break }
+                }
                 guard let first = dates.first else { continue } // one-shot already fired
                 primaries.append(oneShot(first))
-                followUps.append(contentsOf: dates.dropFirst().map(oneShot))
+                followUps.append(contentsOf: dates.dropFirst().map { oneShot($0) })
             }
         }
 

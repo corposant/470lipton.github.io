@@ -31,6 +31,7 @@ As you type, a line above the capture field shows how Nog understood it. A day w
 - **Theme: "Dark Side".** A charcoal base with frosted glass panels and synthwave pink/blue accents. Blue means live, pink means nogging, violet sits in between. Buttons are outlined, never filled. Pick **Auto / Dark / Light** in the Control Panel.
 - **Typography: Apple's own SF family**, so it matches iOS with no licensing or bundled font files. SF Pro for text, **SF Pro Expanded** for titles and section labels, **SF Mono** for timers and readouts.
 - **Two app icons**, Synthwave and Spectrum, switchable in the Control Panel. The sources are in `design/`.
+- **Nogs & alerts** (Control Panel): defaults for new captures, **quiet hours** (optionally all weekend), a **heads-up** before dated nogs, **ring as an alarm after N ignored nogs**, snooze length, what "morning" means, Time Sensitive, sound, **hide titles on the Lock Screen**, and an app icon badge. **Nogitivity**: default timebox, how often "time's up" repeats, the open-ended check-in, and the Live Activity on/off.
 - **Control Panel** (gear icon): appearance, app icon, **storage (iCloud Drive or on this iPhone)**, nog defaults, Doing timebox, capture shortcuts, alerts & permissions, and Siri phrases.
 
 ## iOS 27 features
@@ -45,9 +46,9 @@ As you type, a line above the capture field shows how Nog understood it. A day w
 
 - **Capture** (where Nog opens): one text box. Below it, **Just caught** (your latest captures) and **Next nogs** (the soonest few). Nothing else.
 - **Nogs**: the full overview, with the sections below.
-- **Map**: see your data.
-  - **Map mode:** every item is a node you can drag. Lines show sub-items and [[links]]. Each #tag gets its own coloured zone. Tap ✏︎ to scribble anywhere with finger or Pencil. Positions and scribbles are saved in `_nogmap.json` next to your items, so they sync too.
-  - **Outline mode:** an Obsidian-style folder tree, where projects open up into their sub-items.
+- **Map**: see your data. The Map and the Outline are two views of the same structure.
+  - **Map mode:** every item is a node. **Drop a node onto another to file it there.** A node with things connected under it *is* a folder, shown with a folder icon. Long-press a node to take it out of its folder, open it, or start it. Solid lines show what's filed where; dashed lines show `[[links]]`. Each #tag gets a coloured zone. Tap ✏︎ to scribble with finger or Pencil. Positions and scribbles are saved in `_nogmap.json` next to your items, so they sync too.
+  - **Outline mode:** each folder is a collapsible section, sub-folders collapse inside it, and anything not connected sits under **Unfiled**. What you've collapsed is remembered.
 
 ## The list
 

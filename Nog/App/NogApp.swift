@@ -82,7 +82,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
                 case NotificationScheduler.Action.done.rawValue:
                     store.markDone(id)
                 case NotificationScheduler.Action.snoozeHour.rawValue:
-                    store.snooze(id, until: .now.addingTimeInterval(3600))
+                    store.snooze(id, until: .now.addingTimeInterval(TimeInterval(NogSettings.snoozeMinutes * 60)))
                 case NotificationScheduler.Action.morning.rawValue:
                     store.snooze(id, until: NogSettings.nextMorning())
                 case NotificationScheduler.Action.extend.rawValue:

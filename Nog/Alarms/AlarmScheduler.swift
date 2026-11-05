@@ -35,21 +35,19 @@ final class AlarmScheduler {
     }
 
     /// Brings scheduled alarms in line with the items.
-    /// Returns, per item, the moment its alarms run out (notifications take over after that).
-    func sync(items: [Item]) async -> [UUID: Date] {
+    /// Returns, per item, the times that will ring as alarms (notifications skip those).
+    func sync(items: [Item], policy: NogPolicy) async -> [UUID: [Date]] {
         guard isAuthorized else { return [:] }
         let now = Date.now
 
         var desired: [UUID: (item: Item, date: Date)] = [:]
-        var coveredUntil: [UUID: Date] = [:]
+        var ringing: [UUID: [Date]] = [:]
         for item in items {
-            // Open items ring on their reminder; items being done ring when time's up.
-            guard let reminder = item.effectiveReminder, reminder.alarm else { continue }
-            let dates = reminder.fireDates(after: now, limit: Self.alarmsPerItem)
+            let dates = Self.alarmDates(for: item, policy: policy, now: now)
             for date in dates {
                 desired[Self.alarmID(item: item, date: date)] = (item, date)
             }
-            if let last = dates.last { coveredUntil[item.id] = last }
+            if !dates.isEmpty { ringing[item.id] = dates }
         }
 
         let existing = (try? manager.alarms) ?? []
@@ -64,7 +62,25 @@ final class AlarmScheduler {
                 print("Nog: couldn't schedule alarm for \(entry.item.title): \(error)")
             }
         }
-        return coveredUntil
+        return ringing
+    }
+
+    /// Which upcoming nogs ring as alarms: all of them for "ring like an alarm" items
+    /// (and their time's-up), or, with escalation on, every nog after N ignored ones.
+    /// Quiet hours apply to alarms too.
+    static func alarmDates(for item: Item, policy: NogPolicy, now: Date, limit: Int = alarmsPerItem) -> [Date] {
+        guard let reminder = item.effectiveReminder(policy: policy) else { return [] }
+        let from: Date
+        if reminder.alarm {
+            from = now
+        } else if item.isOpen, let escalation = reminder.escalationDate(afterIgnored: policy.escalateAfter) {
+            from = max(now, escalation.addingTimeInterval(-1))
+        } else {
+            return []
+        }
+        return Array(reminder.fireDates(after: from, limit: limit * 3)
+            .filter { !policy.quiet.contains($0) }
+            .prefix(limit))
     }
 
     private func configuration(for item: Item, at date: Date) -> AlarmManager.AlarmConfiguration<NogAlarmMetadata> {

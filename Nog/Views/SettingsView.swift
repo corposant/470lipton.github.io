@@ -134,9 +134,9 @@ struct SettingsView: View {
     private var behavior: some View {
         Section {
             NavigationLink {
-                NogDefaultsPage()
+                NogsAlertsPage()
             } label: {
-                row("Nog defaults", "bell.badge", Theme.pink,
+                row("Nogs & alerts", "bell.badge", Theme.pink,
                     detail: repeatMinutes > 0 ? "every \(IntervalFormat.short(repeatMinutes))" : "once")
             }
             NavigationLink {
@@ -163,7 +163,7 @@ struct SettingsView: View {
             NavigationLink {
                 PermissionsPage()
             } label: {
-                row("Alerts & permissions", "checkmark.shield", Theme.blue, detail: nil)
+                row("Permissions", "checkmark.shield", Theme.blue, detail: nil)
             }
             NavigationLink {
                 SiriPage()
@@ -208,10 +208,28 @@ struct SettingsView: View {
 
 // MARK: - Pages
 
-private struct NogDefaultsPage: View {
+/// Every knob for nogs, alarms and alerts.
+private struct NogsAlertsPage: View {
+    @Environment(ItemStore.self) private var store
+    // New captures
     @AppStorage(NogSettings.firstDelayKey) private var firstDelay = NogSettings.defaultFirstDelay
     @AppStorage(NogSettings.repeatKey) private var repeatMinutes = NogSettings.defaultRepeat
     @AppStorage(NogSettings.curveKey) private var curve: RepeatCurve = .steady
+    // Quiet hours
+    @AppStorage(NogSettings.Key.quietEnabled) private var quietEnabled = false
+    @AppStorage(NogSettings.Key.quietStart) private var quietStart = 22 * 60
+    @AppStorage(NogSettings.Key.quietEnd) private var quietEnd = 7 * 60
+    @AppStorage(NogSettings.Key.quietWeekends) private var quietWeekends = false
+    // Timing
+    @AppStorage(NogSettings.Key.headsUp) private var headsUp = 0
+    @AppStorage(NogSettings.Key.escalateAfter) private var escalateAfter = 0
+    @AppStorage(NogSettings.Key.snoozeMinutes) private var snoozeMinutes = 60
+    @AppStorage(NogSettings.Key.morningMinutes) private var morningMinutes = 9 * 60
+    // How they look and sound
+    @AppStorage(NogSettings.Key.timeSensitive) private var timeSensitive = true
+    @AppStorage(NogSettings.Key.sound) private var sound = true
+    @AppStorage(NogSettings.Key.showTitles) private var showTitles = true
+    @AppStorage(NogSettings.Key.badge) private var badge = false
 
     var body: some View {
         List {
@@ -236,14 +254,81 @@ private struct NogDefaultsPage: View {
                      : "Every captured item gets this unless you type an override.")
             }
             .listRowBackground(Theme.glass)
+
+            Section {
+                Toggle("Quiet hours", isOn: $quietEnabled)
+                if quietEnabled {
+                    DatePicker("From", selection: timeBinding($quietStart), displayedComponents: .hourAndMinute)
+                    DatePicker("Until", selection: timeBinding($quietEnd), displayedComponents: .hourAndMinute)
+                    Toggle("All weekend", isOn: $quietWeekends)
+                }
+            } header: {
+                SectionLabel(title: "Quiet hours")
+            } footer: {
+                Text("Nothing nogs or rings during quiet hours. Anything due waits until they end.")
+            }
+            .listRowBackground(Theme.glass)
+
+            Section {
+                Picker("Heads-up before", selection: $headsUp) {
+                    ForEach(NogSettings.headsUpChoices, id: \.self) { Text($0 == 0 ? "Off" : IntervalFormat.short($0)).tag($0) }
+                }
+                Picker("Ring as an alarm after", selection: $escalateAfter) {
+                    ForEach(NogSettings.escalateChoices, id: \.self) { Text($0 == 0 ? "Never" : "\($0) ignored nogs").tag($0) }
+                }
+                Picker("Snooze button", selection: $snoozeMinutes) {
+                    ForEach(NogSettings.snoozeChoices, id: \.self) { Text(IntervalFormat.short($0)).tag($0) }
+                }
+                DatePicker("“Morning” means", selection: timeBinding($morningMinutes), displayedComponents: .hourAndMinute)
+            } header: {
+                SectionLabel(title: "Timing")
+            } footer: {
+                Text("Heads-up: a gentle note before a dated nog starts. Ring as an alarm: if you keep ignoring an item, its nogs become alarms that break through Silent and Focus. Snoozing resets the count.")
+            }
+            .listRowBackground(Theme.glass)
+
+            Section {
+                Toggle("Time Sensitive", isOn: $timeSensitive)
+                Toggle("Sound", isOn: $sound)
+                Toggle("Show titles on Lock Screen", isOn: $showTitles)
+                Toggle("Badge the app icon", isOn: $badge)
+            } header: {
+                SectionLabel(title: "Notifications")
+            } footer: {
+                Text("Time Sensitive lets nogs through Focus (also allow it in iOS Settings → Notifications → Nog). With titles hidden, the Lock Screen just says something's nogging you.")
+            }
+            .listRowBackground(Theme.glass)
+            .tint(Theme.pink)
         }
         .nogListStyle()
-        .navigationTitle("Nog defaults")
+        .tint(Theme.pink)
+        .navigationTitle("Nogs & alerts")
+        .onDisappear {
+            NotificationScheduler.shared.registerCategories()
+            Task { await store.syncNow() }
+        }
     }
 }
 
+/// Minutes-after-midnight ⇄ a Date for DatePicker.
+private func timeBinding(_ minutes: Binding<Int>) -> Binding<Date> {
+    Binding(
+        get: {
+            Calendar.current.date(bySettingHour: minutes.wrappedValue / 60, minute: minutes.wrappedValue % 60,
+                                  second: 0, of: .now) ?? .now
+        },
+        set: { date in
+            let c = Calendar.current.dateComponents([.hour, .minute], from: date)
+            minutes.wrappedValue = (c.hour ?? 0) * 60 + (c.minute ?? 0)
+        })
+}
+
 private struct DoingPage: View {
+    @Environment(ItemStore.self) private var store
     @AppStorage(NogSettings.timeboxKey) private var timebox = NogSettings.defaultTimebox
+    @AppStorage(NogSettings.Key.timesUpEvery) private var timesUpEvery = 5
+    @AppStorage(NogSettings.Key.checkInEvery) private var checkInEvery = 60
+    @AppStorage(NogSettings.Key.liveActivity) private var liveActivity = true
 
     var body: some View {
         List {
@@ -258,9 +343,26 @@ private struct DoingPage: View {
                 Text("Nog suggests, in order: the item's estimate, how long similar items took you (same #tag or project), a short box if it's urgent or overdue, then this default.")
             }
             .listRowBackground(Theme.glass)
+
+            Section {
+                Picker("“Time's up” repeats", selection: $timesUpEvery) {
+                    ForEach(NogSettings.timesUpChoices, id: \.self) { Text("every \(IntervalFormat.short($0))").tag($0) }
+                }
+                Picker("Open-ended check-in", selection: $checkInEvery) {
+                    ForEach(NogSettings.checkInChoices, id: \.self) { Text($0 == 0 ? "Off" : "every \(IntervalFormat.short($0))").tag($0) }
+                }
+                Toggle("Live Activity", isOn: $liveActivity)
+            } header: {
+                SectionLabel(title: "While you're on it")
+            } footer: {
+                Text("Live Activity shows your timer on the Lock Screen and in the Dynamic Island.")
+            }
+            .listRowBackground(Theme.glass)
+            .tint(Theme.blue)
         }
         .nogListStyle()
         .navigationTitle("Nogitivity")
+        .onDisappear { Task { await store.syncNow() } }
     }
 }
 
@@ -311,7 +413,7 @@ private struct PermissionsPage: View {
             .listRowBackground(Theme.glass)
         }
         .nogListStyle()
-        .navigationTitle("Alerts & permissions")
+        .navigationTitle("Permissions")
         .task { await refresh() }
     }
 
