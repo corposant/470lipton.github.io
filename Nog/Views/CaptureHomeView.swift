@@ -110,12 +110,12 @@ struct CaptureHomeView: View {
 
     // MARK: Lists
 
-    @ViewBuilder
     /// The three latest captures (shown once, under Just caught).
     private var recentItems: [Item] {
         Array(store.items.values.sorted { $0.created > $1.created }.prefix(3))
     }
 
+    @ViewBuilder
     private var justCaught: some View {
         let recent = recentItems
         if !recent.isEmpty {
