@@ -1,19 +1,19 @@
 import Foundation
 
 /// User-adjustable defaults (edited in SettingsView via @AppStorage with the same keys).
-enum NagSettings {
+enum NogSettings {
     static let firstDelayKey = "firstDelayMinutes"
     static let repeatKey = "repeatMinutes"
 
     static let defaultFirstDelay = 15
     static let defaultRepeat = 8
 
-    /// Minutes after capture before the first nag.
+    /// Minutes after capture before the first nog.
     static var firstDelayMinutes: Int {
         UserDefaults.standard.object(forKey: firstDelayKey) as? Int ?? defaultFirstDelay
     }
 
-    /// Minutes between nags; nil = remind once.
+    /// Minutes between nogs; nil = remind once.
     static var repeatMinutes: Int? {
         let value = UserDefaults.standard.object(forKey: repeatKey) as? Int ?? defaultRepeat
         return value > 0 ? value : nil

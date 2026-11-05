@@ -8,7 +8,7 @@ struct RootView: View {
     var body: some View {
         @Bindable var router = router
         NavigationStack(path: $router.path) {
-            // Re-render every 30s so "in 5 min" / "nagging now" stay current.
+            // Re-render every 30s so "in 5 min" / "nogging now" stay current.
             TimelineView(.periodic(from: .now, by: 30)) { context in
                 ItemListView(now: context.date, search: search)
             }
@@ -42,7 +42,7 @@ struct ItemListView: View {
         if all.isEmpty {
             ContentUnavailableView("Nothing captured yet",
                                    systemImage: "tray",
-                                   description: Text("Type below and hit return. Everything nags you until it's done."))
+                                   description: Text("Type below and hit return. Everything nogs you until it's done."))
         } else if !search.trimmingCharacters(in: .whitespaces).isEmpty {
             let q = search.lowercased()
             let results = all
@@ -66,7 +66,7 @@ struct ItemListView: View {
                 .sorted { ($0.completed ?? $0.updated) > ($1.completed ?? $1.updated) }
 
             List {
-                section("Nagging now", due)
+                section("Nogging now", due)
                 section("Coming up", upcoming)
                 section("No reminder", ideas)
                 section("Someday", someday)
@@ -118,7 +118,7 @@ struct ItemRow: View {
         .swipeActions(edge: .trailing) {
             Button("Delete", role: .destructive) { store.delete(item.id) }
             Button("1 hour") { store.snooze(item.id, until: now.addingTimeInterval(3600)) }.tint(.orange)
-            Button("Morning") { store.snooze(item.id, until: NagSettings.nextMorning(after: now)) }.tint(.indigo)
+            Button("Morning") { store.snooze(item.id, until: NogSettings.nextMorning(after: now)) }.tint(.indigo)
         }
     }
 

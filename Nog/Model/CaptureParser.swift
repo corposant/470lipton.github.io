@@ -11,13 +11,13 @@ struct CaptureResult: Equatable {
     var tags: [String]
 }
 
-/// Turns a quick-capture line into an item. Everything gets the default nag
+/// Turns a quick-capture line into an item. Everything gets the default nog
 /// unless you say otherwise with a few optional tokens anywhere in the text:
 ///
 ///   `!8m` `!2h` `!1d`   repeat every 8 minutes / 2 hours / 1 day
 ///   `!once`             remind once, don't repeat
 ///   `!off` / `!idea`    no reminder at all
-///   `@30m` `@2h` `@1d`  start nagging in 30 minutes / 2 hours / 1 day
+///   `@30m` `@2h` `@1d`  start nogging in 30 minutes / 2 hours / 1 day
 ///   `@now`              start now
 ///   `#tag`              add a tag
 enum CaptureParser {

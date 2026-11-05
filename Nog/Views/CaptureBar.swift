@@ -45,7 +45,7 @@ struct CaptureBar: View {
         let message: String
         if let r = item.reminder {
             let start = r.start.formatted(.relative(presentation: .named))
-            message = r.repeatMinutes.map { "Nagging \(start), every \(IntervalFormat.short($0))" }
+            message = r.repeatMinutes.map { "Nogging \(start), every \(IntervalFormat.short($0))" }
                 ?? "Reminding \(start)"
         } else {
             message = "Saved without a reminder"

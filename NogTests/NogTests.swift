@@ -64,7 +64,7 @@ final class CaptureParserTests: XCTestCase {
     }
 }
 
-final class NagPlannerTests: XCTestCase {
+final class NogPlannerTests: XCTestCase {
     let now = Date(timeIntervalSince1970: 1_800_000_000)
 
     func item(_ title: String, startOffset: TimeInterval, every: Int?, status: ItemStatus = .open) -> Item {
@@ -73,35 +73,35 @@ final class NagPlannerTests: XCTestCase {
     }
 
     func testActiveItemGetsOneRepeatingTrigger() {
-        let plan = NagPlanner.plan(items: [item("a", startOffset: -600, every: 8)], now: now)
+        let plan = NogPlanner.plan(items: [item("a", startOffset: -600, every: 8)], now: now)
         XCTAssertEqual(plan.count, 1)
         XCTAssertEqual(plan.first?.trigger, .every(480))
     }
 
     func testFutureItemGetsStartPlusFollowUps() {
-        let plan = NagPlanner.plan(items: [item("a", startOffset: 600, every: 8)], now: now, maxFollowUpsPerItem: 3)
+        let plan = NogPlanner.plan(items: [item("a", startOffset: 600, every: 8)], now: now, maxFollowUpsPerItem: 3)
         XCTAssertEqual(plan.map(\.fireDate), [600, 1080, 1560, 2040].map { now.addingTimeInterval($0) })
     }
 
     func testDoneAndPastOneShotsAreSkipped() {
-        let plan = NagPlanner.plan(items: [
+        let plan = NogPlanner.plan(items: [
             item("done", startOffset: -60, every: 8, status: .done),
             item("past once", startOffset: -60, every: nil),
         ], now: now)
         XCTAssertTrue(plan.isEmpty)
     }
 
-    func testBudgetPrefersEveryItemsFirstNag() {
+    func testBudgetPrefersEveryItemsFirstNog() {
         let items = (0..<10).map { item("i\($0)", startOffset: Double($0 + 1) * 60, every: 1) }
-        let plan = NagPlanner.plan(items: items, now: now, budget: 12)
+        let plan = NogPlanner.plan(items: items, now: now, budget: 12)
         XCTAssertEqual(plan.count, 12)
         XCTAssertEqual(Set(plan.map(\.itemID)).count, 10)
     }
 
     func testIdentifiersAreStable() {
         let a = item("a", startOffset: -600, every: 8)
-        XCTAssertEqual(NagPlanner.plan(items: [a], now: now).map(\.identifier),
-                       NagPlanner.plan(items: [a], now: now.addingTimeInterval(1000)).map(\.identifier))
+        XCTAssertEqual(NogPlanner.plan(items: [a], now: now).map(\.identifier),
+                       NogPlanner.plan(items: [a], now: now.addingTimeInterval(1000)).map(\.identifier))
     }
 }
 

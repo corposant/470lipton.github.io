@@ -1,18 +1,18 @@
 import Foundation
 import UserNotifications
 
-/// Keeps iOS's pending notifications in line with `NagPlanner`'s plan.
+/// Keeps iOS's pending notifications in line with `NogPlanner`'s plan.
 @MainActor
 final class NotificationScheduler {
     static let shared = NotificationScheduler()
 
-    nonisolated static let categoryID = "NAG"
+    nonisolated static let categoryID = "NOG"
     nonisolated static let itemIDKey = "itemID"
 
     enum Action: String {
-        case done = "NAG_DONE"
-        case snoozeHour = "NAG_SNOOZE_1H"
-        case morning = "NAG_MORNING"
+        case done = "NOG_DONE"
+        case snoozeHour = "NOG_SNOOZE_1H"
+        case morning = "NOG_MORNING"
     }
 
     private let center = UNUserNotificationCenter.current()
@@ -40,7 +40,7 @@ final class NotificationScheduler {
     }
 
     func pendingCount() async -> Int {
-        await center.pendingNotificationRequests().filter { $0.identifier.hasPrefix(NagPlanner.prefix) }.count
+        await center.pendingNotificationRequests().filter { $0.identifier.hasPrefix(NogPlanner.prefix) }.count
     }
 
     /// Serialized: each sync waits for the previous one so they never interleave.
@@ -55,12 +55,12 @@ final class NotificationScheduler {
     }
 
     private func performSync(items: [Item]) async {
-        let plan = NagPlanner.plan(items: items, now: .now)
+        let plan = NogPlanner.plan(items: items, now: .now)
         var desired: [String: PlannedNotification] = [:]
         for p in plan { desired[p.identifier] = p }
 
         let pending = await center.pendingNotificationRequests()
-        let pendingIDs = Set(pending.map(\.identifier).filter { $0.hasPrefix(NagPlanner.prefix) })
+        let pendingIDs = Set(pending.map(\.identifier).filter { $0.hasPrefix(NogPlanner.prefix) })
 
         let stale = pendingIDs.subtracting(desired.keys)
         if !stale.isEmpty {

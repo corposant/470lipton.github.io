@@ -26,14 +26,14 @@ struct PlannedNotification: Hashable {
 /// Decides which notifications should be pending, within iOS's limit of
 /// 64 pending notifications per app.
 ///
-/// - An item that is already nagging gets ONE repeating trigger that keeps
+/// - An item that is already nogging gets ONE repeating trigger that keeps
 ///   firing every N minutes forever, even if the app never runs again.
-/// - An item whose nag starts in the future gets a one-shot at the start time,
+/// - An item whose nog starts in the future gets a one-shot at the start time,
 ///   plus follow-ups at start + N, start + 2N… while there's room. Whenever the
 ///   app wakes up (opened, notification action, background refresh), the plan
 ///   is recomputed and started items switch over to the repeating trigger.
-enum NagPlanner {
-    static let prefix = "nag."
+enum NogPlanner {
+    static let prefix = "nog."
     static let defaultBudget = 60
 
     static func plan(items: [Item], now: Date,

@@ -1,11 +1,12 @@
 # Nog
 
-A capture-first iPhone app where **every item can nag you, repeatedly, until it's done.**
+A capture-first iPhone app where **every item can nog you, repeatedly, until it's done.**
 
 - **Everything is an Item.** To-dos, ideas, concepts and projects are all the same thing. Any item can have notes, `[[links]]` to other items, backlinks, tags, and sub-items (an item with sub-items *is* a project).
 - **Capture is instant.** The app opens with the keyboard already up. Type, hit return, and keep typing.
-- **Every capture gets a default nag** (out of the box: first nag 15 min after capture, then every 8 min until done). You can change that in Settings, or per item.
-- **Nags repeat forever.** They don't stop after one or two. Each nag has **Done ✓ / Snooze 1 hour / Tomorrow morning** buttons right on the notification.
+- **Every capture gets a default nog** (out of the box: first nog 15 min after capture, then every 8 min until done). You can change that in Settings, or per item.
+- **Nogs repeat forever.** They don't stop after one or two. Each nog has **Done ✓ / Snooze 1 hour / Tomorrow morning** buttons right on the notification.
+- **"Hey Siri, Nog me"** captures something hands-free (Siri asks what).
 - **Your data is plain Markdown**, one file per item, in *Files → On My iPhone → Nog → Items*.
 
 ## Capture shortcuts
@@ -17,7 +18,7 @@ Type these anywhere in a capture line (all optional):
 | `!8m` `!2h` `!1d` | repeat every 8 min / 2 hours / 1 day |
 | `!once` | remind once, don't repeat |
 | `!off` or `!idea` | no reminder |
-| `@30m` `@2h` `@1d` `@now` | when to start nagging |
+| `@30m` `@2h` `@1d` `@now` | when to start nogging |
 | `#tag` | add a tag |
 
 Example: `renew passport #admin !1h @2h`
@@ -50,21 +51,21 @@ Run the tests with **⌘U**.
 
 ### Optional: Time Sensitive notifications
 
-These let nags break through Focus modes. In **Signing & Capabilities → + Capability → Time Sensitive Notifications**. Then on the phone: **Settings → Notifications → Nog → Time Sensitive → On**. The code already marks nags as time-sensitive.
+These let nogs break through Focus modes. In **Signing & Capabilities → + Capability → Time Sensitive Notifications**. Then on the phone: **Settings → Notifications → Nog → Time Sensitive → On**. The code already marks nogs as time-sensitive.
 
-## How the repeating nags work
+## How the repeating nogs work
 
-iOS lets an app have at most 64 notifications scheduled at once, so `NagPlanner` budgets them:
+iOS lets an app have at most 64 notifications scheduled at once, so `NogPlanner` budgets them:
 
-- An item that's **already nagging** gets one *repeating* trigger, which iOS fires every N minutes forever, even if the app is never opened again.
-- An item whose nag **starts later** gets a one-shot at the start time plus follow-ups while there's room. Whenever the app gets a chance to run (you open it, tap a notification button, or iOS grants a background refresh), the plan is recomputed and started items switch to the forever-repeating trigger.
+- An item that's **already nogging** gets one *repeating* trigger, which iOS fires every N minutes forever, even if the app is never opened again.
+- An item whose nog **starts later** gets a one-shot at the start time plus follow-ups while there's room. Whenever the app gets a chance to run (you open it, tap a notification button, or iOS grants a background refresh), the plan is recomputed and started items switch to the forever-repeating trigger.
 
 ## Project layout
 
 ```
 project.yml                 XcodeGen spec (the .xcodeproj is generated, not committed)
 Nog/App                     App entry, notification delegate, background refresh
-Nog/Model                   Item, Markdown file format, capture parser, nag planner
+Nog/Model                   Item, Markdown file format, capture parser, nog planner
 Nog/Store                   ItemStore (in-memory + Markdown files), Router
 Nog/Notifications           Sync between the plan and iOS's notification center
 Nog/Intents                 Siri / Shortcuts / Action Button capture

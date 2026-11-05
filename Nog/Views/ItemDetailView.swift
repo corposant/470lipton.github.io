@@ -106,12 +106,12 @@ private struct ItemEditor: View {
 
     private var reminderSection: some View {
         Section {
-            Toggle("Nag me", isOn: Binding(
+            Toggle("Nog me", isOn: Binding(
                 get: { item.reminder != nil },
                 set: { on in
                     set(\.reminder, on
-                        ? Reminder(start: .now.addingTimeInterval(TimeInterval(NagSettings.firstDelayMinutes * 60)),
-                                   repeatMinutes: NagSettings.repeatMinutes)
+                        ? Reminder(start: .now.addingTimeInterval(TimeInterval(NogSettings.firstDelayMinutes * 60)),
+                                   repeatMinutes: NogSettings.repeatMinutes)
                         : nil)
                 }))
             if let reminder = item.reminder {
@@ -122,13 +122,13 @@ private struct ItemEditor: View {
                     get: { reminder.repeatMinutes ?? 0 },
                     set: { minutes in editReminder { $0.repeatMinutes = minutes > 0 ? minutes : nil } })) {
                     ForEach(repeatChoices(including: reminder.repeatMinutes ?? 0), id: \.self) {
-                        Text(NagSettings.repeatLabel($0)).tag($0)
+                        Text(NogSettings.repeatLabel($0)).tag($0)
                     }
                 }
                 HStack {
                     Button("Snooze 1h") { store.snooze(item.id, until: .now.addingTimeInterval(3600)) }
                     Spacer()
-                    Button("Tomorrow 9 AM") { store.snooze(item.id, until: NagSettings.nextMorning()) }
+                    Button("Tomorrow 9 AM") { store.snooze(item.id, until: NogSettings.nextMorning()) }
                 }
                 .buttonStyle(.borderless)
             }
@@ -136,7 +136,7 @@ private struct ItemEditor: View {
             Text("Reminder")
         } footer: {
             if item.isOpen, let next = item.reminder?.nextFire(after: .now) {
-                Text("Next nag about \(next.formatted(date: .omitted, time: .shortened)).")
+                Text("Next nog about \(next.formatted(date: .omitted, time: .shortened)).")
             } else if item.reminder != nil, !item.isOpen {
                 Text("Paused: reminders only fire for open items.")
             }
@@ -144,7 +144,7 @@ private struct ItemEditor: View {
     }
 
     private func repeatChoices(including current: Int) -> [Int] {
-        Array(Set(NagSettings.repeatChoices + [current])).sorted()
+        Array(Set(NogSettings.repeatChoices + [current])).sorted()
     }
 
     // MARK: Structure

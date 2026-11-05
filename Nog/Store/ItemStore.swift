@@ -51,10 +51,10 @@ final class ItemStore {
 
     // MARK: - Mutations
 
-    /// Quick capture: parses the text, applies the default nag, saves.
+    /// Quick capture: parses the text, applies the default nog, saves.
     @discardableResult
     func capture(_ text: String, parent: UUID? = nil, now: Date = .now) -> Item? {
-        let parsed = CaptureParser.parse(text, defaults: NagSettings.captureDefaults, now: now)
+        let parsed = CaptureParser.parse(text, defaults: NogSettings.captureDefaults, now: now)
         guard !parsed.title.isEmpty else { return nil }
         let item = Item(title: parsed.title, created: now, updated: now,
                         parentID: parent, tags: parsed.tags, reminder: parsed.reminder)
@@ -104,14 +104,14 @@ final class ItemStore {
         update(item)
     }
 
-    /// Pushes the nag start to `date` (creating a default reminder if the item had none).
+    /// Pushes the nog start to `date` (creating a default reminder if the item had none).
     func snooze(_ id: UUID, until date: Date) {
         guard var item = items[id] else { return }
         if var r = item.reminder {
             r.start = date
             item.reminder = r
         } else {
-            item.reminder = Reminder(start: date, repeatMinutes: NagSettings.repeatMinutes)
+            item.reminder = Reminder(start: date, repeatMinutes: NogSettings.repeatMinutes)
         }
         item.status = .open
         clearDelivered(id)
@@ -190,7 +190,7 @@ final class ItemStore {
     }
 }
 
-/// Navigation state shared with the notification delegate (tapping a nag opens its item).
+/// Navigation state shared with the notification delegate (tapping a nog opens its item).
 @MainActor
 @Observable
 final class Router {

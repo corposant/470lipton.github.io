@@ -5,8 +5,8 @@ import UserNotifications
 struct SettingsView: View {
     @Environment(ItemStore.self) private var store
     @Environment(\.dismiss) private var dismiss
-    @AppStorage(NagSettings.firstDelayKey) private var firstDelay = NagSettings.defaultFirstDelay
-    @AppStorage(NagSettings.repeatKey) private var repeatMinutes = NagSettings.defaultRepeat
+    @AppStorage(NogSettings.firstDelayKey) private var firstDelay = NogSettings.defaultFirstDelay
+    @AppStorage(NogSettings.repeatKey) private var repeatMinutes = NogSettings.defaultRepeat
     @State private var authorization: UNAuthorizationStatus = .notDetermined
     @State private var pending = 0
 
@@ -15,10 +15,10 @@ struct SettingsView: View {
             Form {
                 Section {
                     Stepper(value: $firstDelay, in: 0...240, step: 5) {
-                        LabeledContent("First nag", value: firstDelay == 0 ? "Right away" : "after \(IntervalFormat.short(firstDelay))")
+                        LabeledContent("First nog", value: firstDelay == 0 ? "Right away" : "after \(IntervalFormat.short(firstDelay))")
                     }
                     Picker("Then", selection: $repeatMinutes) {
-                        ForEach(NagSettings.repeatChoices, id: \.self) { Text(NagSettings.repeatLabel($0)).tag($0) }
+                        ForEach(NogSettings.repeatChoices, id: \.self) { Text(NogSettings.repeatLabel($0)).tag($0) }
                     }
                 } header: {
                     Text("Default for new captures")
@@ -30,7 +30,7 @@ struct SettingsView: View {
                     shortcut("!8m  !2h  !1d", "repeat every 8 min / 2 h / 1 day")
                     shortcut("!once", "remind once, don't repeat")
                     shortcut("!off", "no reminder (just an idea)")
-                    shortcut("@30m  @2h  @now", "when to start nagging")
+                    shortcut("@30m  @2h  @now", "when to start nogging")
                     shortcut("#tag", "add a tag")
                 }
 
@@ -85,7 +85,7 @@ struct SettingsView: View {
     private func label(for status: UNAuthorizationStatus) -> String {
         switch status {
         case .authorized: return "Allowed"
-        case .denied: return "Denied — nags won't show"
+        case .denied: return "Denied — nogs won't show"
         case .provisional: return "Quiet (provisional)"
         case .ephemeral: return "Temporary"
         case .notDetermined: return "Not asked yet"

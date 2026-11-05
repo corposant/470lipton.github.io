@@ -41,7 +41,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         return true
     }
 
-    /// Show nags even while the app is open.
+    /// Show nogs even while the app is open.
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter,
                                             willPresent notification: UNNotification,
                                             withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
@@ -63,7 +63,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
                 case NotificationScheduler.Action.snoozeHour.rawValue:
                     store.snooze(id, until: .now.addingTimeInterval(3600))
                 case NotificationScheduler.Action.morning.rawValue:
-                    store.snooze(id, until: NagSettings.nextMorning())
+                    store.snooze(id, until: NogSettings.nextMorning())
                 case UNNotificationDefaultActionIdentifier:
                     Router.shared.open(id)
                 default:
@@ -76,7 +76,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     }
 }
 
-/// Periodically wakes the app (when iOS allows) to top up scheduled nags.
+/// Periodically wakes the app (when iOS allows) to top up scheduled nogs.
 enum BackgroundRefresh {
     static let identifier = "io.nogapp.nog.refresh"
 

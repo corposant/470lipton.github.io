@@ -32,7 +32,7 @@ enum ItemStatus: String, CaseIterable, Hashable {
     }
 }
 
-/// When to start nagging, and how often to repeat until the item is done.
+/// When to start nogging, and how often to repeat until the item is done.
 struct Reminder: Hashable {
     var start: Date
     /// nil = fire once. Otherwise repeat every N minutes (minimum 1) until done.
