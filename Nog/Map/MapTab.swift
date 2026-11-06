@@ -44,7 +44,6 @@ struct MapTab: View {
                 ItemDetailView(id: id)
             }
         }
-        .task(id: store.folder) { doc.load(from: store) }
     }
 }
 
@@ -56,6 +55,7 @@ struct MindMapView: View {
     @Bindable var doc: MapDocument
     let showNogged: Bool
 
+    // The view transform: a map point p appears on screen at offset + p * scale.
     @State private var scale: CGFloat = 1
     @State private var baseScale: CGFloat = 1
     @State private var offset: CGSize = .zero
@@ -65,10 +65,7 @@ struct MindMapView: View {
     @State private var dragging: [UUID: CGPoint] = [:]
     /// The node a dragged node would be filed into if dropped now.
     @State private var dropTarget: UUID?
-
-    /// The map's virtual canvas; (0, 0) in layout space is its centre.
-    static let world = CGSize(width: 4000, height: 4000)
-    private var origin: CGPoint { CGPoint(x: Self.world.width / 2, y: Self.world.height / 2) }
+    @State private var scribble = ScribbleController()
 
     var body: some View {
         let items = store.items.values
@@ -79,33 +76,37 @@ struct MindMapView: View {
 
         GeometryReader { geo in
             ZStack(alignment: .topLeading) {
-                ZStack(alignment: .topLeading) {
-                    zones(items)
-                    edgeLayer(edges)
-                    ForEach(items) { item in
-                        MapNode(item: item, isFolder: hasChildren.contains(item.id), isDropTarget: dropTarget == item.id)
-                            .position(worldPoint(item.id))
-                            .gesture(nodeDrag(item.id, among: items))
-                            .onTapGesture { router.push(item.id) }
-                            .contextMenu { nodeMenu(item) }
-                            .allowsHitTesting(!isScribbling)
-                    }
-                    ScribbleCanvas(drawing: doc.drawing, isActive: isScribbling) { doc.setDrawing($0) }
-                        .frame(width: Self.world.width, height: Self.world.height)
-                        .allowsHitTesting(isScribbling)
+                zones(items)
+                edgeLayer(edges, size: geo.size)
+                ForEach(items) { item in
+                    MapNode(item: item, isFolder: hasChildren.contains(item.id), isDropTarget: dropTarget == item.id)
+                        .scaleEffect(min(1.15, max(0.55, scale)))
+                        .position(screen(mapPoint(item.id)))
+                        .gesture(nodeDrag(item.id, among: items))
+                        .onTapGesture { router.push(item.id) }
+                        .contextMenu { nodeMenu(item) }
+                        .allowsHitTesting(!isScribbling)
                 }
-                .frame(width: Self.world.width, height: Self.world.height, alignment: .topLeading)
-                .scaleEffect(scale, anchor: .topLeading)
-                .offset(offset)
+                // A screen-sized drawing layer: scribbles are stored in map coordinates
+                // and shown through the current pan/zoom.
+                ScribbleCanvas(drawing: doc.drawing.transformed(using: viewTransform),
+                               isActive: isScribbling, controller: scribble) { onScreen in
+                    doc.setDrawing(onScreen.transformed(using: viewTransform.inverted()))
+                }
+                .frame(width: geo.size.width, height: geo.size.height)
+                .allowsHitTesting(isScribbling)
             }
             .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
             .clipped()
             .contentShape(Rectangle())
             .gesture(panAndZoom(viewSize: geo.size), including: isScribbling ? .subviews : .all)
             .onAppear {
+                // Load saved positions first, then lay out anything new, then centre.
+                doc.load(from: store)
                 doc.placeMissing(items, edges: edges)
-                if !didCenter { fit(items, in: geo.size); didCenter = true }
+                centreIfNeeded(items, in: geo.size)
             }
+            .onChange(of: geo.size) { centreIfNeeded(items, in: geo.size) }
             .onChange(of: items.map(\.id)) { doc.placeMissing(items, edges: edges) }
             .overlay(alignment: .bottomTrailing) { controls(items, edges: edges, size: geo.size) }
             .overlay {
@@ -117,16 +118,30 @@ struct MindMapView: View {
         }
     }
 
-    // MARK: Layers
+    // MARK: Coordinates
 
-    private func worldPoint(_ id: UUID) -> CGPoint {
-        let p = dragging[id] ?? doc.positions[id] ?? .zero
-        return CGPoint(x: origin.x + p.x, y: origin.y + p.y)
+    private var viewTransform: CGAffineTransform {
+        CGAffineTransform(a: scale, b: 0, c: 0, d: scale, tx: offset.width, ty: offset.height)
     }
+
+    private func mapPoint(_ id: UUID) -> CGPoint {
+        dragging[id] ?? doc.positions[id] ?? .zero
+    }
+
+    private func screen(_ p: CGPoint) -> CGPoint {
+        CGPoint(x: offset.width + p.x * scale, y: offset.height + p.y * scale)
+    }
+
+    private func screen(_ r: CGRect) -> CGRect {
+        CGRect(x: offset.width + r.minX * scale, y: offset.height + r.minY * scale,
+               width: r.width * scale, height: r.height * scale)
+    }
+
+    // MARK: Layers
 
     private struct Zone: Identifiable {
         let tag: String
-        let rect: CGRect
+        let rect: CGRect // map coordinates
         var id: String { tag }
     }
 
@@ -136,7 +151,7 @@ struct MindMapView: View {
         let zones: [Zone] = {
             var byTag: [String: [CGPoint]] = [:]
             for item in items {
-                for tag in item.tags { byTag[tag.lowercased(), default: []].append(worldPoint(item.id)) }
+                for tag in item.tags { byTag[tag.lowercased(), default: []].append(mapPoint(item.id)) }
             }
             return byTag.compactMap { tag, points in
                 guard let minX = points.map(\.x).min(), let maxX = points.map(\.x).max(),
@@ -149,9 +164,10 @@ struct MindMapView: View {
         ForEach(zones) { zone in
             let pair = TagPalette.color(for: zone.tag)
             let color = Color(light: pair.light, dark: pair.dark)
-            RoundedRectangle(cornerRadius: 32, style: .continuous)
+            let r = screen(zone.rect)
+            RoundedRectangle(cornerRadius: 32 * scale, style: .continuous)
                 .fill(color.opacity(0.08))
-                .overlay(RoundedRectangle(cornerRadius: 32, style: .continuous)
+                .overlay(RoundedRectangle(cornerRadius: 32 * scale, style: .continuous)
                     .strokeBorder(color.opacity(0.45), style: StrokeStyle(lineWidth: 1.2, dash: [6, 5])))
                 .overlay(alignment: .topLeading) {
                     Text("#\(zone.tag.uppercased())")
@@ -161,14 +177,14 @@ struct MindMapView: View {
                         .padding(.horizontal, 14)
                         .padding(.top, 10)
                 }
-                .frame(width: zone.rect.width, height: zone.rect.height)
-                .position(x: zone.rect.midX, y: zone.rect.midY)
+                .frame(width: r.width, height: r.height)
+                .position(x: r.midX, y: r.midY)
                 .allowsHitTesting(false)
         }
     }
 
-    private func edgeLayer(_ edges: [MapLayout.Edge]) -> some View {
-        let lines = edges.map { ($0.kind, worldPoint($0.from), worldPoint($0.to)) }
+    private func edgeLayer(_ edges: [MapLayout.Edge], size: CGSize) -> some View {
+        let lines = edges.map { ($0.kind, screen(mapPoint($0.from)), screen(mapPoint($0.to))) }
         return Canvas { context, _ in
             for (kind, a, b) in lines {
                 var path = Path()
@@ -185,7 +201,7 @@ struct MindMapView: View {
                 }
             }
         }
-        .frame(width: Self.world.width, height: Self.world.height)
+        .frame(width: size.width, height: size.height)
         .allowsHitTesting(false)
     }
 
@@ -289,20 +305,30 @@ struct MindMapView: View {
         return pan.simultaneously(with: zoom)
     }
 
+    /// Centres once, as soon as there's a real screen size to centre in.
+    private func centreIfNeeded(_ items: [Item], in size: CGSize) {
+        guard !didCenter, size.width > 0, size.height > 0 else { return }
+        fit(items, in: size)
+        didCenter = true
+    }
+
     /// Zooms and centres so every node is on screen.
     private func fit(_ items: [Item], in size: CGSize) {
-        let points = items.map { worldPoint($0.id) }
+        let points = items.compactMap { doc.positions[$0.id] }
         guard let minX = points.map(\.x).min(), let maxX = points.map(\.x).max(),
               let minY = points.map(\.y).min(), let maxY = points.map(\.y).max() else {
             scale = 1
-            offset = CGSize(width: size.width / 2 - origin.x, height: size.height / 2 - origin.y)
+            offset = CGSize(width: size.width / 2, height: size.height / 2)
             baseScale = scale
             baseOffset = offset
             return
         }
-        let bounds = CGRect(x: minX - 120, y: minY - 80, width: maxX - minX + 240, height: maxY - minY + 160)
-        scale = min(1.2, max(0.3, min(size.width / bounds.width, size.height / bounds.height)))
-        offset = CGSize(width: size.width / 2 - bounds.midX * scale, height: size.height / 2 - bounds.midY * scale)
+        // Leave room for node chips, and for the buttons at the bottom right.
+        let bounds = CGRect(x: minX - 110, y: minY - 60, width: maxX - minX + 220, height: maxY - minY + 120)
+        let usable = CGSize(width: size.width - 24, height: size.height - 110)
+        scale = min(1.2, max(0.3, min(usable.width / bounds.width, usable.height / bounds.height)))
+        offset = CGSize(width: size.width / 2 - bounds.midX * scale,
+                        height: (size.height - 80) / 2 - bounds.midY * scale)
         baseScale = scale
         baseOffset = offset
     }
@@ -311,8 +337,16 @@ struct MindMapView: View {
 
     private func controls(_ items: [Item], edges: [MapLayout.Edge], size: CGSize) -> some View {
         VStack(spacing: 10) {
-            if isScribbling && !doc.drawing.strokes.isEmpty {
-                mapButton("trash", tint: Theme.pink, label: "Clear scribbles") { doc.setDrawing(PKDrawing()) }
+            if isScribbling {
+                mapButton("arrow.uturn.backward", tint: Theme.blue, label: "Undo") { scribble.undo() }
+                    .disabled(!scribble.canUndo)
+                    .opacity(scribble.canUndo ? 1 : 0.4)
+                mapButton("arrow.uturn.forward", tint: Theme.blue, label: "Redo") { scribble.redo() }
+                    .disabled(!scribble.canRedo)
+                    .opacity(scribble.canRedo ? 1 : 0.4)
+                if !doc.drawing.strokes.isEmpty {
+                    mapButton("trash", tint: Theme.pink, label: "Clear scribbles") { scribble.clear() }
+                }
             }
             mapButton(isScribbling ? "hand.point.up.left" : "pencil.tip", tint: isScribbling ? Theme.pink : Theme.violet,
                       label: isScribbling ? "Done scribbling" : "Scribble") {
@@ -320,7 +354,10 @@ struct MindMapView: View {
             }
             if !isScribbling {
                 mapButton("wand.and.stars", tint: Theme.violet, label: "Tidy layout") {
-                    withAnimation(.snappy) { doc.tidy(items, edges: edges) }
+                    withAnimation(.snappy) {
+                        doc.tidy(items, edges: edges)
+                        fit(items, in: size)
+                    }
                 }
                 mapButton("viewfinder", tint: Theme.blue, label: "Fit to screen") {
                     withAnimation(.snappy) { fit(items, in: size) }

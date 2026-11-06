@@ -21,7 +21,12 @@ final class MapDocument {
         var drawing: Data?
     }
 
+    @ObservationIgnored private var loadedFolder: URL?
+
+    /// Loads once per storage folder (re-opening the map doesn't undo unsaved moves).
     func load(from store: ItemStore) {
+        guard loadedFolder != store.folder else { return }
+        loadedFolder = store.folder
         self.store = store
         guard let data = store.readSidecar(Self.fileName),
               let stored = try? JSONDecoder().decode(Stored.self, from: data) else { return }
