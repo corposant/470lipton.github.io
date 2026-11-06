@@ -559,3 +559,15 @@ final class IntervalFormatTests: XCTestCase {
         XCTAssertEqual("every \(IntervalFormat.short(60))", "every hour")
     }
 }
+
+final class NoRepeatTests: XCTestCase {
+    func testNoRepeatTokenAndLabel() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let r = CaptureParser.parse("call bank !norepeat", defaults: CaptureDefaults(firstDelayMinutes: 15, repeatMinutes: 8), now: now).reminder
+        XCTAssertNotNil(r)
+        XCTAssertNil(r?.repeatMinutes)
+        XCTAssertEqual(NogSettings.repeatLabel(0), "No repeat")
+        // A no-repeat reminder fires exactly once.
+        XCTAssertEqual(r?.fireDates(after: now, limit: 5).count, 1)
+    }
+}

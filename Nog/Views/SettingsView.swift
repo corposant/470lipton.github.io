@@ -510,7 +510,7 @@ private struct CaptureCheatSheet: View {
             .listRowBackground(Theme.glass)
             Section {
                 line("!8m  !2h  !1d", "repeat every 8 min / 2 h / 1 day")
-                line("!once", "remind once")
+                line("!once  !norepeat", "remind once, no repeat")
                 line("!off", "no reminder (just an idea)")
                 line("!log  !steady", "gaps double each time, or stay the same")
                 line("!alarm", "ring like a real alarm")

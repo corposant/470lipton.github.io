@@ -73,7 +73,7 @@ enum NogSettings {
     static let repeatChoices = [0, 1, 2, 5, 8, 10, 15, 20, 30, 45, 60, 120, 240, 480, 1440]
 
     static func repeatLabel(_ minutes: Int) -> String {
-        minutes == 0 ? "Once" : "Every \(IntervalFormat.short(minutes))"
+        minutes == 0 ? "No repeat" : "Every \(IntervalFormat.short(minutes))"
     }
 
     /// "Until 9 AM" (or whatever "morning" is set to).

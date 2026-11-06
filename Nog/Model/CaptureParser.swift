@@ -18,7 +18,7 @@ struct CaptureResult: Equatable {
 /// unless you say otherwise with a few optional tokens anywhere in the text:
 ///
 ///   `!8m` `!2h` `!1d`   repeat every 8 minutes / 2 hours / 1 day
-///   `!once`             remind once, don't repeat
+///   `!once` `!norepeat` remind once, don't repeat
 ///   `!log`              logarithmic: gaps double each time (8, 16, 32…), capped at daily
 ///   `!steady`           same gap every time
 ///   `!alarm`            ring like a real alarm (through Silent and Focus)
@@ -52,7 +52,7 @@ enum CaptureParser {
             case "!off", "!idea", "!no":
                 noReminder = true
                 continue
-            case "!once":
+            case "!once", "!norepeat", "!no-repeat":
                 once = true
                 continue
             case "!log", "!logarithmic", "!ease":

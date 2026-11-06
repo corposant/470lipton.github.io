@@ -77,7 +77,7 @@ struct CaptureBar: View {
         } else {
             when = r.start.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day().hour().minute())
         }
-        guard let summary = r.repeatSummary else { return "once, \(when)" }
+        guard let summary = r.repeatSummary else { return "no repeat, \(when)" }
         return "\(when), then \(summary)"
     }
 

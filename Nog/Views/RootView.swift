@@ -234,13 +234,13 @@ struct ItemRow: View {
         if !r.isActive(at: now) {
             let when = r.start.formatted(.relative(presentation: .named))
             if let summary = r.repeatSummary { return "Starts \(when), then \(summary)" }
-            return "Reminds \(when)"
+            return "Reminds once, \(r.start.formatted(date: .omitted, time: .shortened)) · \(when)"
         }
         if r.repeatMinutes != nil, let next = r.nextFire(after: now) {
             return "Nogging until done · next \(next.formatted(.relative(presentation: .named)))"
                 + (r.curve == .logarithmic ? " · easing off" : "")
         }
-        return "Was due \(r.start.formatted(.relative(presentation: .named)))"
+        return "Reminded once, \(r.start.formatted(.relative(presentation: .named)))"
     }
 }
 
