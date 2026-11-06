@@ -35,8 +35,16 @@ struct CaptureHomeView: View {
                 ItemDetailView(id: id)
             }
             .sheet(isPresented: $showSettings) { SettingsView() }
-            .onAppear { focused = true }
+            // The keyboard opens only when you tap the box (or ask for Quick Capture),
+            // so the tab bar stays reachable.
             .onChange(of: router.captureFocusRequest) { focused = true }
+            .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") { focused = false }
+                        .font(.body.weight(.semibold))
+                }
+            }
         }
     }
 
