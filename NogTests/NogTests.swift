@@ -664,3 +664,43 @@ final class ArrangeTests: XCTestCase {
         XCTAssertEqual(MapLayout.arrange(items), MapLayout.arrange(items))
     }
 }
+
+@MainActor
+final class NogSheetTests: XCTestCase {
+    func testMovingKeepsTimeOfDay() {
+        let calendar = Calendar.current
+        let now = calendar.date(from: DateComponents(year: 2030, month: 3, day: 4, hour: 10, minute: 0))!
+        let start = calendar.date(from: DateComponents(year: 2030, month: 3, day: 4, hour: 15, minute: 40))!
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: now)!
+        let moved = NogSheet.moving(start, toDay: tomorrow, now: now)
+        XCTAssertEqual(calendar.component(.day, from: moved), 5)
+        XCTAssertEqual(calendar.component(.hour, from: moved), 15)
+        XCTAssertEqual(calendar.component(.minute, from: moved), 40)
+    }
+
+    func testMovingIntoThePastSnapsToNextMark() {
+        let calendar = Calendar.current
+        let now = calendar.date(from: DateComponents(year: 2030, month: 3, day: 4, hour: 16, minute: 2))!
+        let start = calendar.date(from: DateComponents(year: 2030, month: 3, day: 5, hour: 9, minute: 0))!
+        let moved = NogSheet.moving(start, toDay: now, now: now)
+        XCTAssertGreaterThan(moved, now)
+        XCTAssertEqual(calendar.component(.minute, from: moved), 5)
+    }
+
+    func testPreviewListsUpcomingNogs() {
+        let now = Date(timeIntervalSince1970: 1_900_000_000)
+        var item = Item(title: "Call the plumber")
+        let reminder = Reminder(start: now.addingTimeInterval(600), repeatMinutes: 8)
+        item.reminder = reminder
+        let text = NogSheet.preview(item: item, reminder: reminder, now: now)
+        XCTAssertTrue(text.hasPrefix("First nog"))
+        XCTAssertTrue(text.hasSuffix("until it's nogged."))
+    }
+
+    func testPreviewWhenPaused() {
+        var item = Item(title: "Someday thing")
+        item.status = .someday
+        let reminder = Reminder(start: .now, repeatMinutes: 8)
+        XCTAssertTrue(NogSheet.preview(item: item, reminder: reminder).hasPrefix("Paused"))
+    }
+}

@@ -20,16 +20,15 @@ private struct ItemEditor: View {
     @Environment(\.dismiss) private var dismiss
     let item: Item
 
-    @State private var tagsText: String
     @State private var newChild = ""
+    @State private var newTag = ""
+    @State private var isAddingTag = false
+    @FocusState private var tagFieldFocused: Bool
     @State private var showBreakdown = false
     @State private var showParentPicker = false
+    @State private var showNogSheet = false
+    @State private var showKnob = false
     @State private var confirmDelete = false
-
-    init(item: Item) {
-        self.item = item
-        tagsText = item.tags.joined(separator: ", ")
-    }
 
     /// Edits go straight to the store (and disk), so a "Done" tapped on a
     /// notification while this screen is open is never overwritten.
@@ -45,22 +44,7 @@ private struct ItemEditor: View {
         store.update(current)
     }
 
-    // MARK: Time helpers for the tuner
-
-    static func minutesOfDay(_ date: Date) -> Int {
-        let c = Calendar.current.dateComponents([.hour, .minute], from: date)
-        return (c.hour ?? 0) * 60 + (c.minute ?? 0)
-    }
-
-    static func setting(minutes: Int, on date: Date) -> Date {
-        Calendar.current.date(bySettingHour: minutes / 60, minute: minutes % 60, second: 0, of: date) ?? date
-    }
-
-    static func combine(day: Date, timeOf time: Date) -> Date {
-        setting(minutes: minutesOfDay(time), on: day)
-    }
-
-    /// The dial behaves like the matching buttons: Doing starts with the suggested
+    /// The knob behaves like the matching buttons: Doing starts with the suggested
     /// timebox, Nogged marks it done, Open stops or reopens, Dream parks it.
     private func setStatus(_ new: ItemStatus) {
         guard new != item.status else { return }
@@ -72,148 +56,326 @@ private struct ItemEditor: View {
         }
     }
 
-    private func editReminder(_ change: (inout Reminder) -> Void) {
-        guard var current = store.items[item.id], var reminder = current.reminder else { return }
-        change(&reminder)
-        current.reminder = reminder
-        store.update(current)
-    }
+    private var tint: Color { StatusDial.tint(item.status) }
 
+    // The page, top to bottom: where it lives, what it is, its state and the one
+    // thing to do next; then the content (notes, sub-items, tags); details last.
     var body: some View {
-        // Title → Start → Sub-items → Notes → Tags → Reminder → Status dial → the rest.
         Form {
-            Section {
-                TextField("Title", text: binding(\.title), axis: .vertical)
-                    .font(.title3.weight(.semibold))
-            }
-            .listRowBackground(Theme.glass)
-
-            doingSection
-
+            hero
+            stateSection
+            notesSection
             childrenSection
-
-            Section {
-                TextEditor(text: binding(\.body))
-                    .frame(minHeight: 140)
-            } header: {
-                SectionLabel(title: "Notes")
-            } footer: {
-                Text(verbatim: "Link to other items with [[Their title]].")
-            }
-            .listRowBackground(Theme.glass)
-
-            GlassSection("Tags") {
-                TextField("comma, separated", text: $tagsText)
-                    .textInputAutocapitalization(.never)
-                    .onChange(of: tagsText) {
-                        set(\.tags, tagsText.split(separator: ",")
-                            .map { $0.trimmingCharacters(in: .whitespaces) }
-                            .filter { !$0.isEmpty })
-                    }
-            }
-
-            reminderSection
-
-            Section {
-                VStack(spacing: 2) {
-                    StatusDial(status: item.status) { setStatus($0) }
-                    Text(StatusDial.summary(item.status))
-                        .font(.caption)
-                        .foregroundStyle(Theme.muted)
-                        .multilineTextAlignment(.center)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 6)
-            } header: {
-                SectionLabel(title: "Status")
-            }
-            .listRowBackground(Theme.glass)
-
-            timeSection
-            parentSection
+            tagsSection
+            detailsSection
             linksSection
-
-            Section {
-                Button("Delete", role: .destructive) { confirmDelete = true }
-                    // Anchored to the button, so the confirmation pops up right here.
-                    .confirmationDialog("Delete this item?", isPresented: $confirmDelete, titleVisibility: .visible) {
-                        Button("Delete", role: .destructive) {
-                            store.delete(item.id)
-                            dismiss()
-                        }
-                    } message: {
-                        Text("“\(item.title)” and its notes will be removed. Sub-items stay, unfiled.")
-                    }
-            }
-            .listRowBackground(Theme.glass)
         }
         .nogListStyle()
+        .listSectionSpacing(14)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) { moreMenu }
+        }
         .sheet(isPresented: $showParentPicker) {
             ParentPicker(item: item)
         }
         .sheet(isPresented: $showBreakdown) {
             BreakdownSheet(item: item)
         }
+        .sheet(isPresented: $showNogSheet) {
+            NogSheet(id: item.id)
+        }
+        .sensoryFeedback(.success, trigger: item.status) { _, new in new == .done }
+        .animation(.snappy, value: item.status)
         // iOS 27 on-screen awareness: "Siri, snooze this", "mark this done".
         .appEntityIdentifier(EntityIdentifier(for: ReminderEntity.self, identifier: item.id))
     }
 
-    // MARK: Doing
+    // MARK: Hero
+
+    private var hero: some View {
+        Section {
+            VStack(alignment: .leading, spacing: 10) {
+                if let parent = store.parent(of: item) {
+                    Button {
+                        router.push(parent.id)
+                    } label: {
+                        Label(parent.title.uppercased(), systemImage: "arrow.up")
+                            .font(.nogLabel)
+                            .tracking(1.6)
+                            .lineLimit(1)
+                            .foregroundStyle(Theme.violet)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Part of \(parent.title)")
+                }
+                TextField("Title", text: binding(\.title), axis: .vertical)
+                    .font(.nogTitle(28))
+                    .foregroundStyle(item.status == .done ? Theme.muted : .primary)
+                HStack(spacing: 10) {
+                    statusPill
+                    Text(metaLine)
+                        .font(.nogMeta)
+                        .foregroundStyle(Theme.muted)
+                        .lineLimit(1)
+                }
+            }
+            .padding(.vertical, 2)
+            .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets(top: 4, leading: 4, bottom: 4, trailing: 4))
+        }
+    }
+
+    /// The status, coloured by state. Tap to turn the knob.
+    private var statusPill: some View {
+        Button {
+            showKnob = true
+        } label: {
+            HStack(spacing: 7) {
+                if item.status == .done {
+                    Image(systemName: "checkmark").font(.system(size: 10, weight: .heavy))
+                } else {
+                    Circle().fill(tint).frame(width: 7, height: 7).shadow(color: tint, radius: 3)
+                }
+                Text(item.status.label.uppercased())
+                    .font(.nogLabel)
+                    .tracking(1.5)
+            }
+            .foregroundStyle(tint)
+            .padding(.horizontal, 12)
+            .frame(height: 30)
+            .background(tint.opacity(0.12), in: Capsule())
+            .overlay(Capsule().strokeBorder(tint.opacity(0.55), lineWidth: 1))
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Status: \(item.status.label)")
+        .accessibilityHint("Opens the status knob")
+        .popover(isPresented: $showKnob) {
+            VStack(spacing: 4) {
+                StatusDial(status: item.status) { new in
+                    setStatus(new)
+                }
+                Text(StatusDial.summary(item.status))
+                    .font(.caption)
+                    .foregroundStyle(Theme.muted)
+            }
+            .padding(16)
+            .presentationCompactAdaptation(.popover)
+        }
+    }
+
+    /// "~15 min · caught Tue"
+    private var metaLine: String {
+        var parts: [String] = []
+        if let estimate = item.estimateMinutes { parts.append("~" + IntervalFormat.amount(estimate)) }
+        parts.append("caught " + Self.dayWord(item.created))
+        return parts.joined(separator: " · ")
+    }
+
+    /// "today", "yesterday", "Tue", or "Nov 3".
+    static func dayWord(_ date: Date, now: Date = .now) -> String {
+        let calendar = Calendar.current
+        if calendar.isDateInToday(date) { return "today" }
+        if calendar.isDateInYesterday(date) { return "yesterday" }
+        if let days = calendar.dateComponents([.day], from: date, to: now).day, days < 7 {
+            return date.formatted(.dateTime.weekday(.abbreviated))
+        }
+        return date.formatted(.dateTime.month(.abbreviated).day())
+    }
+
+    // MARK: State: next nog / doing / nogged, plus the two actions
 
     @ViewBuilder
-    private var doingSection: some View {
-        if item.isDoing {
+    private var stateSection: some View {
+        switch item.status {
+        case .doing:
             Section {
                 DoingCard(item: item, showsTitle: false)
                     .listRowBackground(Color.clear)
                     // A little room so the section's rounded clip doesn't cut the card.
                     .listRowInsets(EdgeInsets(top: 4, leading: 4, bottom: 4, trailing: 4))
-            } header: {
-                SectionLabel(title: "Nogitivity", tint: Theme.blue)
             }
-        } else if item.status == .done {
+        case .done:
             Section {
-                HStack {
-                    Label(item.completed.map { "Nogged \($0.formatted(.relative(presentation: .named)))" } ?? "Nogged",
-                          systemImage: "checkmark.circle.fill")
-                        .foregroundStyle(StatusDial.tint(.done))
-                    Spacer()
-                    Button {
-                        store.reopen(item.id)
-                    } label: {
-                        Label("Reopen", systemImage: "arrow.uturn.backward")
-                    }
-                    .buttonStyle(OutlineButtonStyle(tint: Theme.violet, expands: false))
-                }
-                .padding(.vertical, 2)
-            }
-            .listRowBackground(Theme.glass)
-        } else {
-            Section {
-                StartButton(item: item, prominent: true)
-                    // Room around the button so the section's rounded clip doesn't cut it.
-                    .listRowInsets(EdgeInsets(top: 6, leading: 6, bottom: 6, trailing: 6))
+                NoggedCard(item: item) { store.reopen(item.id) }
                     .listRowBackground(Color.clear)
-                // Finishing is its own clearly-labelled action, never a "save" button:
-                // edits on this page are saved as you make them.
-                Button {
-                    store.markDone(item.id)
-                } label: {
-                    Label("Mark nogged", systemImage: "checkmark.circle")
-                }
-                .buttonStyle(OutlineButtonStyle(tint: StatusDial.tint(.done)))
-                .listRowInsets(EdgeInsets(top: 0, leading: 6, bottom: 6, trailing: 6))
-                .listRowBackground(Color.clear)
-            } footer: {
-                Text("Tap to start with \(store.suggestedTimebox(for: item.id).label.lowercased()). Hold for other timeboxes.")
+                    .listRowInsets(EdgeInsets(top: 4, leading: 4, bottom: 4, trailing: 4))
             }
+        case .open, .someday:
+            Section {
+                if item.status == .someday {
+                    DreamCard { store.reopen(item.id) }
+                } else {
+                    NextNogCard(item: item) { showNogSheet = true }
+                }
+                actions
+            }
+            .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets(top: 4, leading: 4, bottom: 4, trailing: 4))
         }
     }
 
-    @ViewBuilder
-    private var timeSection: some View {
-        GlassSection("Time") {
+    /// ▶︎ Start and ✓ Nogged, side by side. Finishing is its own clearly-labelled
+    /// action, never a "save" button: edits on this page are saved as you make them.
+    private var actions: some View {
+        HStack(spacing: 10) {
+            StartButton(item: item, prominent: true)
+            Button {
+                store.markDone(item.id)
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "checkmark").font(.system(size: 12, weight: .bold))
+                    Text("NOGGED").font(.nogTitle(13)).tracking(2)
+                }
+                .foregroundStyle(StatusDial.tint(.done))
+                .padding(.vertical, 15)
+                .frame(width: 124)
+                .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .strokeBorder(StatusDial.tint(.done).opacity(0.75), lineWidth: 1.5))
+                .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel("Mark nogged")
+        }
+        .padding(.top, 4)
+    }
+
+    // MARK: Content
+
+    private var notesSection: some View {
+        Section {
+            TextEditor(text: binding(\.body))
+                .frame(minHeight: 120)
+                .scrollContentBackground(.hidden)
+                .overlay(alignment: .topLeading) {
+                    if item.body.isEmpty {
+                        Text(verbatim: "Notes. Link to other items with [[Their title]].")
+                            .foregroundStyle(Theme.muted.opacity(0.8))
+                            .padding(.top, 8)
+                            .padding(.leading, 5)
+                            .allowsHitTesting(false)
+                    }
+                }
+                .foregroundStyle(item.status == .done ? Theme.muted : .primary)
+        }
+        .listRowBackground(Color.clear)
+        .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+    }
+
+    private var childrenSection: some View {
+        let children = store.children(of: item.id)
+        let done = children.filter { $0.status == .done }.count
+        return Section {
+            ForEach(children) { child in
+                HStack {
+                    Button {
+                        if child.status == .done { store.reopen(child.id) } else { store.markDone(child.id) }
+                    } label: {
+                        Image(systemName: child.status == .done ? "checkmark.circle.fill" : "circle")
+                            .font(.title3)
+                            .foregroundStyle(child.status == .done ? Theme.blue : Theme.muted)
+                    }
+                    .buttonStyle(.borderless)
+                    .accessibilityLabel(child.status == .done ? "Reopen \(child.title)" : "Mark \(child.title) nogged")
+                    NavigationLink(value: child.id) {
+                        Text(child.title)
+                            .strikethrough(child.status == .done)
+                            .foregroundStyle(child.status == .done ? Theme.muted : .primary)
+                    }
+                }
+            }
+            HStack(spacing: 10) {
+                Image(systemName: "plus").foregroundStyle(Theme.muted)
+                TextField("Add sub-item", text: $newChild)
+                    .submitLabel(.done)
+                    .onSubmit {
+                        store.capture(newChild, parent: item.id)
+                        newChild = ""
+                    }
+                if ItemAssistant.isAvailable {
+                    Button {
+                        showBreakdown = true
+                    } label: {
+                        Label("Break down", systemImage: "sparkles")
+                            .font(.subheadline)
+                            .foregroundStyle(Theme.violet)
+                            .padding(.horizontal, 10)
+                            .frame(height: 30)
+                            .overlay(Capsule().strokeBorder(Theme.violet.opacity(0.45), lineWidth: 1))
+                    }
+                    .buttonStyle(.borderless)
+                }
+            }
+        } header: {
+            HStack {
+                SectionLabel(title: children.isEmpty ? "Sub-items" : "Sub-items · \(done) of \(children.count)")
+                if !children.isEmpty {
+                    ProgressView(value: Double(done), total: Double(children.count))
+                        .tint(Theme.blue)
+                        .frame(width: 70)
+                }
+            }
+        }
+        .listRowBackground(Theme.glass)
+    }
+
+    private var tagsSection: some View {
+        Section {
+            FlowLayout(spacing: 8) {
+                ForEach(item.tags, id: \.self) { tag in
+                    TagChip(tag: tag) { removeTag(tag) }
+                }
+                if isAddingTag {
+                    TextField("tag", text: $newTag)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .focused($tagFieldFocused)
+                        .submitLabel(.done)
+                        .onSubmit(addTag)
+                        .frame(width: 110, height: 32)
+                        .padding(.horizontal, 12)
+                        .overlay(Capsule().strokeBorder(Theme.edgeStrong, lineWidth: 1))
+                        .onAppear { tagFieldFocused = true }
+                        .onChange(of: tagFieldFocused) { _, focused in if !focused { addTag() } }
+                } else {
+                    Button {
+                        isAddingTag = true
+                    } label: {
+                        Text("+ tag")
+                            .font(.subheadline)
+                            .foregroundStyle(Theme.muted)
+                            .padding(.horizontal, 12)
+                            .frame(height: 32)
+                            .overlay(Capsule().strokeBorder(Theme.edgeStrong, style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
+                    }
+                    .buttonStyle(.borderless)
+                    .accessibilityLabel("Add tag")
+                }
+            }
+            .padding(.vertical, 2)
+        }
+        .listRowBackground(Color.clear)
+        .listRowInsets(EdgeInsets(top: 2, leading: 4, bottom: 2, trailing: 4))
+    }
+
+    private func addTag() {
+        let tag = newTag.trimmingCharacters(in: .whitespaces)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "#,"))
+        newTag = ""
+        isAddingTag = false
+        guard !tag.isEmpty, !item.tags.contains(where: { $0.caseInsensitiveCompare(tag) == .orderedSame }) else { return }
+        set(\.tags, item.tags + [tag])
+    }
+
+    private func removeTag(_ tag: String) {
+        set(\.tags, item.tags.filter { $0 != tag })
+    }
+
+    // MARK: Details
+
+    private var detailsSection: some View {
+        Section {
             Picker("Estimate", selection: Binding(
                 get: { item.estimateMinutes ?? 0 },
                 set: { set(\.estimateMinutes, $0 > 0 ? $0 : nil) })) {
@@ -224,149 +386,61 @@ private struct ItemEditor: View {
             if item.totalTimeSpent() >= 60 {
                 LabeledContent("Time spent", value: DurationFormat.short(item.totalTimeSpent()))
             }
-            if let completed = item.completed {
-                LabeledContent("Finished", value: completed.formatted(date: .abbreviated, time: .shortened))
-            }
-        }
-    }
-
-    // MARK: Reminder
-
-    private var reminderSection: some View {
-        Section {
-            Toggle("Nog me", isOn: Binding(
-                get: { item.reminder != nil },
-                set: { on in
-                    set(\.reminder, on ? NogSettings.defaultReminderFromNow : nil)
-                }))
-            if let reminder = item.reminder {
-                Menu {
-                    ForEach(NogProfile.allCases) { profile in
-                        Button {
-                            editReminder { $0 = profile.apply(to: $0) }
-                        } label: {
-                            Label("\(profile.label): \(profile.summary)", systemImage: profile.systemImage)
-                        }
-                    }
+            if item.reminder != nil, item.status != .open {
+                Button {
+                    showNogSheet = true
                 } label: {
-                    HStack {
-                        Text("Profile").foregroundStyle(.primary)
-                        Spacer()
-                        let current = NogProfile.matching(reminder)
-                        Label(current?.label ?? "Custom", systemImage: current?.systemImage ?? "slider.horizontal.3")
-                            .foregroundStyle(current == .relentless ? Theme.pink : Theme.violet)
-                    }
+                    LabeledContent("Nog me", value: "Paused while \(item.status.label.lowercased())")
                 }
-                // Day from a compact date picker, time from the tuner.
-                DatePicker("Starts", selection: Binding(
-                    get: { reminder.start },
-                    set: { day in editReminder { $0.start = Self.combine(day: day, timeOf: $0.start) } }),
-                    displayedComponents: .date)
-                // Rolls across days (past midnight → tomorrow…), never earlier than now.
-                TimeTuner(date: Binding(
-                    get: { reminder.start },
-                    set: { date in editReminder { $0.start = date } }),
-                    title: "Starts at", notBefore: .now)
-                    .padding(.vertical, 4)
-                Picker("Repeat", selection: Binding(
-                    get: { reminder.repeatMinutes ?? 0 },
-                    set: { minutes in editReminder { $0.repeatMinutes = minutes > 0 ? minutes : nil } })) {
-                    ForEach(repeatChoices(including: reminder.repeatMinutes ?? 0), id: \.self) {
-                        Text(NogSettings.repeatLabel($0)).tag($0)
-                    }
-                }
-                if reminder.repeatMinutes != nil {
-                    Picker("Style", selection: Binding(
-                        get: { reminder.curve },
-                        set: { curve in editReminder { $0.curve = curve } })) {
-                        ForEach(RepeatCurve.allCases, id: \.self) { Text($0.label).tag($0) }
-                    }
-                    .pickerStyle(.segmented)
-                }
-                Toggle(isOn: Binding(
-                    get: { reminder.alarm },
-                    set: { on in
-                        if on {
-                            Task {
-                                if await AlarmScheduler.shared.requestAuthorization() {
-                                    editReminder { $0.alarm = true }
-                                }
-                            }
-                        } else {
-                            editReminder { $0.alarm = false }
-                        }
-                    })) {
-                    Label("Ring like an alarm", systemImage: "alarm.waves.left.and.right")
-                }
-                HStack {
-                    Button("Snooze \(IntervalFormat.amount(NogSettings.snoozeMinutes))") {
-                        store.snooze(item.id, until: .now.addingTimeInterval(TimeInterval(NogSettings.snoozeMinutes * 60)))
-                    }
-                        .buttonStyle(OutlineButtonStyle(tint: Theme.pink))
-                    Button(NogSettings.morningLabel) { store.snooze(item.id, until: NogSettings.nextMorning()) }
-                        .buttonStyle(OutlineButtonStyle(tint: Theme.violet))
-                }
+                .foregroundStyle(.primary)
             }
         } header: {
-            SectionLabel(title: "Reminder")
+            SectionLabel(title: "Details")
         } footer: {
-            if item.isOpen, let reminder = item.reminder, let next = reminder.nextFire(after: .now) {
-                Text("Next nog about \(next.formatted(date: .abbreviated, time: .shortened))"
-                     + (reminder.repeatSummary.map { ", then \($0)." } ?? "."))
-            } else if item.reminder != nil, !item.isOpen {
-                Text("Paused: reminders only fire for open items.")
-            }
+            Text("Saved as you type.")
         }
         .listRowBackground(Theme.glass)
-        .tint(Theme.pink)
     }
 
-    private func repeatChoices(including current: Int) -> [Int] {
-        Array(Set(NogSettings.repeatChoices + [current])).sorted()
-    }
-
-    // MARK: Structure
-
-    private var childrenSection: some View {
-        let children = store.children(of: item.id)
-        return GlassSection("Sub-items") {
-            ForEach(children) { child in
-                HStack {
-                    Button {
-                        if child.status == .done { store.reopen(child.id) } else { store.markDone(child.id) }
-                    } label: {
-                        Image(systemName: child.status == .done ? "checkmark.circle.fill" : "circle")
-                            .foregroundStyle(child.status == .done ? Theme.blue : Theme.muted)
-                    }
-                    .buttonStyle(.borderless)
-                    NavigationLink(value: child.id) {
-                        Text(child.title).strikethrough(child.status == .done)
-                    }
-                }
-            }
-            if ItemAssistant.isAvailable {
-                Button {
-                    showBreakdown = true
-                } label: {
-                    Label("Break it down", systemImage: "sparkles")
-                }
-            }
-            TextField("Add sub-item…", text: $newChild)
-                .submitLabel(.done)
-                .onSubmit {
-                    store.capture(newChild, parent: item.id)
-                    newChild = ""
-                }
-        }
-    }
-
-    private var parentSection: some View {
-        GlassSection("Part of") {
+    @ViewBuilder
+    private var moreMenu: some View {
+        Menu {
             if let parent = store.parent(of: item) {
-                NavigationLink(value: parent.id) { Label(parent.title, systemImage: "arrow.up.circle") }
-                Button("Detach from \(parent.title)") { set(\.parentID, nil) }
+                Button {
+                    showParentPicker = true
+                } label: {
+                    Label("Move…", systemImage: "arrow.up.and.down.and.arrow.left.and.right")
+                }
+                Button {
+                    set(\.parentID, nil)
+                } label: {
+                    Label("Take out of \(parent.title)", systemImage: "arrow.up.forward.square")
+                }
+            } else {
+                Button {
+                    showParentPicker = true
+                } label: {
+                    Label("Put inside another item…", systemImage: "arrow.down.right.square")
+                }
             }
-            Button(item.parentID == nil ? "Put inside another item…" : "Move…") { showParentPicker = true }
+            Divider()
+            Button(role: .destructive) {
+                confirmDelete = true
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+        } label: {
+            Image(systemName: "ellipsis")
+        }
+        .accessibilityLabel("More")
+        // Anchored to the ••• button, so the confirmation pops up right here.
+        .confirmationDialog("Delete this item?", isPresented: $confirmDelete, titleVisibility: .visible) {
+            Button("Delete", role: .destructive) {
+                store.delete(item.id)
+                dismiss()
+            }
+        } message: {
+            Text("“\(item.title)” and its notes will be removed. Sub-items stay, unfiled.")
         }
     }
 
@@ -397,6 +471,273 @@ private struct ItemEditor: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - State cards
+
+/// The one question you have about an open item: when will it nog me next?
+/// Big glowing readout, the rhythm underneath (tap to change), and the two snoozes.
+private struct NextNogCard: View {
+    @Environment(ItemStore.self) private var store
+    let item: Item
+    let edit: () -> Void
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 30)) { context in
+            content(now: context.date)
+        }
+    }
+
+    @ViewBuilder
+    private func content(now: Date) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if let reminder = item.reminder, let next = reminder.nextFire(after: now) {
+                HStack(alignment: .lastTextBaseline) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("NEXT NOG · \(Self.day(next).uppercased())")
+                            .font(.nogMicroLabel)
+                            .tracking(1.8)
+                            .foregroundStyle(Color(red: 0.54, green: 0.58, blue: 0.64))
+                        GlowReadout(text: next.formatted(date: .omitted, time: .shortened), size: 36)
+                    }
+                    Spacer()
+                    Text(Self.countdown(to: next, now: now))
+                        .font(.nogReadout(14))
+                        .foregroundStyle(Theme.blue)
+                }
+                rhythmRow(reminder.repeatSummary.map { "then \($0)" } ?? "once, no repeat", reminder: reminder)
+                snoozes
+            } else if let reminder = item.reminder {
+                // A one-off that has already gone off.
+                Text("NOGGED YOU AT \(reminder.start.formatted(date: .omitted, time: .shortened))")
+                    .font(.nogMicroLabel)
+                    .tracking(1.8)
+                    .foregroundStyle(Color(red: 0.54, green: 0.58, blue: 0.64))
+                rhythmRow("no repeat", reminder: reminder)
+                snoozes
+            } else {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("NOT NOGGING")
+                            .font(.nogMicroLabel)
+                            .tracking(1.8)
+                            .foregroundStyle(Color(red: 0.54, green: 0.58, blue: 0.64))
+                        Text("No reminder on this one.")
+                            .foregroundStyle(Theme.muted)
+                    }
+                    Spacer()
+                    Button("Nog me…", action: edit)
+                        .buttonStyle(OutlineButtonStyle(tint: Theme.pink, expands: false))
+                }
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .background(RecessedWell(cornerRadius: 14))
+    }
+
+    private func rhythmRow(_ text: String, reminder: Reminder) -> some View {
+        Button(action: edit) {
+            HStack(spacing: 4) {
+                Text(text).foregroundStyle(Color(white: 0.8))
+                if let profile = NogProfile.matching(reminder) {
+                    Text("· \(profile.label)").foregroundStyle(Theme.violet)
+                } else {
+                    Text("· Custom").foregroundStyle(Theme.violet)
+                }
+                if reminder.alarm {
+                    Image(systemName: "alarm.waves.left.and.right").foregroundStyle(Theme.pink)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(Theme.muted)
+            }
+            .font(.subheadline)
+            .lineLimit(1)
+            .frame(minHeight: 30)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("Change how this nogs you")
+    }
+
+    private var snoozes: some View {
+        HStack(spacing: 8) {
+            Button("Snooze \(IntervalFormat.amount(NogSettings.snoozeMinutes))") {
+                store.snooze(item.id, until: .now.addingTimeInterval(TimeInterval(NogSettings.snoozeMinutes * 60)))
+            }
+            .buttonStyle(OutlineButtonStyle(tint: Theme.pink))
+            Button(NogSettings.morningLabel) { store.snooze(item.id, until: NogSettings.nextMorning()) }
+                .buttonStyle(OutlineButtonStyle(tint: Theme.violet))
+        }
+    }
+
+    static func day(_ date: Date) -> String {
+        let calendar = Calendar.current
+        if calendar.isDateInToday(date) { return "Today" }
+        if calendar.isDateInTomorrow(date) { return "Tomorrow" }
+        return date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day())
+    }
+
+    /// "in 12 min", "in 3h 5m", "now"
+    static func countdown(to date: Date, now: Date) -> String {
+        let minutes = Int((date.timeIntervalSince(now) / 60).rounded(.up))
+        if minutes <= 0 { return "now" }
+        if minutes < 60 { return "in \(minutes) min" }
+        if minutes < 1440 { return minutes % 60 == 0 ? "in \(minutes / 60)h" : "in \(minutes / 60)h \(minutes % 60)m" }
+        return "in \(minutes / 1440)d"
+    }
+}
+
+/// Parked in Dream nogs: say so, and offer the way back.
+private struct DreamCard: View {
+    let reopen: () -> Void
+
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("DREAMING")
+                    .font(.nogMicroLabel)
+                    .tracking(1.8)
+                    .foregroundStyle(Theme.violet)
+                Text("Parked in Dream nogs. No nogs.")
+                    .foregroundStyle(Theme.muted)
+            }
+            Spacer()
+            Button("Make it open", action: reopen)
+                .buttonStyle(OutlineButtonStyle(tint: Theme.pink, expands: false))
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .background(RecessedWell(cornerRadius: 14))
+    }
+}
+
+/// Finished: when, how long it took, and Reopen.
+private struct NoggedCard: View {
+    let item: Item
+    let reopen: () -> Void
+
+    var body: some View {
+        HStack(spacing: 14) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("NOGGED · \(NextNogCard.day(item.completed ?? .now).uppercased())")
+                    .font(.nogMicroLabel)
+                    .tracking(1.8)
+                    .foregroundStyle(Color(red: 0.54, green: 0.58, blue: 0.64))
+                GlowReadout(text: (item.completed ?? .now).formatted(date: .omitted, time: .shortened),
+                            size: 28, color: Color(red: 0.78, green: 0.96, blue: 0.87), glow: StatusDial.tint(.done))
+                if item.totalTimeSpent() >= 60 {
+                    Text("took \(DurationFormat.short(item.totalTimeSpent()))")
+                        .font(.subheadline)
+                        .foregroundStyle(Theme.muted)
+                }
+            }
+            Spacer()
+            Button {
+                reopen()
+            } label: {
+                Label("Reopen", systemImage: "arrow.uturn.backward")
+            }
+            .buttonStyle(OutlineButtonStyle(tint: Theme.violet, expands: false))
+        }
+        .padding(16)
+        .background(RecessedWell(cornerRadius: 14))
+    }
+}
+
+/// Pro-app LCD digits: unlit "8"s behind, glowing numbers in front.
+struct GlowReadout: View {
+    let text: String
+    var size: CGFloat = 36
+    var color = Color(red: 0.75, green: 0.89, blue: 1.0)
+    var glow = Theme.blue
+
+    var body: some View {
+        ZStack(alignment: .leading) {
+            Text(String(text.map { $0.isNumber ? "8" : $0 })).foregroundStyle(glow.opacity(0.07))
+            Text(text)
+                .foregroundStyle(color)
+                .shadow(color: glow.opacity(0.55), radius: 8)
+                .shadow(color: glow.opacity(0.9), radius: 1)
+        }
+        .font(.nogReadout(size))
+        .monospacedDigit()
+    }
+}
+
+/// A tag, coloured like its zone on the Map. Long-press to remove.
+private struct TagChip: View {
+    let tag: String
+    let remove: () -> Void
+
+    var body: some View {
+        let c = TagPalette.color(for: tag)
+        let color = Color(light: c.light, dark: c.dark)
+        Text("#\(tag)")
+            .font(.subheadline)
+            .foregroundStyle(color)
+            .padding(.horizontal, 12)
+            .frame(height: 32)
+            .background(color.opacity(0.10), in: Capsule())
+            .overlay(Capsule().strokeBorder(color.opacity(0.45), lineWidth: 1))
+            .contextMenu {
+                Button(role: .destructive, action: remove) {
+                    Label("Remove #\(tag)", systemImage: "xmark")
+                }
+            }
+            .accessibilityAction(named: "Remove", remove)
+    }
+}
+
+/// Lays children out left to right, wrapping onto new lines.
+struct FlowLayout: Layout {
+    var spacing: CGFloat = 8
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let rows = arrange(proposal: proposal, subviews: subviews)
+        let width = rows.map(\.width).max() ?? 0
+        let height = rows.map(\.height).reduce(0, +) + spacing * CGFloat(max(0, rows.count - 1))
+        return CGSize(width: proposal.width ?? width, height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var y = bounds.minY
+        for row in arrange(proposal: proposal, subviews: subviews) {
+            var x = bounds.minX
+            for index in row.indices {
+                let size = subviews[index].sizeThatFits(.unspecified)
+                subviews[index].place(at: CGPoint(x: x, y: y + (row.height - size.height) / 2),
+                                      proposal: ProposedViewSize(size))
+                x += size.width + spacing
+            }
+            y += row.height + spacing
+        }
+    }
+
+    private struct Row {
+        var indices: [Int] = []
+        var width: CGFloat = 0
+        var height: CGFloat = 0
+    }
+
+    private func arrange(proposal: ProposedViewSize, subviews: Subviews) -> [Row] {
+        let maxWidth = proposal.width ?? .infinity
+        var rows: [Row] = [Row()]
+        for index in subviews.indices {
+            let size = subviews[index].sizeThatFits(.unspecified)
+            if !rows[rows.count - 1].indices.isEmpty, rows[rows.count - 1].width + spacing + size.width > maxWidth {
+                rows.append(Row())
+            }
+            var row = rows[rows.count - 1]
+            row.width += (row.indices.isEmpty ? 0 : spacing) + size.width
+            row.height = max(row.height, size.height)
+            row.indices.append(index)
+            rows[rows.count - 1] = row
+        }
+        return rows
     }
 }
 
