@@ -177,3 +177,164 @@ enum MapPage {
             .sorted { $0.count != $1.count ? $0.count > $1.count : $0.tag < $1.tag }
     }
 }
+
+// MARK: - Smart arrangement
+
+extension MapLayout {
+    /// Room each node needs (a chip plus breathing space).
+    static let cell = CGSize(width: 196, height: 58)
+
+    /// A deliberate, tidy arrangement:
+    /// - each project is a star: sub-items in a ring around it, their own sub-items fanned outward;
+    /// - loose items sit on a two-column shelf;
+    /// - things sharing a tag are gathered into one group, groups packed in rows;
+    /// - a final pass nudges apart anything still overlapping.
+    /// Deterministic: the same items always give the same picture. Centred on (0, 0).
+    static func arrange(_ items: [Item]) -> [UUID: CGPoint] {
+        let ids = Set(items.map(\.id))
+        var children: [UUID: [Item]] = [:]
+        for item in items {
+            if let parent = item.parentID, parent != item.id, ids.contains(parent) {
+                children[parent, default: []].append(item)
+            }
+        }
+        for key in children.keys { children[key]?.sort { $0.created < $1.created } }
+
+        var visited = Set<UUID>()
+        var weights: [UUID: Int] = [:]
+        func weight(_ id: UUID, depth: Int = 0) -> Int {
+            if let w = weights[id] { return w }
+            guard depth < 12 else { return 1 }
+            let w = max(1, (children[id] ?? []).reduce(0) { $0 + weight($1.id, depth: depth + 1) })
+            weights[id] = w
+            return w
+        }
+
+        /// Places a star around `id`; positions are relative to the star's centre.
+        func star(_ id: UUID) -> [UUID: CGPoint] {
+            var out: [UUID: CGPoint] = [:]
+            func place(_ id: UUID, at p: CGPoint, angle: Double, spread: Double, depth: Int) {
+                out[id] = p
+                visited.insert(id)
+                let kids = (children[id] ?? []).filter { !visited.contains($0.id) }
+                guard !kids.isEmpty, depth < 8 else { return }
+                let total = Double(kids.reduce(0) { $0 + weight($1.id) })
+                // Radius big enough that the kids' chips fit along the arc.
+                let radius = max(depth == 0 ? 170 : 140, Double(kids.count) * 170 / max(spread, 0.7))
+                var a = angle - spread / 2
+                for kid in kids {
+                    let share = spread * Double(weight(kid.id)) / total
+                    let mid = a + share / 2
+                    let kp = CGPoint(x: p.x + cos(mid) * radius, y: p.y + sin(mid) * radius * 0.82)
+                    place(kid.id, at: kp, angle: mid, spread: min(max(share, 0.9), .pi * 0.85), depth: depth + 1)
+                    a += share
+                }
+            }
+            place(id, at: .zero, angle: -.pi / 2, spread: 2 * .pi, depth: 0)
+            return out
+        }
+
+        // Roots: items whose parent isn't on this page. Anything stuck in a parent loop
+        // is picked up afterwards as its own root.
+        var roots = items.filter { $0.parentID.map { !ids.contains($0) } ?? true }
+            .sorted { $0.created < $1.created }
+
+        // Group roots by tag (first tag alphabetically), untagged last.
+        func groupKey(_ item: Item) -> String {
+            item.tags.map { $0.lowercased() }.sorted().first ?? "\u{FFFF}"
+        }
+
+        struct Block { var positions: [UUID: CGPoint]; var bounds: CGRect }
+        func block(_ positions: [UUID: CGPoint]) -> Block {
+            let xs = positions.values.map(\.x), ys = positions.values.map(\.y)
+            let rect = CGRect(x: (xs.min() ?? 0) - cell.width / 2, y: (ys.min() ?? 0) - cell.height / 2,
+                              width: (xs.max() ?? 0) - (xs.min() ?? 0) + cell.width,
+                              height: (ys.max() ?? 0) - (ys.min() ?? 0) + cell.height)
+            return Block(positions: positions, bounds: rect)
+        }
+
+        /// Shelf-packs blocks into rows no wider than `maxWidth`; returns one combined block.
+        func pack(_ blocks: [Block], maxWidth: CGFloat, gap: CGFloat) -> Block {
+            var out: [UUID: CGPoint] = [:]
+            var x: CGFloat = 0, y: CGFloat = 0, rowHeight: CGFloat = 0
+            for b in blocks {
+                if x > 0 && x + b.bounds.width > maxWidth {
+                    x = 0; y += rowHeight + gap; rowHeight = 0
+                }
+                let dx = x - b.bounds.minX, dy = y - b.bounds.minY
+                for (id, p) in b.positions { out[id] = CGPoint(x: p.x + dx, y: p.y + dy) }
+                x += b.bounds.width + gap
+                rowHeight = max(rowHeight, b.bounds.height)
+            }
+            return block(out)
+        }
+
+        var groups: [String: [Item]] = [:]
+        for root in roots { groups[groupKey(root), default: []].append(root) }
+        var groupBlocks: [Block] = []
+        for key in groups.keys.sorted() {
+            var blocks: [Block] = []
+            var loose: [Item] = []
+            for root in groups[key] ?? [] where !visited.contains(root.id) {
+                if (children[root.id] ?? []).isEmpty {
+                    loose.append(root)
+                    visited.insert(root.id)
+                } else {
+                    blocks.append(block(star(root.id)))
+                }
+            }
+            if !loose.isEmpty {
+                var shelf: [UUID: CGPoint] = [:]
+                for (i, item) in loose.enumerated() {
+                    shelf[item.id] = CGPoint(x: CGFloat(i % 2) * cell.width, y: CGFloat(i / 2) * cell.height)
+                }
+                blocks.append(block(shelf))
+            }
+            if !blocks.isEmpty { groupBlocks.append(pack(blocks, maxWidth: 1000, gap: 60)) }
+        }
+        // Anything not yet placed (e.g. caught in a parent loop) goes on a final shelf.
+        roots = items.filter { !visited.contains($0.id) }
+        if !roots.isEmpty {
+            var shelf: [UUID: CGPoint] = [:]
+            for (i, item) in roots.enumerated() {
+                shelf[item.id] = CGPoint(x: CGFloat(i % 2) * cell.width, y: CGFloat(i / 2) * cell.height)
+            }
+            groupBlocks.append(block(shelf))
+        }
+
+        var all = pack(groupBlocks, maxWidth: 1500, gap: 140)
+        // Centre on (0, 0).
+        let cx = all.bounds.midX, cy = all.bounds.midY
+        for (id, p) in all.positions { all.positions[id] = CGPoint(x: p.x - cx, y: p.y - cy) }
+        return separate(all.positions)
+    }
+
+    /// Nudges apart any nodes whose chips overlap.
+    static func separate(_ positions: [UUID: CGPoint], iterations: Int = 40) -> [UUID: CGPoint] {
+        var p = positions
+        let keys = p.keys.sorted { $0.uuidString < $1.uuidString }
+        let w = cell.width - 6, h = cell.height - 8
+        for _ in 0..<iterations {
+            var moved = false
+            for i in keys.indices {
+                for j in keys.indices where j > i {
+                    guard let a = p[keys[i]], let b = p[keys[j]] else { continue }
+                    let ox = w - abs(a.x - b.x), oy = h - abs(a.y - b.y)
+                    guard ox > 0, oy > 0 else { continue }
+                    moved = true
+                    if ox < oy {
+                        let push = ox / 2 * (a.x <= b.x ? -1 : 1)
+                        p[keys[i]] = CGPoint(x: a.x + push, y: a.y)
+                        p[keys[j]] = CGPoint(x: b.x - push, y: b.y)
+                    } else {
+                        let push = oy / 2 * (a.y <= b.y ? -1 : 1)
+                        p[keys[i]] = CGPoint(x: a.x, y: a.y + push)
+                        p[keys[j]] = CGPoint(x: b.x, y: b.y - push)
+                    }
+                }
+            }
+            if !moved { break }
+        }
+        return p
+    }
+}

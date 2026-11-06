@@ -84,6 +84,8 @@ struct MindMapView: View {
     /// The node a dragged node would be filed into if dropped now.
     @State private var dropTarget: UUID?
     @State private var scribble = ScribbleController()
+    /// Locked: nodes can't be moved or filed, no scribbling or tidying (pan/zoom/tap still work).
+    @AppStorage("mapLocked") private var locked = false
 
     var body: some View {
         let items = MapPage.items(Array(store.items.values), page: page, showNogged: showNogged)
@@ -108,7 +110,7 @@ struct MindMapView: View {
                     MapNode(item: item, isFolder: hasChildren.contains(item.id), isDropTarget: dropTarget == item.id)
                         .scaleEffect(min(1.15, max(0.55, scale)))
                         .position(screen(mapPoint(item.id)))
-                        .gesture(nodeDrag(item.id, among: items))
+                        .gesture(nodeDrag(item.id, among: items), including: locked ? .none : .all)
                         .onTapGesture { router.push(item.id) }
                         .contextMenu { nodeMenu(item) }
                         .allowsHitTesting(!isScribbling)
@@ -282,7 +284,7 @@ struct MindMapView: View {
         } label: {
             Label("Open", systemImage: "arrow.up.right")
         }
-        if let parent = store.parent(of: item) {
+        if !locked, let parent = store.parent(of: item) {
             Button {
                 var unfiled = item
                 unfiled.parentID = nil
@@ -369,6 +371,13 @@ struct MindMapView: View {
 
     private func controls(_ items: [Item], edges: [MapLayout.Edge], size: CGSize) -> some View {
         VStack(spacing: 10) {
+            if !isScribbling {
+                mapButton(locked ? "lock.fill" : "lock.open", tint: locked ? Theme.pink : Theme.muted,
+                          label: locked ? "Unlock editing" : "Lock editing") {
+                    withAnimation(.snappy) { locked.toggle() }
+                }
+                .sensoryFeedback(.impact(weight: .light), trigger: locked)
+            }
             if isScribbling {
                 mapButton("arrow.uturn.backward", tint: Theme.blue, label: "Undo") { scribble.undo() }
                     .disabled(!scribble.canUndo)
@@ -380,17 +389,21 @@ struct MindMapView: View {
                     mapButton("trash", tint: Theme.pink, label: "Clear scribbles") { scribble.clear() }
                 }
             }
-            mapButton(isScribbling ? "hand.point.up.left" : "pencil.tip", tint: isScribbling ? Theme.pink : Theme.violet,
-                      label: isScribbling ? "Done scribbling" : "Scribble") {
-                isScribbling.toggle()
+            if !locked {
+                mapButton(isScribbling ? "hand.point.up.left" : "pencil.tip", tint: isScribbling ? Theme.pink : Theme.violet,
+                          label: isScribbling ? "Done scribbling" : "Scribble") {
+                    isScribbling.toggle()
+                }
             }
-            if !isScribbling {
-                mapButton("wand.and.stars", tint: Theme.violet, label: "Tidy layout") {
+            if !isScribbling && !locked {
+                mapButton("wand.and.stars", tint: Theme.violet, label: "Arrange") {
                     withAnimation(.snappy) {
                         doc.tidy(items, edges: edges)
                         fit(items, in: size)
                     }
                 }
+            }
+            if !isScribbling {
                 mapButton("viewfinder", tint: Theme.blue, label: "Fit to screen") {
                     withAnimation(.snappy) { fit(items, in: size) }
                 }

@@ -615,3 +615,52 @@ final class TagFlowTests: XCTestCase {
         XCTAssertEqual(tags.first?.count, 3)
     }
 }
+
+final class ArrangeTests: XCTestCase {
+    func makeItems() -> [Item] {
+        var items: [Item] = []
+        var trip = Item(title: "Trip"); trip.tags = ["travel"]
+        items.append(trip)
+        for i in 0..<6 {
+            var step = Item(title: "Step \(i)"); step.parentID = trip.id
+            items.append(step)
+            if i == 0 {
+                for j in 0..<3 { var sub = Item(title: "Sub \(j)"); sub.parentID = step.id; items.append(sub) }
+            }
+        }
+        var admin = Item(title: "Passport"); admin.tags = ["admin"]
+        items.append(admin)
+        for i in 0..<5 { items.append(Item(title: "Loose \(i)")) }
+        return items
+    }
+
+    func testNoTwoChipsOverlap() {
+        let items = makeItems()
+        let p = MapLayout.arrange(items)
+        XCTAssertEqual(p.count, items.count)
+        let w = MapLayout.cell.width - 6, h = MapLayout.cell.height - 8
+        let pts = Array(p.values)
+        for i in pts.indices {
+            for j in pts.indices where j > i {
+                let overlaps = abs(pts[i].x - pts[j].x) < w - 0.5 && abs(pts[i].y - pts[j].y) < h - 0.5
+                XCTAssertFalse(overlaps, "chips \(i) and \(j) overlap")
+            }
+        }
+    }
+
+    func testSubItemsStayNearTheirProject() {
+        let items = makeItems()
+        let p = MapLayout.arrange(items)
+        let byTitle = Dictionary(uniqueKeysWithValues: items.map { ($0.title, $0.id) })
+        let trip = p[byTitle["Trip"]!]!
+        for i in 0..<6 {
+            let step = p[byTitle["Step \(i)"]!]!
+            XCTAssertLessThan(hypot(step.x - trip.x, step.y - trip.y), 600)
+        }
+    }
+
+    func testDeterministic() {
+        let items = makeItems()
+        XCTAssertEqual(MapLayout.arrange(items), MapLayout.arrange(items))
+    }
+}

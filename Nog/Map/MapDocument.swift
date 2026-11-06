@@ -93,6 +93,12 @@ final class MapDocument {
     func placeMissing(_ items: [Item], edges: [MapLayout.Edge]) {
         let ids = items.map(\.id)
         guard ids.contains(where: { positions[$0] == nil }) else { return }
+        // A brand-new page gets the full smart arrangement.
+        if positions.isEmpty {
+            positions = MapLayout.arrange(items)
+            save()
+            return
+        }
         let pinned = positions.filter { ids.contains($0.key) }
         let laidOut = MapLayout.layout(ids: ids, edges: edges, pinned: pinned)
         for id in ids where positions[id] == nil { positions[id] = laidOut[id] }
@@ -101,7 +107,7 @@ final class MapDocument {
 
     /// Re-arranges everything from scratch.
     func tidy(_ items: [Item], edges: [MapLayout.Edge]) {
-        positions = MapLayout.layout(ids: items.map(\.id), edges: edges, pinned: [:])
+        positions = MapLayout.arrange(items)
         save()
     }
 
