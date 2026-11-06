@@ -10,7 +10,7 @@ settings:
     # ▶︎ The app's bundle ID. Bundle IDs are unique across all developers, so if Xcode
     #   says this one is unavailable, change just this line (e.g. com.<yourname>.nog)
     #   and run ./update.sh. The widget's ID follows automatically.
-    NOG_BUNDLE_ID: dev.nog.k7q2
+    NOG_BUNDLE_ID: com.ticknor.blerg.nog
     SWIFT_VERSION: "5.0"
     MARKETING_VERSION: "0.1.0"
     CURRENT_PROJECT_VERSION: "1"
