@@ -369,18 +369,6 @@ struct ProfileCard: View {
     }
 }
 
-/// Minutes-after-midnight ⇄ a Date for DatePicker.
-private func timeBinding(_ minutes: Binding<Int>) -> Binding<Date> {
-    Binding(
-        get: {
-            Calendar.current.date(bySettingHour: minutes.wrappedValue / 60, minute: minutes.wrappedValue % 60,
-                                  second: 0, of: .now) ?? .now
-        },
-        set: { date in
-            let c = Calendar.current.dateComponents([.hour, .minute], from: date)
-            minutes.wrappedValue = (c.hour ?? 0) * 60 + (c.minute ?? 0)
-        })
-}
 
 private struct DoingPage: View {
     @Environment(ItemStore.self) private var store
