@@ -520,3 +520,30 @@ final class ProfileTests: XCTestCase {
         XCTAssertEqual(ItemFile.decode(ItemFile.encode(item)), item)
     }
 }
+
+final class MapPageTests: XCTestCase {
+    func testTagPageIncludesTaggedItemsAndWhatsFiledUnderThem() {
+        var trip = Item(title: "Trip")
+        trip.tags = ["Travel"]
+        var flights = Item(title: "Book flights")
+        flights.parentID = trip.id
+        var seat = Item(title: "Pick seat")
+        seat.parentID = flights.id
+        var passport = Item(title: "Passport")
+        passport.tags = ["admin"]
+        let all = [trip, flights, seat, passport]
+
+        let travel = Set(MapPage.items(all, page: "travel", showNogged: false).map(\.title))
+        XCTAssertEqual(travel, ["Trip", "Book flights", "Pick seat"])
+        XCTAssertEqual(MapPage.items(all, page: "", showNogged: false).count, 4)
+    }
+
+    func testTagsAreCountedCaseInsensitivelyBusiestFirst() {
+        var a = Item(title: "a"); a.tags = ["Travel"]
+        var b = Item(title: "b"); b.tags = ["travel", "admin"]
+        var c = Item(title: "c", status: .done); c.tags = ["admin"]
+        let tags = MapPage.tags([a, b, c], showNogged: false)
+        XCTAssertEqual(tags.map(\.tag), ["travel", "admin"])
+        XCTAssertEqual(tags.map(\.count), [2, 1])
+    }
+}

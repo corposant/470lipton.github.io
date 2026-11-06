@@ -126,3 +126,36 @@ enum TagPalette {
         return colors[Int(hash % UInt32(colors.count))]
     }
 }
+
+/// Map pages: "All", plus one page per #tag.
+enum MapPage {
+    /// The items on a page: everything (page "") or the items tagged `page` plus
+    /// everything filed under them, so a tagged project brings its sub-items along.
+    static func items(_ all: [Item], page: String, showNogged: Bool) -> [Item] {
+        let visible = all.filter { showNogged || $0.status != .done }
+        guard !page.isEmpty else { return visible }
+        let key = page.lowercased()
+        var children: [UUID: [Item]] = [:]
+        for item in visible {
+            if let parent = item.parentID { children[parent, default: []].append(item) }
+        }
+        var result: [UUID: Item] = [:]
+        var queue = visible.filter { $0.tags.contains { $0.lowercased() == key } }
+        while let next = queue.popLast() {
+            guard result[next.id] == nil else { continue }
+            result[next.id] = next
+            queue += children[next.id] ?? []
+        }
+        return Array(result.values)
+    }
+
+    /// Tags that have a page, busiest first.
+    static func tags(_ all: [Item], showNogged: Bool) -> [(tag: String, count: Int)] {
+        var counts: [String: Int] = [:]
+        for item in all where showNogged || item.status != .done {
+            for tag in Set(item.tags.map { $0.lowercased() }) { counts[tag, default: 0] += 1 }
+        }
+        return counts.map { (tag: $0.key, count: $0.value) }
+            .sorted { $0.count != $1.count ? $0.count > $1.count : $0.tag < $1.tag }
+    }
+}

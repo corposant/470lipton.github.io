@@ -9,16 +9,31 @@ struct MapTab: View {
     @Environment(ItemStore.self) private var store
     @Environment(Router.self) private var router
     @State private var mode: Mode = .map
-    @State private var doc = MapDocument()
+    @State private var pages = MapPages()
     @State private var showNogged = false
+    /// The page you're on: "" = All, otherwise a tag. Remembered between launches.
+    @AppStorage("mapPage") private var page = ""
 
     var body: some View {
         @Bindable var router = router
+        let tags = MapPage.tags(Array(store.items.values), showNogged: showNogged)
+        // If the tag you were on no longer has any items, fall back to All.
+        let current = tags.contains { $0.tag == page } ? page : ""
         NavigationStack(path: $router.mapPath) {
             Group {
                 switch mode {
-                case .map: MindMapView(doc: doc, showNogged: showNogged)
-                case .outline: OutlineView(showNogged: showNogged)
+                case .map:
+                    MindMapView(doc: pages.doc(for: current),
+                                seed: current.isEmpty ? nil : pages.doc(for: ""),
+                                page: current, showNogged: showNogged)
+                        .id(current) // fresh pan/zoom and centring per page
+                case .outline:
+                    OutlineView(showNogged: showNogged, page: current)
+                }
+            }
+            .safeAreaInset(edge: .top, spacing: 0) {
+                if !tags.isEmpty {
+                    MapPageStrip(tags: tags, selected: current) { page = $0 }
                 }
             }
             .background { NogBackground() }
@@ -53,6 +68,9 @@ struct MindMapView: View {
     @Environment(ItemStore.self) private var store
     @Environment(Router.self) private var router
     @Bindable var doc: MapDocument
+    /// The All page, used to seed a tag page's first layout.
+    var seed: MapDocument? = nil
+    var page: String = ""
     let showNogged: Bool
 
     // The view transform: a map point p appears on screen at offset + p * scale.
@@ -68,8 +86,7 @@ struct MindMapView: View {
     @State private var scribble = ScribbleController()
 
     var body: some View {
-        let items = store.items.values
-            .filter { showNogged || $0.status != .done }
+        let items = MapPage.items(Array(store.items.values), page: page, showNogged: showNogged)
             .sorted { $0.created < $1.created }
         let edges = MapLayout.edges(for: items)
         let hasChildren = Set(items.compactMap(\.parentID))
@@ -104,6 +121,10 @@ struct MindMapView: View {
             .onAppear {
                 // Load saved positions first, then lay out anything new, then centre.
                 doc.load(from: store)
+                if let seed {
+                    seed.load(from: store)
+                    doc.seedIfEmpty(from: seed, ids: items.map(\.id))
+                }
                 doc.placeMissing(items, edges: edges)
                 centreIfNeeded(items, in: geo.size)
             }
@@ -152,7 +173,10 @@ struct MindMapView: View {
         let zones: [Zone] = {
             var byTag: [String: [CGPoint]] = [:]
             for item in items {
-                for tag in item.tags { byTag[tag.lowercased(), default: []].append(mapPoint(item.id)) }
+                // On a tag's own page, its zone would just surround everything, so skip it.
+                for tag in item.tags where tag.lowercased() != page {
+                    byTag[tag.lowercased(), default: []].append(mapPoint(item.id))
+                }
             }
             return byTag.compactMap { tag, points in
                 guard let minX = points.map(\.x).min(), let maxX = points.map(\.x).max(),
@@ -429,6 +453,8 @@ private struct MapNode: View {
 struct OutlineView: View {
     @Environment(ItemStore.self) private var store
     let showNogged: Bool
+    /// "" = All, otherwise only this tag's items (and what's filed under them).
+    var page: String = ""
 
     struct Node: Identifiable {
         let item: Item
@@ -442,7 +468,8 @@ struct OutlineView: View {
     static let unfiledID = UUID(uuidString: "00000000-0000-0000-0000-00000000F11E")!
 
     var body: some View {
-        let roots = Self.tree(Array(store.items.values), showNogged: showNogged)
+        let roots = Self.tree(MapPage.items(Array(store.items.values), page: page, showNogged: showNogged),
+                              showNogged: showNogged)
         let folders = roots.filter { $0.children != nil }
         let unfiled = roots.filter { $0.children == nil }
 
@@ -633,5 +660,50 @@ private struct OutlineRow: View {
         case .someday: Theme.violet
         case .open: item.reminder == nil ? Theme.muted : Theme.pink
         }
+    }
+}
+
+/// All · #travel 6 · #admin 3 …: one page per tag, busiest first.
+struct MapPageStrip: View {
+    let tags: [(tag: String, count: Int)]
+    let selected: String
+    let select: (String) -> Void
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                chip(title: "ALL", count: nil, color: Theme.blue, isSelected: selected.isEmpty) { select("") }
+                ForEach(tags, id: \.tag) { entry in
+                    let pair = TagPalette.color(for: entry.tag)
+                    chip(title: "#\(entry.tag.uppercased())", count: entry.count,
+                         color: Color(light: pair.light, dark: pair.dark),
+                         isSelected: selected == entry.tag) { select(entry.tag) }
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+        }
+        .background(.ultraThinMaterial)
+        .overlay(alignment: .bottom) { Rectangle().fill(Theme.edge).frame(height: 1) }
+        .sensoryFeedback(.selection, trigger: selected)
+    }
+
+    private func chip(title: String, count: Int?, color: Color, isSelected: Bool,
+                      action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Text(title).font(.nogLabel).tracking(1.4)
+                if let count {
+                    Text("\(count)").font(.nogMeta).opacity(0.7)
+                }
+            }
+            .foregroundStyle(isSelected ? color : Theme.muted)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .background(color.opacity(isSelected ? 0.12 : 0), in: Capsule())
+            .overlay(Capsule().strokeBorder(isSelected ? color.opacity(0.7) : Theme.edge, lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }

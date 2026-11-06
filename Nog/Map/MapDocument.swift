@@ -3,12 +3,39 @@ import Foundation
 import Observation
 import PencilKit
 
-/// Where each node sits on the mind map, and what you've scribbled on it.
-/// Saved as `_nogmap.json` beside the items, so it syncs through iCloud too.
+/// Lazily creates one map document per page ("" = All, otherwise a tag).
+@MainActor
+@Observable
+final class MapPages {
+    @ObservationIgnored private var docs: [String: MapDocument] = [:]
+
+    func doc(for page: String) -> MapDocument {
+        if let doc = docs[page] { return doc }
+        let doc = MapDocument(page: page)
+        docs[page] = doc
+        return doc
+    }
+}
+
+/// Where each node sits on one map page, and what you've scribbled on it.
+/// Saved beside the items (`_nogmap.json` for All, `_nogmap-<tag>.json` per tag),
+/// so it syncs through iCloud too.
 @MainActor
 @Observable
 final class MapDocument {
-    static let fileName = "_nogmap.json"
+    let page: String
+
+    init(page: String = "") {
+        self.page = page.lowercased()
+    }
+
+    var fileName: String {
+        guard !page.isEmpty else { return "_nogmap.json" }
+        let slug = page.unicodeScalars
+            .map { CharacterSet.alphanumerics.contains($0) ? String($0) : "-" }
+            .joined()
+        return "_nogmap-\(slug).json"
+    }
 
     var positions: [UUID: CGPoint] = [:]
     var drawing = PKDrawing()
@@ -28,7 +55,7 @@ final class MapDocument {
         guard loadedFolder != store.folder else { return }
         loadedFolder = store.folder
         self.store = store
-        guard let data = store.readSidecar(Self.fileName),
+        guard let data = store.readSidecar(fileName),
               let stored = try? JSONDecoder().decode(Stored.self, from: data) else { return }
         var loaded: [UUID: CGPoint] = [:]
         for (key, xy) in stored.positions where xy.count == 2 {
@@ -50,9 +77,16 @@ final class MapDocument {
                 positions: Dictionary(uniqueKeysWithValues: self.positions.map { ($0.key.uuidString, [Double($0.value.x), Double($0.value.y)]) }),
                 drawing: self.drawing.strokes.isEmpty ? nil : self.drawing.dataRepresentation())
             if let data = try? JSONEncoder().encode(stored) {
-                store.writeSidecar(Self.fileName, data: data)
+                store.writeSidecar(self.fileName, data: data)
             }
         }
+    }
+
+    /// A new tag page starts from where its items sit on All, so it looks familiar.
+    func seedIfEmpty(from other: MapDocument, ids: [UUID]) {
+        guard positions.isEmpty else { return }
+        for id in ids { if let p = other.positions[id] { positions[id] = p } }
+        if !positions.isEmpty { save() }
     }
 
     /// Places any items that don't have a spot yet, near what they're connected to.
