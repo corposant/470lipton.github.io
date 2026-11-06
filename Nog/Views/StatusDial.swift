@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// A skeuomorphic rotary selector for an item's state: Open · Doing · Dream · Nogged.
-/// Drag the knob (it clicks into each position) or tap a label.
+/// Twist the knob: it clicks past each position and settles into the nearest one.
 struct StatusDial: View {
     let status: ItemStatus
     let onSelect: (ItemStatus) -> Void
@@ -10,6 +10,8 @@ struct StatusDial: View {
     var knobSize: CGFloat = 92
 
     @State private var dragAngle: Double?
+    /// Finger angle at the last drag update, to turn by the change (not jump to the finger).
+    @State private var lastTouchAngle: Double?
 
     /// Detent positions, in degrees clockwise from straight up.
     static let stops: [(status: ItemStatus, angle: Double)] = [
@@ -34,11 +36,12 @@ struct StatusDial: View {
             }
             Knob(angle: angle, tint: Self.tint(lit))
                 .frame(width: knobSize, height: knobSize)
+                // Only the knob itself responds to touch.
+                .contentShape(Circle())
+                .gesture(turn)
                 .position(center)
         }
         .frame(width: size.width, height: size.height)
-        .contentShape(Rectangle())
-        .gesture(turn)
         .sensoryFeedback(.selection, trigger: lit)
         .animation(.spring(response: 0.35, dampingFraction: 0.7), value: status)
         .accessibilityRepresentation {
@@ -78,25 +81,38 @@ struct StatusDial: View {
             .shadow(color: isLit ? tint.opacity(0.8) : .clear, radius: 6)
             .fixedSize()
             .position(x: center.x + sin(a) * labelRadius(degrees), y: center.y - cos(a) * labelRadius(degrees))
-            .onTapGesture { onSelect(status) }
+            .allowsHitTesting(false)
     }
 
     // MARK: Turning
 
+    /// Twist to turn: the knob rotates by how far your finger travels around its centre,
+    /// so grabbing it never makes it jump. Settles into the nearest position on release.
     private var turn: some Gesture {
-        DragGesture(minimumDistance: 0)
+        DragGesture(minimumDistance: 1, coordinateSpace: .local)
             .onChanged { value in
-                let dx = value.location.x - center.x
-                let dy = value.location.y - center.y
-                guard dx * dx + dy * dy > 100 else { return } // ignore touches dead-centre
-                let degrees = atan2(dx, -dy) * 180 / .pi
-                dragAngle = min(120, max(-120, degrees))
+                let c = CGPoint(x: knobSize / 2, y: knobSize / 2)
+                let dx = value.location.x - c.x
+                let dy = value.location.y - c.y
+                // Too close to the centre, the angle is jittery: wait for a clearer twist.
+                guard dx * dx + dy * dy > 64 else { return }
+                let touch = atan2(dx, -dy) * 180 / .pi
+                let current = dragAngle ?? Self.angle(for: status)
+                if let last = lastTouchAngle {
+                    var step = touch - last
+                    if step > 180 { step -= 360 } else if step < -180 { step += 360 }
+                    dragAngle = min(120, max(-120, current + step))
+                } else {
+                    dragAngle = current
+                }
+                lastTouchAngle = touch
             }
             .onEnded { _ in
                 if let angle = dragAngle {
                     let chosen = Self.nearest(to: angle)
                     if chosen != status { onSelect(chosen) }
                 }
+                lastTouchAngle = nil
                 withAnimation(.spring(response: 0.35, dampingFraction: 0.65)) { dragAngle = nil }
             }
     }
