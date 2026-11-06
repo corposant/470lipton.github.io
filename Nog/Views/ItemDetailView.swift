@@ -149,27 +149,6 @@ private struct ItemEditor: View {
         }
         .nogListStyle()
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                if item.status == .done {
-                    Button {
-                        store.reopen(item.id)
-                    } label: {
-                        Label("Reopen", systemImage: "arrow.uturn.backward.circle")
-                            .labelStyle(.titleAndIcon)
-                    }
-                    .tint(Theme.violet)
-                } else {
-                    Button {
-                        store.markDone(item.id)
-                    } label: {
-                        Label("Done", systemImage: "checkmark.circle")
-                            .labelStyle(.titleAndIcon)
-                    }
-                    .tint(Theme.blue)
-                }
-            }
-        }
         .sheet(isPresented: $showParentPicker) {
             ParentPicker(item: item)
         }
@@ -193,12 +172,39 @@ private struct ItemEditor: View {
             } header: {
                 SectionLabel(title: "Nogitivity", tint: Theme.blue)
             }
-        } else if item.status != .done {
+        } else if item.status == .done {
+            Section {
+                HStack {
+                    Label(item.completed.map { "Nogged \($0.formatted(.relative(presentation: .named)))" } ?? "Nogged",
+                          systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(StatusDial.tint(.done))
+                    Spacer()
+                    Button {
+                        store.reopen(item.id)
+                    } label: {
+                        Label("Reopen", systemImage: "arrow.uturn.backward")
+                    }
+                    .buttonStyle(OutlineButtonStyle(tint: Theme.violet, expands: false))
+                }
+                .padding(.vertical, 2)
+            }
+            .listRowBackground(Theme.glass)
+        } else {
             Section {
                 StartButton(item: item, prominent: true)
                     // Room around the button so the section's rounded clip doesn't cut it.
                     .listRowInsets(EdgeInsets(top: 6, leading: 6, bottom: 6, trailing: 6))
                     .listRowBackground(Color.clear)
+                // Finishing is its own clearly-labelled action, never a "save" button:
+                // edits on this page are saved as you make them.
+                Button {
+                    store.markDone(item.id)
+                } label: {
+                    Label("Mark nogged", systemImage: "checkmark.circle")
+                }
+                .buttonStyle(OutlineButtonStyle(tint: StatusDial.tint(.done)))
+                .listRowInsets(EdgeInsets(top: 0, leading: 6, bottom: 6, trailing: 6))
+                .listRowBackground(Color.clear)
             } footer: {
                 Text("Tap to start with \(store.suggestedTimebox(for: item.id).label.lowercased()). Hold for other timeboxes.")
             }

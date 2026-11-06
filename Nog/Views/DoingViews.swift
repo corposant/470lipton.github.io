@@ -288,7 +288,7 @@ struct DoingCard: View {
                 Button {
                     store.markDone(item.id)
                 } label: {
-                    Label("Done", systemImage: "checkmark")
+                    Label("Nogged", systemImage: "checkmark")
                 }
                 .buttonStyle(OutlineButtonStyle(tint: Theme.blue))
                 Button {
