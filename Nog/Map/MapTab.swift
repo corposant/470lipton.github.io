@@ -86,6 +86,10 @@ struct MindMapView: View {
     @State private var scribble = ScribbleController()
     /// Locked: nodes can't be moved or filed, no scribbling or tidying (pan/zoom/tap still work).
     @AppStorage("mapLocked") private var locked = false
+    /// Lets the Liquid Glass buttons morph into each other as the set changes.
+    @Namespace private var glassSpace
+    /// On a half-folded iPhone Duo, the larger side of the fold (Fit centres there).
+    @State private var fitArea: CGRect?
 
     var body: some View {
         let items = MapPage.items(Array(store.items.values), page: page, showNogged: showNogged)
@@ -138,7 +142,12 @@ struct MindMapView: View {
                 centreIfNeeded(items, in: geo.size)
             }
             .onChange(of: items.map(\.id)) { doc.placeMissing(items, edges: edges) }
-            .overlay(alignment: .bottomTrailing) { controls(items, edges: edges, size: geo.size) }
+            .onGeometryChange(for: CGRect?.self) { proxy in Self.largerPane(proxy) } action: { fitArea = $0 }
+            .overlay(alignment: .bottomTrailing) {
+                controls(items, edges: edges, size: geo.size)
+                    .padding(.bottom, Self.controlsLift(geo))
+                    .animation(.smooth, value: Self.controlsLift(geo))
+            }
             .overlay {
                 if items.isEmpty {
                     ContentUnavailableView("Nothing to map yet", systemImage: "point.3.connected.trianglepath.dotted",
@@ -358,11 +367,13 @@ struct MindMapView: View {
             return
         }
         // Leave room for node chips, and for the buttons at the bottom right.
+        // On a half-folded iPhone Duo, fit into the larger side of the fold.
+        let area = fitArea ?? CGRect(origin: .zero, size: size)
         let bounds = CGRect(x: minX - 110, y: minY - 60, width: maxX - minX + 220, height: maxY - minY + 120)
-        let usable = CGSize(width: size.width - 24, height: size.height - 110)
+        let usable = CGSize(width: area.width - 24, height: max(120, area.height - 110))
         scale = min(1.2, max(0.3, min(usable.width / bounds.width, usable.height / bounds.height)))
-        offset = CGSize(width: size.width / 2 - bounds.midX * scale,
-                        height: (size.height - 80) / 2 - bounds.midY * scale)
+        offset = CGSize(width: area.midX - bounds.midX * scale,
+                        height: area.minY + (area.height - 80) / 2 - bounds.midY * scale)
         baseScale = scale
         baseOffset = offset
     }
@@ -370,59 +381,105 @@ struct MindMapView: View {
     // MARK: Controls
 
     private func controls(_ items: [Item], edges: [MapLayout.Edge], size: CGSize) -> some View {
-        VStack(spacing: 10) {
-            if !isScribbling {
-                mapButton(locked ? "lock.fill" : "lock.open", tint: locked ? Theme.pink : Theme.muted,
-                          label: locked ? "Unlock editing" : "Lock editing") {
-                    withAnimation(.snappy) { locked.toggle() }
+        GlassEffectContainer(spacing: 14) {
+            VStack(spacing: 10) {
+                if !isScribbling {
+                    mapButton(locked ? "lock.fill" : "lock.open", tint: locked ? Theme.pink : Theme.muted,
+                              label: locked ? "Unlock editing" : "Lock editing", id: "lock", active: locked) {
+                        withAnimation(.snappy) { locked.toggle() }
+                    }
+                    .sensoryFeedback(.impact(weight: .light), trigger: locked)
                 }
-                .sensoryFeedback(.impact(weight: .light), trigger: locked)
-            }
-            if isScribbling {
-                mapButton("arrow.uturn.backward", tint: Theme.blue, label: "Undo") { scribble.undo() }
-                    .disabled(!scribble.canUndo)
-                    .opacity(scribble.canUndo ? 1 : 0.4)
-                mapButton("arrow.uturn.forward", tint: Theme.blue, label: "Redo") { scribble.redo() }
-                    .disabled(!scribble.canRedo)
-                    .opacity(scribble.canRedo ? 1 : 0.4)
-                if !doc.drawing.strokes.isEmpty {
-                    mapButton("trash", tint: Theme.pink, label: "Clear scribbles") { scribble.clear() }
+                if isScribbling {
+                    mapButton("arrow.uturn.backward", tint: Theme.blue, label: "Undo", id: "undo") { scribble.undo() }
+                        .disabled(!scribble.canUndo)
+                        .opacity(scribble.canUndo ? 1 : 0.4)
+                    mapButton("arrow.uturn.forward", tint: Theme.blue, label: "Redo", id: "redo") { scribble.redo() }
+                        .disabled(!scribble.canRedo)
+                        .opacity(scribble.canRedo ? 1 : 0.4)
+                    if !doc.drawing.strokes.isEmpty {
+                        mapButton("trash", tint: Theme.pink, label: "Clear scribbles", id: "clear") { scribble.clear() }
+                    }
                 }
-            }
-            if !locked {
-                mapButton(isScribbling ? "hand.point.up.left" : "pencil.tip", tint: isScribbling ? Theme.pink : Theme.violet,
-                          label: isScribbling ? "Done scribbling" : "Scribble") {
-                    isScribbling.toggle()
+                if !locked {
+                    mapButton(isScribbling ? "hand.point.up.left" : "pencil.tip", tint: isScribbling ? Theme.pink : Theme.violet,
+                              label: isScribbling ? "Done scribbling" : "Scribble", id: "pencil", active: isScribbling) {
+                        withAnimation(.smooth(duration: 0.35)) { isScribbling.toggle() }
+                    }
                 }
-            }
-            if !isScribbling && !locked {
-                mapButton("wand.and.stars", tint: Theme.violet, label: "Arrange") {
-                    withAnimation(.snappy) {
-                        doc.tidy(items, edges: edges)
-                        fit(items, in: size)
+                if !isScribbling && !locked {
+                    mapButton("wand.and.stars", tint: Theme.violet, label: "Arrange", id: "arrange") {
+                        withAnimation(.snappy) {
+                            doc.tidy(items, edges: edges)
+                            fit(items, in: size)
+                        }
+                    }
+                }
+                if !isScribbling {
+                    mapButton("viewfinder", tint: Theme.blue, label: "Fit to screen", id: "fit") {
+                        withAnimation(.snappy) { fit(items, in: size) }
                     }
                 }
             }
-            if !isScribbling {
-                mapButton("viewfinder", tint: Theme.blue, label: "Fit to screen") {
-                    withAnimation(.snappy) { fit(items, in: size) }
-                }
-            }
         }
+        .animation(.smooth(duration: 0.35), value: isScribbling)
+        .animation(.smooth(duration: 0.35), value: locked)
         .padding(16)
     }
 
-    private func mapButton(_ icon: String, tint: Color, label: String, action: @escaping () -> Void) -> some View {
+    /// A Liquid Glass circle. Interactive glass squishes and glows under your finger;
+    /// a shared glass ID lets buttons morph as they appear and disappear.
+    private func mapButton(_ icon: String, tint: Color, label: String, id: String, active: Bool = false,
+                           action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: icon)
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(tint)
                 .frame(width: 46, height: 46)
-                .background(.ultraThinMaterial, in: Circle())
-                .overlay(Circle().strokeBorder(tint.opacity(0.6), lineWidth: 1))
+                .contentShape(Circle())
         }
         .buttonStyle(.plain)
+        .glassEffect(active ? .regular.tint(tint.opacity(0.35)).interactive() : .regular.interactive(), in: .circle)
+        .glassEffectID(id, in: glassSpace)
         .accessibilityLabel(label)
+    }
+
+    // MARK: iPhone Duo
+
+    /// How far to lift the buttons so the stack never straddles the fold (or sits under a camera).
+    static func controlsLift(_ geo: GeometryProxy) -> CGFloat {
+        guard #available(iOS 27.1, *) else { return 0 }
+        let regions = (geo.reservedRegions(kind: .division) + geo.reservedRegions(kind: .occlusion)).filter(\.isActive)
+        guard !regions.isEmpty else { return 0 }
+        let stackHeight: CGFloat = 4 * 46 + 3 * 10 + 32
+        let w = geo.size.width, h = geo.size.height
+        var lift: CGFloat = 0
+        for region in regions {
+            let stack = CGRect(x: w - 46 - 32, y: h - stackHeight - lift, width: 46 + 32, height: stackHeight)
+            if region.frame.intersects(stack) {
+                // Not enough room below it: sit just above it instead.
+                lift = max(lift, h - region.frame.minY)
+            }
+        }
+        return lift
+    }
+
+    /// The larger side of an active fold, or nil when the screen isn't divided.
+    static func largerPane(_ proxy: GeometryProxy) -> CGRect? {
+        guard #available(iOS 27.1, *),
+              let fold = proxy.reservedRegions(kind: .division).first(where: \.isActive)?.frame else { return nil }
+        let size = proxy.size
+        if fold.height > fold.width {
+            // Folded like a book: left and right.
+            let left = CGRect(x: 0, y: 0, width: fold.minX, height: size.height)
+            let right = CGRect(x: fold.maxX, y: 0, width: size.width - fold.maxX, height: size.height)
+            return left.width >= right.width ? left : right
+        } else {
+            // Folded like a laptop: top and bottom.
+            let top = CGRect(x: 0, y: 0, width: size.width, height: fold.minY)
+            let bottom = CGRect(x: 0, y: fold.maxY, width: size.width, height: size.height - fold.maxY)
+            return top.height >= bottom.height ? top : bottom
+        }
     }
 }
 
