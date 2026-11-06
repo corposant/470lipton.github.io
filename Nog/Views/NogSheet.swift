@@ -112,7 +112,7 @@ struct NogSheet: View {
         let tonightAvailable = (calendar.dateComponents([.hour], from: .now).hour ?? 0) < 20
 
         return Section {
-            HStack(spacing: 6) {
+            FlowLayout(spacing: 6) {
                 dayChip("Today", isOn: isToday) {
                     edit { $0.start = Self.moving($0.start, toDay: .now) }
                 }
@@ -230,12 +230,14 @@ struct NogSheet: View {
         .listRowBackground(Color.clear)
     }
 
-    /// "First nog 3:40 PM, then 3:48 PM, 3:56 PM, 4:04 PM… until it's nogged."
-    nonisolated static func preview(item: Item, reminder: Reminder, now: Date = .now) -> String {
+    /// "First nog 3:40 PM, then 3:48 PM, 3:56 PM, 4:04 PM… until it's nogged." (after quiet hours)
+    nonisolated static func preview(item: Item, reminder: Reminder, now: Date = .now,
+                                    policy: NogPolicy = NogSettings.policy) -> String {
         guard item.isOpen else {
-            return "Paused while it's \(item.status.label.lowercased()). Nogs pick up again when it's open."
+            return "\(item.status.pausedReason). Nogs pick up again when it's open."
         }
-        let dates = reminder.fireDates(after: now, limit: 4)
+        // Real arrival times: quiet hours push nogs to when they end, like the planner.
+        let dates = policy.deliveryDates(for: reminder, after: now, limit: 4)
         guard let first = dates.first else { return "Already went off. Snooze it or pick a new time." }
         func show(_ date: Date) -> String {
             Calendar.current.isDateInToday(date)

@@ -471,6 +471,18 @@ final class Router {
         }
     }
 
+    /// Goes to an item's parent: back, if you came from it; otherwise opens it.
+    func goUp(to parent: UUID) {
+        func up(_ path: inout [UUID]) {
+            if path.count >= 2, path[path.count - 2] == parent { path.removeLast() } else { path.append(parent) }
+        }
+        switch tab {
+        case .capture: up(&capturePath)
+        case .nogs: up(&path)
+        case .map: up(&mapPath)
+        }
+    }
+
     /// From a notification or Siri: show the item in the Nogs tab.
     func open(_ id: UUID) {
         tab = .nogs

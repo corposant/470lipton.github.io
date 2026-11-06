@@ -50,6 +50,24 @@ struct NogPolicy: Equatable {
     static let standard = NogPolicy()
 }
 
+extension NogPolicy {
+    /// When this reminder's next nogs will actually arrive: like the planner, a nog that
+    /// falls in quiet hours moves to when they end (and several can land together).
+    func deliveryDates(for reminder: Reminder, after date: Date, limit: Int,
+                       calendar: Calendar = .current) -> [Date] {
+        guard limit > 0 else { return [] }
+        var result: [Date] = []
+        var seen = Set<Date>()
+        // A long quiet stretch folds many fire times into one, so look further ahead.
+        for fire in reminder.fireDates(after: date, limit: limit + 400) {
+            let when = quiet.nextOpening(after: fire, calendar: calendar)
+            if seen.insert(when).inserted { result.append(when) }
+            if result.count == limit { break }
+        }
+        return result
+    }
+}
+
 extension Reminder {
     /// When the nog after `count` ignored ones fires (escalation point). Nil if it never repeats.
     func escalationDate(afterIgnored count: Int) -> Date? {

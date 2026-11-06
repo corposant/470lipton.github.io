@@ -76,6 +76,16 @@ enum ItemStatus: String, CaseIterable, Hashable {
         case .done: "Nogged"
         }
     }
+
+    /// Why nogs are paused, as a phrase: "Paused while you're doing it".
+    var pausedReason: String {
+        switch self {
+        case .open: "Nogging"
+        case .doing: "Paused while you're doing it"
+        case .someday: "Paused while it's a dream"
+        case .done: "Paused, it's nogged"
+        }
+    }
 }
 
 /// How the gap between nogs behaves.
@@ -215,6 +225,15 @@ enum DurationFormat {
         if minutes < 1 { return "<1 min" }
         if minutes < 60 { return "\(minutes) min" }
         return minutes % 60 == 0 ? "\(minutes / 60)h" : "\(minutes / 60)h \(minutes % 60)m"
+    }
+}
+
+enum DayFormat {
+    /// "Today", "Tomorrow", or "Tue, Nov 4".
+    static func label(_ date: Date, calendar: Calendar = .current) -> String {
+        if calendar.isDateInToday(date) { return "Today" }
+        if calendar.isDateInTomorrow(date) { return "Tomorrow" }
+        return date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day())
     }
 }
 

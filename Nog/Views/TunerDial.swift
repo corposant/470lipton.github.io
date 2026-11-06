@@ -145,21 +145,9 @@ private struct TunerFace: View, Animatable {
         let day = parts.count > 1 ? parts[1] : nil
         return VStack(alignment: .leading, spacing: 2) {
             if !title.isEmpty || day != nil {
-                Text([title.uppercased(), day?.uppercased()].compactMap { $0 }.filter { !$0.isEmpty }
-                        .joined(separator: " · "))
-                    .font(.nogMicroLabel)
-                    .tracking(1.8)
-                    .foregroundStyle(Color(red: 0.36, green: 0.42, blue: 0.5))
+                PanelLabel(text: [title, day].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · "))
             }
-            ZStack(alignment: .leading) {
-                Text(Self.ghost(for: time)).foregroundStyle(Theme.blue.opacity(0.07))
-                Text(time)
-                    .foregroundStyle(Color(red: 0.75, green: 0.89, blue: 1.0))
-                    .shadow(color: Theme.blue.opacity(0.55), radius: 8)
-                    .shadow(color: Theme.blue.opacity(0.9), radius: 1)
-            }
-            .font(.nogReadout(40))
-            .monospacedDigit()
+            GlowReadout(text: time, size: 40)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 14)
@@ -172,14 +160,7 @@ private struct TunerFace: View, Animatable {
         let snapped = Int((value / Double(step)).rounded()) * step
         guard let reference else { return [timeString(TimeTuner.wrap(snapped))] }
         let date = reference.addingTimeInterval(Double(snapped) * 60)
-        return [date.formatted(date: .omitted, time: .shortened), dayLabel(date)]
-    }
-
-    static func dayLabel(_ date: Date) -> String {
-        let calendar = Calendar.current
-        if calendar.isDateInToday(date) { return "Today" }
-        if calendar.isDateInTomorrow(date) { return "Tomorrow" }
-        return date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day())
+        return [date.formatted(date: .omitted, time: .shortened), DayFormat.label(date)]
     }
 
     // MARK: Scale
@@ -256,11 +237,6 @@ private struct TunerFace: View, Animatable {
     static func hourLabel(_ minutes: Int) -> String {
         let date = Calendar.current.date(bySettingHour: minutes / 60, minute: 0, second: 0, of: .now) ?? .now
         return date.formatted(.dateTime.hour())
-    }
-
-    /// Unlit "8" segments behind each digit; other characters stay as they are.
-    static func ghost(for text: String) -> String {
-        String(text.map { $0.isNumber ? "8" : $0 })
     }
 }
 

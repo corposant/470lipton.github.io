@@ -95,6 +95,19 @@ struct SectionLabel: View {
     }
 }
 
+/// Tiny spaced Futura caps for labels inside recessed panels ("NEXT NOG · TODAY").
+struct PanelLabel: View {
+    let text: String
+    var tint = Color(red: 0.54, green: 0.58, blue: 0.64)
+
+    var body: some View {
+        Text(text.uppercased())
+            .font(.nogMicroLabel)
+            .tracking(1.8)
+            .foregroundStyle(tint)
+    }
+}
+
 /// Colored outline, no fill. Tints faintly while pressed.
 struct OutlineButtonStyle: ButtonStyle {
     var tint: Color = Theme.blue

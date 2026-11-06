@@ -98,7 +98,7 @@ private struct ItemEditor: View {
             VStack(alignment: .leading, spacing: 10) {
                 if let parent = store.parent(of: item) {
                     Button {
-                        router.push(parent.id)
+                        router.goUp(to: parent.id)
                     } label: {
                         Label(parent.title.uppercased(), systemImage: "arrow.up")
                             .font(.nogLabel)
@@ -210,6 +210,8 @@ private struct ItemEditor: View {
                     NextNogCard(item: item) { showNogSheet = true }
                 }
                 actions
+            } footer: {
+                Text("Hold Start to pick another timebox.")
             }
             .listRowBackground(Color.clear)
             .listRowInsets(EdgeInsets(top: 4, leading: 4, bottom: 4, trailing: 4))
@@ -390,7 +392,7 @@ private struct ItemEditor: View {
                 Button {
                     showNogSheet = true
                 } label: {
-                    LabeledContent("Nog me", value: "Paused while \(item.status.label.lowercased())")
+                    LabeledContent("Nog me", value: item.status.pausedReason)
                 }
                 .foregroundStyle(.primary)
             }
@@ -492,13 +494,11 @@ private struct NextNogCard: View {
     @ViewBuilder
     private func content(now: Date) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            if let reminder = item.reminder, let next = reminder.nextFire(after: now) {
+            if let reminder = item.reminder,
+               let next = NogSettings.policy.deliveryDates(for: reminder, after: now, limit: 1).first {
                 HStack(alignment: .lastTextBaseline) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("NEXT NOG · \(Self.day(next).uppercased())")
-                            .font(.nogMicroLabel)
-                            .tracking(1.8)
-                            .foregroundStyle(Color(red: 0.54, green: 0.58, blue: 0.64))
+                        PanelLabel(text: "Next nog · \(DayFormat.label(next))")
                         GlowReadout(text: next.formatted(date: .omitted, time: .shortened), size: 36)
                     }
                     Spacer()
@@ -510,19 +510,13 @@ private struct NextNogCard: View {
                 snoozes
             } else if let reminder = item.reminder {
                 // A one-off that has already gone off.
-                Text("NOGGED YOU AT \(reminder.start.formatted(date: .omitted, time: .shortened))")
-                    .font(.nogMicroLabel)
-                    .tracking(1.8)
-                    .foregroundStyle(Color(red: 0.54, green: 0.58, blue: 0.64))
+                PanelLabel(text: "Nogged you at \(reminder.start.formatted(date: .omitted, time: .shortened))")
                 rhythmRow("no repeat", reminder: reminder)
                 snoozes
             } else {
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("NOT NOGGING")
-                            .font(.nogMicroLabel)
-                            .tracking(1.8)
-                            .foregroundStyle(Color(red: 0.54, green: 0.58, blue: 0.64))
+                        PanelLabel(text: "Not nogging")
                         Text("No reminder on this one.")
                             .foregroundStyle(Theme.muted)
                     }
@@ -541,10 +535,9 @@ private struct NextNogCard: View {
         Button(action: edit) {
             HStack(spacing: 4) {
                 Text(text).foregroundStyle(Color(white: 0.8))
-                if let profile = NogProfile.matching(reminder) {
-                    Text("· \(profile.label)").foregroundStyle(Theme.violet)
-                } else {
-                    Text("· Custom").foregroundStyle(Theme.violet)
+                // A one-off has no rhythm, so no profile to name.
+                if reminder.repeatMinutes != nil {
+                    Text("· \(NogProfile.matching(reminder)?.label ?? "Custom")").foregroundStyle(Theme.violet)
                 }
                 if reminder.alarm {
                     Image(systemName: "alarm.waves.left.and.right").foregroundStyle(Theme.pink)
@@ -574,13 +567,6 @@ private struct NextNogCard: View {
         }
     }
 
-    static func day(_ date: Date) -> String {
-        let calendar = Calendar.current
-        if calendar.isDateInToday(date) { return "Today" }
-        if calendar.isDateInTomorrow(date) { return "Tomorrow" }
-        return date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day())
-    }
-
     /// "in 12 min", "in 3h 5m", "now"
     static func countdown(to date: Date, now: Date) -> String {
         let minutes = Int((date.timeIntervalSince(now) / 60).rounded(.up))
@@ -598,10 +584,7 @@ private struct DreamCard: View {
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text("DREAMING")
-                    .font(.nogMicroLabel)
-                    .tracking(1.8)
-                    .foregroundStyle(Theme.violet)
+                PanelLabel(text: "Dreaming", tint: Theme.violet)
                 Text("Parked in Dream nogs. No nogs.")
                     .foregroundStyle(Theme.muted)
             }
@@ -623,10 +606,7 @@ private struct NoggedCard: View {
     var body: some View {
         HStack(spacing: 14) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("NOGGED · \(NextNogCard.day(item.completed ?? .now).uppercased())")
-                    .font(.nogMicroLabel)
-                    .tracking(1.8)
-                    .foregroundStyle(Color(red: 0.54, green: 0.58, blue: 0.64))
+                PanelLabel(text: "Nogged · \(DayFormat.label(item.completed ?? .now))")
                 GlowReadout(text: (item.completed ?? .now).formatted(date: .omitted, time: .shortened),
                             size: 28, color: Color(red: 0.78, green: 0.96, blue: 0.87), glow: StatusDial.tint(.done))
                 if item.totalTimeSpent() >= 60 {

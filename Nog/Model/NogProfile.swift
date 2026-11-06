@@ -74,7 +74,7 @@ enum NogProfile: String, CaseIterable, Identifiable {
         r.repeatMinutes = repeatMinutes
         r.curve = curve
         r.escalateAfter = escalateAfter
-        r.alarm = false
+        // "Ring like an alarm" is its own switch: a profile keeps whatever it was.
         return r
     }
 
@@ -87,7 +87,7 @@ enum NogProfile: String, CaseIterable, Identifiable {
     static func matching(_ reminder: Reminder) -> NogProfile? {
         allCases.first {
             $0.repeatMinutes == reminder.repeatMinutes && $0.curve == reminder.curve
-                && $0.escalateAfter == reminder.escalateAfter && !reminder.alarm
+                && $0.escalateAfter == reminder.escalateAfter
         }
     }
 

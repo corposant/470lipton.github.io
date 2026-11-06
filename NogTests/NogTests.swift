@@ -510,6 +510,7 @@ final class ProfileTests: XCTestCase {
         XCTAssertNil(NogProfile.matching(original))
         let easing = NogProfile.easing.apply(to: original)
         XCTAssertEqual(easing.start, now)
+        XCTAssertTrue(easing.alarm, "The alarm switch survives picking a profile")
         XCTAssertEqual(NogProfile.matching(easing), .easing)
     }
 
@@ -692,7 +693,7 @@ final class NogSheetTests: XCTestCase {
         var item = Item(title: "Call the plumber")
         let reminder = Reminder(start: now.addingTimeInterval(600), repeatMinutes: 8)
         item.reminder = reminder
-        let text = NogSheet.preview(item: item, reminder: reminder, now: now)
+        let text = NogSheet.preview(item: item, reminder: reminder, now: now, policy: .standard)
         XCTAssertTrue(text.hasPrefix("First nog"))
         XCTAssertTrue(text.hasSuffix("until it's nogged."))
     }
@@ -702,5 +703,49 @@ final class NogSheetTests: XCTestCase {
         item.status = .someday
         let reminder = Reminder(start: .now, repeatMinutes: 8)
         XCTAssertTrue(NogSheet.preview(item: item, reminder: reminder).hasPrefix("Paused"))
+    }
+}
+
+final class DeliveryDateTests: XCTestCase {
+    func testQuietHoursMoveNogsToWhenTheyEnd() {
+        let calendar = Calendar.current
+        let evening = calendar.date(from: DateComponents(year: 2030, month: 3, day: 5, hour: 21, minute: 50))!
+        var policy = NogPolicy.standard
+        policy.quiet = QuietHours(enabled: true, start: 22 * 60, end: 7 * 60)
+        let reminder = Reminder(start: evening.addingTimeInterval(4 * 60), repeatMinutes: 8)
+        let dates = policy.deliveryDates(for: reminder, after: evening, limit: 3)
+        XCTAssertEqual(dates.count, 3)
+        XCTAssertEqual(calendar.component(.hour, from: dates[0]), 21)   // 21:54, before quiet
+        XCTAssertEqual(calendar.component(.hour, from: dates[1]), 7)    // the rest wait for 7:00
+        XCTAssertEqual(calendar.component(.minute, from: dates[1]), 0)
+        XCTAssertGreaterThan(dates[2], dates[1])
+    }
+
+    func testNoQuietHoursMatchesFireDates() {
+        let now = Date(timeIntervalSince1970: 1_900_000_000)
+        let reminder = Reminder(start: now.addingTimeInterval(60), repeatMinutes: 8)
+        XCTAssertEqual(NogPolicy.standard.deliveryDates(for: reminder, after: now, limit: 3),
+                       reminder.fireDates(after: now, limit: 3))
+    }
+}
+
+@MainActor
+final class RouterTests: XCTestCase {
+    func testGoUpPopsWhenYouCameFromTheParent() {
+        let router = Router()
+        router.tab = .nogs
+        let parent = UUID(), child = UUID()
+        router.path = [parent, child]
+        router.goUp(to: parent)
+        XCTAssertEqual(router.path, [parent])
+    }
+
+    func testGoUpOpensTheParentOtherwise() {
+        let router = Router()
+        router.tab = .nogs
+        let parent = UUID(), child = UUID()
+        router.path = [child]
+        router.goUp(to: parent)
+        XCTAssertEqual(router.path, [child, parent])
     }
 }
