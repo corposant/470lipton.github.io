@@ -83,7 +83,7 @@ struct ItemListView: View {
                             DoingCard(item: item)
                                 .appEntityIdentifier(EntityIdentifier(for: ReminderEntity.self, identifier: item.id))
                                 .listRowBackground(Color.clear)
-                                .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+                                .listRowInsets(EdgeInsets(top: 4, leading: 4, bottom: 4, trailing: 4))
                         }
                     } header: {
                         SectionLabel(title: "Nogitivity", tint: Theme.blue)
