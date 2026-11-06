@@ -571,3 +571,16 @@ final class NoRepeatTests: XCTestCase {
         XCTAssertEqual(r?.fireDates(after: now, limit: 5).count, 1)
     }
 }
+
+final class TimeTunerTests: XCTestCase {
+    func testWrapsAroundMidnight() {
+        XCTAssertEqual(TimeTuner.wrap(-5), 1435)
+        XCTAssertEqual(TimeTuner.wrap(1440 + 30), 30)
+        XCTAssertEqual(TimeTuner.wrap(9 * 60), 540)
+    }
+
+    func testSnapsToFiveMinuteSteps() {
+        XCTAssertEqual(TimeTuner.snapped(542.4, step: 5), 108)  // 540
+        XCTAssertEqual(TimeTuner.snapped(543.0, step: 5), 109)  // 545
+    }
+}

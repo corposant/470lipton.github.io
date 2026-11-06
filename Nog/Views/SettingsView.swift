@@ -275,8 +275,8 @@ private struct NogsAlertsPage: View {
             Section {
                 Toggle("Quiet hours", isOn: $quietEnabled)
                 if quietEnabled {
-                    DatePicker("From", selection: timeBinding($quietStart), displayedComponents: .hourAndMinute)
-                    DatePicker("Until", selection: timeBinding($quietEnd), displayedComponents: .hourAndMinute)
+                    TimeTunerRow(title: "From", minutes: $quietStart)
+                    TimeTunerRow(title: "Until", minutes: $quietEnd)
                     Toggle("All weekend", isOn: $quietWeekends)
                 }
             } header: {
@@ -296,7 +296,7 @@ private struct NogsAlertsPage: View {
                 Picker("Snooze button", selection: $snoozeMinutes) {
                     ForEach(NogSettings.snoozeChoices, id: \.self) { Text(IntervalFormat.amount($0)).tag($0) }
                 }
-                DatePicker("“Morning” means", selection: timeBinding($morningMinutes), displayedComponents: .hourAndMinute)
+                TimeTunerRow(title: "“Morning” means", minutes: $morningMinutes)
             } header: {
                 SectionLabel(title: "Timing")
             } footer: {

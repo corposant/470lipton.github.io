@@ -45,6 +45,21 @@ private struct ItemEditor: View {
         store.update(current)
     }
 
+    // MARK: Time helpers for the tuner
+
+    static func minutesOfDay(_ date: Date) -> Int {
+        let c = Calendar.current.dateComponents([.hour, .minute], from: date)
+        return (c.hour ?? 0) * 60 + (c.minute ?? 0)
+    }
+
+    static func setting(minutes: Int, on date: Date) -> Date {
+        Calendar.current.date(bySettingHour: minutes / 60, minute: minutes % 60, second: 0, of: date) ?? date
+    }
+
+    static func combine(day: Date, timeOf time: Date) -> Date {
+        setting(minutes: minutesOfDay(time), on: day)
+    }
+
     /// The dial behaves like the matching buttons: Doing starts with the suggested
     /// timebox, Nogged marks it done, Open stops or reopens, Dream parks it.
     private func setStatus(_ new: ItemStatus) {
@@ -236,9 +251,16 @@ private struct ItemEditor: View {
                             .foregroundStyle(current == .relentless ? Theme.pink : Theme.violet)
                     }
                 }
+                // Day from a compact date picker, time from the tuner.
                 DatePicker("Starts", selection: Binding(
                     get: { reminder.start },
-                    set: { date in editReminder { $0.start = date } }))
+                    set: { day in editReminder { $0.start = Self.combine(day: day, timeOf: $0.start) } }),
+                    displayedComponents: .date)
+                TimeTuner(minutes: Binding(
+                    get: { Self.minutesOfDay(reminder.start) },
+                    set: { m in editReminder { $0.start = Self.setting(minutes: m, on: $0.start) } }),
+                    title: "Starts at")
+                    .padding(.vertical, 4)
                 Picker("Repeat", selection: Binding(
                     get: { reminder.repeatMinutes ?? 0 },
                     set: { minutes in editReminder { $0.repeatMinutes = minutes > 0 ? minutes : nil } })) {
