@@ -146,12 +146,19 @@ private struct TunerFace: View, Animatable {
                 }
             }
 
-            // The fixed needle.
+            // The fixed needle: starts below the hour labels so it never covers one,
+            // with a small pointer at the top.
             var needle = Path()
-            needle.move(to: CGPoint(x: mid, y: 2))
+            needle.move(to: CGPoint(x: mid, y: 22))
             needle.addLine(to: CGPoint(x: mid, y: size.height - 2))
+            var pointer = Path()
+            pointer.move(to: CGPoint(x: mid - 4, y: 0))
+            pointer.addLine(to: CGPoint(x: mid + 4, y: 0))
+            pointer.addLine(to: CGPoint(x: mid, y: 6))
+            pointer.closeSubpath()
             context.addFilter(.shadow(color: Theme.pink.opacity(0.9), radius: 5))
             context.stroke(needle, with: .color(Theme.pink), lineWidth: 2)
+            context.fill(pointer, with: .color(Theme.pink))
         }
         .frame(height: 58)
         .padding(.horizontal, 6)
