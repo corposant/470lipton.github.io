@@ -65,6 +65,35 @@ struct Item: Identifiable, Hashable {
     var outgoingLinkTitles: [String] { LinkParser.links(in: body) }
 }
 
+// MARK: - Tags
+
+extension Item {
+    /// "  #Big trip, " → "Big-trip": no "#", commas or edge spaces; inner spaces become dashes
+    /// (a #tag is one word when typed in a capture).
+    static func cleanTag(_ raw: String) -> String {
+        raw.trimmingCharacters(in: .whitespaces)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "#,"))
+            .split(whereSeparator: \.isWhitespace).joined(separator: "-")
+    }
+
+    /// Adds a tag unless it's empty or already there (any capitalisation). Returns true if added.
+    @discardableResult
+    mutating func addTag(_ raw: String) -> Bool {
+        let tag = Self.cleanTag(raw)
+        guard !tag.isEmpty, !tags.contains(where: { $0.caseInsensitiveCompare(tag) == .orderedSame }) else { return false }
+        tags.append(tag)
+        return true
+    }
+
+    /// Removes a tag (any capitalisation). Returns true if it was there.
+    @discardableResult
+    mutating func removeTag(_ tag: String) -> Bool {
+        let before = tags.count
+        tags.removeAll { $0.caseInsensitiveCompare(tag) == .orderedSame }
+        return tags.count != before
+    }
+}
+
 enum ItemStatus: String, CaseIterable, Hashable {
     case open, doing, someday, done
 

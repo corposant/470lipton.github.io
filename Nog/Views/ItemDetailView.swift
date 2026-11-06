@@ -382,17 +382,18 @@ private struct ItemEditor: View {
         withAnimation(.snappy) { isAddingTag = false }
     }
 
-    /// Adds a tag (cleaned up, no duplicates). Spaces become dashes, since a #tag is one word.
+    /// Adds a tag (cleaned up, no duplicates), to the latest copy of the item so quick
+    /// successive adds don't overwrite each other.
     private func add(_ raw: String) {
-        let tag = raw.trimmingCharacters(in: .whitespaces)
-            .trimmingCharacters(in: CharacterSet(charactersIn: "#,"))
-            .split(whereSeparator: \.isWhitespace).joined(separator: "-")
-        guard !tag.isEmpty, !item.tags.contains(where: { $0.caseInsensitiveCompare(tag) == .orderedSame }) else { return }
-        set(\.tags, item.tags + [tag])
+        guard var current = store.items[item.id], current.addTag(raw) else { return }
+        store.update(current)
     }
 
     private func removeTag(_ tag: String) {
-        set(\.tags, item.tags.filter { $0 != tag })
+        guard var current = store.items[item.id] else { return }
+        withAnimation(.snappy) {
+            if current.removeTag(tag) { store.update(current) }
+        }
     }
 
     // MARK: Details
@@ -663,19 +664,29 @@ private struct TagChip: View {
 
     var body: some View {
         let color = TagPalette.tint(for: tag)
-        Text("#\(tag)")
-            .font(.subheadline)
-            .foregroundStyle(color)
-            .padding(.horizontal, 12)
-            .frame(height: 32)
-            .background(color.opacity(0.10), in: Capsule())
-            .overlay(Capsule().strokeBorder(color.opacity(0.45), lineWidth: 1))
-            .contextMenu {
-                Button(role: .destructive, action: remove) {
-                    Label("Remove #\(tag)", systemImage: "xmark")
-                }
+        HStack(spacing: 2) {
+            Text("#\(tag)")
+                .font(.subheadline)
+                .padding(.leading, 12)
+            // A visible ✕ on every chip: tap it to take the tag off.
+            Button(action: remove) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 9, weight: .bold))
+                    .frame(width: 30, height: 32)
+                    .contentShape(Rectangle())
             }
-            .accessibilityAction(named: "Remove", remove)
+            .buttonStyle(.borderless)
+            .accessibilityLabel("Remove tag \(tag)")
+        }
+        .foregroundStyle(color)
+        .frame(height: 32)
+        .background(color.opacity(0.10), in: Capsule())
+        .overlay(Capsule().strokeBorder(color.opacity(0.45), lineWidth: 1))
+        .contextMenu {
+            Button(role: .destructive, action: remove) {
+                Label("Remove #\(tag)", systemImage: "xmark")
+            }
+        }
     }
 }
 

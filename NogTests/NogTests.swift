@@ -822,3 +822,29 @@ final class SnoozeSettingsTests: XCTestCase {
         XCTAssertEqual(after.first?.category, "NOG_S15")
     }
 }
+
+final class ItemTagTests: XCTestCase {
+    func testAddCleansUpAndSkipsDuplicates() {
+        var item = Item(title: "x")
+        XCTAssertTrue(item.addTag("  #Big trip, "))
+        XCTAssertEqual(item.tags, ["Big-trip"])
+        XCTAssertFalse(item.addTag("big-TRIP"))
+        XCTAssertFalse(item.addTag(" # "))
+        XCTAssertEqual(item.tags, ["Big-trip"])
+    }
+
+    func testRemoveIgnoresCapitalisation() {
+        var item = Item(title: "x")
+        item.tags = ["Home", "calls"]
+        XCTAssertTrue(item.removeTag("home"))
+        XCTAssertEqual(item.tags, ["calls"])
+        XCTAssertFalse(item.removeTag("home"))
+    }
+
+    func testRemovedTagSurvivesTheFile() {
+        var item = Item(title: "x")
+        item.tags = ["home", "calls"]
+        item.removeTag("calls")
+        XCTAssertEqual(ItemFile.decode(ItemFile.encode(item))?.tags, ["home"])
+    }
+}
