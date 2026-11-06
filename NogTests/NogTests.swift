@@ -584,3 +584,34 @@ final class TimeTunerTests: XCTestCase {
         XCTAssertEqual(TimeTuner.snapped(543.0, step: 5), 109)  // 545
     }
 }
+
+final class TagFlowTests: XCTestCase {
+    func testTagsFlowDownAndParentsComeAlong() {
+        let hub = Item(title: "Trip")                       // untagged centre
+        var flights = Item(title: "Book flights")
+        flights.parentID = hub.id
+        flights.tags = ["travel"]                           // only a step is tagged
+        var seat = Item(title: "Pick seat")
+        seat.parentID = flights.id                          // inherits #travel
+        var hotel = Item(title: "Find hotel")
+        hotel.parentID = hub.id                             // sibling, not tagged
+        let all = [hub, flights, seat, hotel]
+
+        let titles = Set(MapPage.items(all, page: "travel", showNogged: false).map(\.title))
+        XCTAssertEqual(titles, ["Trip", "Book flights", "Pick seat"])
+
+        let byID = Dictionary(uniqueKeysWithValues: all.map { ($0.id, $0) })
+        XCTAssertEqual(MapPage.effectiveTags(seat, in: byID), ["travel"])
+        XCTAssertTrue(MapPage.effectiveTags(hotel, in: byID).isEmpty)
+    }
+
+    func testTaggedProjectBringsItsWholeStar() {
+        var hub = Item(title: "Trip")
+        hub.tags = ["Travel"]
+        var a = Item(title: "A"); a.parentID = hub.id
+        var b = Item(title: "B"); b.parentID = a.id
+        let tags = MapPage.tags([hub, a, b], showNogged: false)
+        XCTAssertEqual(tags.first?.tag, "travel")
+        XCTAssertEqual(tags.first?.count, 3)
+    }
+}

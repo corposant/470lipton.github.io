@@ -128,32 +128,50 @@ enum TagPalette {
 }
 
 /// Map pages: "All", plus one page per #tag.
+///
+/// Tags flow down: a sub-item counts as having its parents' tags (worked out here,
+/// nothing is rewritten). And a tag page always includes the parents of what it
+/// shows, so the centre of a star never goes missing.
 enum MapPage {
-    /// The items on a page: everything (page "") or the items tagged `page` plus
-    /// everything filed under them, so a tagged project brings its sub-items along.
+    /// An item's own tags plus every ancestor's, lowercased.
+    static func effectiveTags(_ item: Item, in byID: [UUID: Item]) -> Set<String> {
+        var tags = Set(item.tags.map { $0.lowercased() })
+        var current = item.parentID
+        var seen: Set<UUID> = [item.id]
+        while let id = current, seen.insert(id).inserted, let parent = byID[id] {
+            tags.formUnion(parent.tags.map { $0.lowercased() })
+            current = parent.parentID
+        }
+        return tags
+    }
+
+    /// The items on a page: everything (page "") or everything carrying the tag
+    /// (directly or inherited), plus the parents above them.
     static func items(_ all: [Item], page: String, showNogged: Bool) -> [Item] {
         let visible = all.filter { showNogged || $0.status != .done }
         guard !page.isEmpty else { return visible }
         let key = page.lowercased()
-        var children: [UUID: [Item]] = [:]
-        for item in visible {
-            if let parent = item.parentID { children[parent, default: []].append(item) }
+        let byID = Dictionary(all.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+        let visibleIDs = Set(visible.map(\.id))
+
+        var included = Set<UUID>()
+        for item in visible where effectiveTags(item, in: byID).contains(key) {
+            included.insert(item.id)
+            // Bring the parents along so the star keeps its centre.
+            var current = item.parentID
+            while let id = current, visibleIDs.contains(id), included.insert(id).inserted {
+                current = byID[id]?.parentID
+            }
         }
-        var result: [UUID: Item] = [:]
-        var queue = visible.filter { $0.tags.contains { $0.lowercased() == key } }
-        while let next = queue.popLast() {
-            guard result[next.id] == nil else { continue }
-            result[next.id] = next
-            queue += children[next.id] ?? []
-        }
-        return Array(result.values)
+        return visible.filter { included.contains($0.id) }
     }
 
-    /// Tags that have a page, busiest first.
+    /// Tags that have a page, busiest first (counting inherited tags).
     static func tags(_ all: [Item], showNogged: Bool) -> [(tag: String, count: Int)] {
+        let byID = Dictionary(all.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
         var counts: [String: Int] = [:]
         for item in all where showNogged || item.status != .done {
-            for tag in Set(item.tags.map { $0.lowercased() }) { counts[tag, default: 0] += 1 }
+            for tag in effectiveTags(item, in: byID) { counts[tag, default: 0] += 1 }
         }
         return counts.map { (tag: $0.key, count: $0.value) }
             .sorted { $0.count != $1.count ? $0.count > $1.count : $0.tag < $1.tag }

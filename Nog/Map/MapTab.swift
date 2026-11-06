@@ -20,21 +20,21 @@ struct MapTab: View {
         // If the tag you were on no longer has any items, fall back to All.
         let current = tags.contains { $0.tag == page } ? page : ""
         NavigationStack(path: $router.mapPath) {
-            Group {
-                switch mode {
-                case .map:
-                    MindMapView(doc: pages.doc(for: current),
-                                seed: current.isEmpty ? nil : pages.doc(for: ""),
-                                page: current, showNogged: showNogged)
-                        .id(current) // fresh pan/zoom and centring per page
-                case .outline:
-                    OutlineView(showNogged: showNogged, page: current)
+            VStack(spacing: 0) {
+                // The page strip is part of the page (not an inset), so the nav bar can't cover it.
+                MapPageStrip(tags: tags, selected: current) { page = $0 }
+                Group {
+                    switch mode {
+                    case .map:
+                        MindMapView(doc: pages.doc(for: current),
+                                    seed: current.isEmpty ? nil : pages.doc(for: ""),
+                                    page: current, showNogged: showNogged)
+                            .id(current) // fresh pan/zoom and centring per page
+                    case .outline:
+                        OutlineView(showNogged: showNogged, page: current)
+                    }
                 }
-            }
-            .safeAreaInset(edge: .top, spacing: 0) {
-                if !tags.isEmpty {
-                    MapPageStrip(tags: tags, selected: current) { page = $0 }
-                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .background { NogBackground() }
             .navigationBarTitleDisplayMode(.inline)
@@ -179,9 +179,10 @@ struct MindMapView: View {
         let zones: [Zone] = {
             var byTag: [String: [CGPoint]] = [:]
             for item in items {
+                // Tags flow down, so a zone wraps a whole project with its sub-items.
                 // On a tag's own page, its zone would just surround everything, so skip it.
-                for tag in item.tags where tag.lowercased() != page {
-                    byTag[tag.lowercased(), default: []].append(mapPoint(item.id))
+                for tag in MapPage.effectiveTags(item, in: store.items) where tag != page {
+                    byTag[tag, default: []].append(mapPoint(item.id))
                 }
             }
             return byTag.compactMap { tag, points in
@@ -679,6 +680,12 @@ struct MapPageStrip: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 chip(title: "ALL", count: nil, color: Theme.blue, isSelected: selected.isEmpty) { select("") }
+                if tags.isEmpty {
+                    Text("Add #tags to get a page per tag")
+                        .font(.caption)
+                        .foregroundStyle(Theme.muted)
+                        .padding(.leading, 4)
+                }
                 ForEach(tags, id: \.tag) { entry in
                     let pair = TagPalette.color(for: entry.tag)
                     chip(title: "#\(entry.tag.uppercased())", count: entry.count,
