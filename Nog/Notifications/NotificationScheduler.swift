@@ -44,7 +44,7 @@ final class NotificationScheduler {
             let snooze = UNNotificationAction(identifier: Action.snoozeHour.rawValue,
                                               title: NogSettings.snoozeLabel(minutes: snoozeMinutes), options: [])
             let morning = UNNotificationAction(identifier: Action.morning.rawValue,
-                                               title: NogSettings.morningLabel(minutes: morningMinutes), options: [])
+                                               title: NogSettings.morningSnoozeLabel(minutes: morningMinutes), options: [])
             categories.insert(UNNotificationCategory(identifier: id, actions: [done, snooze, morning],
                                                      intentIdentifiers: [], options: []))
         }

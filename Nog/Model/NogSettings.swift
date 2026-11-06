@@ -77,7 +77,7 @@ enum NogSettings {
     }
 
     /// "Snooze till 9 AM" (or whatever "morning" is set to).
-    static var morningLabel: String { morningLabel(minutes: morningMinutes) }
+    static var morningLabel: String { morningSnoozeLabel(minutes: morningMinutes) }
 
     /// The next "morning" (9 AM unless changed in Nogs & alerts, or for this item).
     static func nextMorning(after now: Date = .now, minutes: Int? = nil) -> Date {
@@ -89,7 +89,7 @@ enum NogSettings {
     // MARK: Per-item snooze
 
     /// This item's snooze length (its own, or the default).
-    static func snoozeMinutes(for item: Item) -> Int {
+    static func snoozeLength(for item: Item) -> Int {
         item.reminder?.snoozeMinutes ?? snoozeMinutes
     }
 
@@ -104,13 +104,10 @@ enum NogSettings {
     }
 
     /// "Snooze till 9 AM" for a morning time (minutes after midnight).
-    static func morningLabel(minutes: Int) -> String {
+    static func morningSnoozeLabel(minutes: Int) -> String {
         let date = Calendar.current.date(bySettingHour: minutes / 60, minute: minutes % 60, second: 0, of: .now) ?? .now
         return "Snooze till \(date.formatted(date: .omitted, time: .shortened))"
     }
-
-    /// Lengths offered for an item's Snooze button.
-    static let snoozeChoices = [5, 10, 15, 30, 60, 120, 180, 240, 480]
 }
 
 // MARK: - Control panel choices
@@ -231,7 +228,8 @@ extension NogSettings {
 
     static let headsUpChoices = [0, 5, 10, 15, 30, 60]
     static let escalateChoices = [0, 3, 5, 10, 20]
-    static let snoozeChoices = [5, 10, 15, 30, 60, 120]
+    /// Snooze lengths, for the Settings default and each item's own.
+    static let snoozeChoices = [5, 10, 15, 30, 60, 120, 180, 240, 480]
     static let timesUpChoices = [1, 2, 5, 10, 15]
     static let checkInChoices = [0, 30, 60, 120]
 }

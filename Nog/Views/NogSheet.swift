@@ -227,12 +227,12 @@ struct NogSheet: View {
     /// The two snoozes, as actions you can take now, plus this item's own lengths for them.
     /// The same two buttons appear on its notifications (press and hold one).
     private func snoozeSection(_ item: Item, _ reminder: Reminder) -> some View {
-        let snooze = NogSettings.snoozeMinutes(for: item)
+        let snooze = NogSettings.snoozeLength(for: item)
         let morningMinutes = reminder.morningMinutes ?? NogSettings.morningMinutes
         let morning = NogSettings.nextMorning(for: item)
         let morningTitle = Calendar.current.isDateInTomorrow(morning)
             ? "Snooze till tomorrow \(morning.formatted(date: .omitted, time: .shortened))"
-            : NogSettings.morningLabel(minutes: morningMinutes)
+            : NogSettings.morningSnoozeLabel(minutes: morningMinutes)
 
         return Section {
             if item.isOpen {
