@@ -256,10 +256,11 @@ private struct ItemEditor: View {
                     get: { reminder.start },
                     set: { day in editReminder { $0.start = Self.combine(day: day, timeOf: $0.start) } }),
                     displayedComponents: .date)
-                TimeTuner(minutes: Binding(
-                    get: { Self.minutesOfDay(reminder.start) },
-                    set: { m in editReminder { $0.start = Self.setting(minutes: m, on: $0.start) } }),
-                    title: "Starts at")
+                // Rolls across days (past midnight → tomorrow…), never earlier than now.
+                TimeTuner(date: Binding(
+                    get: { reminder.start },
+                    set: { date in editReminder { $0.start = date } }),
+                    title: "Starts at", notBefore: .now)
                     .padding(.vertical, 4)
                 Picker("Repeat", selection: Binding(
                     get: { reminder.repeatMinutes ?? 0 },

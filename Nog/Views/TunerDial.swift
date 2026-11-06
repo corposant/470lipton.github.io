@@ -1,60 +1,110 @@
 import SwiftUI
 
 /// A radio-tuner style time picker: a glowing pro-app readout over a wide, recessed
-/// scale you drag sideways. It has momentum, settles on a 5-minute mark, clicks
-/// (haptics) as it passes each step, and wraps around midnight.
+/// scale you drag sideways. It has momentum, settles on a 5-minute mark and clicks
+/// (haptics) as it passes each step.
+///
+/// Two modes:
+/// - `minutes`: a time of day that wraps round the clock (quiet hours, "morning").
+/// - `date`: a real moment. Rolling past midnight moves to the next day, forever;
+///   rolling back stops at `notBefore` with a soft rubber band.
 ///
 /// Performance: the scale is drawn in one Canvas pass (only visible ticks), the
-/// settle animation interpolates a single value, and the binding is written once,
+/// settle animation interpolates a single value, and the result is written once,
 /// when the dial comes to rest.
 struct TimeTuner: View {
-    /// Minutes after midnight.
-    @Binding var minutes: Int
     var title: String = ""
     var step = 5
     /// Horizontal points per step.
     var spacing: CGFloat = 13
 
-    /// The value being shown while dragging or settling (nil = the binding's value).
+    /// Current committed value, in minutes from the reference midnight.
+    private let value: Double
+    private let commit: (Double) -> Void
+    /// Lowest allowed value (nil = no limit).
+    private let lower: Double?
+    private let reference: Date?
+
     @State private var live: Double?
     @State private var dragStart: Double?
 
-    private var shown: Double { live ?? Double(minutes) }
+    /// Time of day, wrapping round the clock.
+    init(minutes: Binding<Int>, title: String = "") {
+        self.title = title
+        value = Double(minutes.wrappedValue)
+        commit = { minutes.wrappedValue = TimeTuner.wrap(Int($0.rounded())) }
+        lower = nil
+        reference = nil
+    }
+
+    /// A moment in time: rolls across days, never earlier than `notBefore`.
+    init(date: Binding<Date>, title: String = "", notBefore: Date? = nil) {
+        self.title = title
+        let calendar = Calendar.current
+        let midnight = calendar.startOfDay(for: date.wrappedValue)
+        reference = midnight
+        value = date.wrappedValue.timeIntervalSince(midnight) / 60
+        commit = { minutes in date.wrappedValue = midnight.addingTimeInterval(minutes * 60) }
+        lower = notBefore.map { floor in
+            // The first 5-minute mark at or after `notBefore`.
+            let m = floor.timeIntervalSince(midnight) / 60
+            return (m / 5).rounded(.up) * 5
+        }
+    }
+
+    private var shown: Double { live ?? value }
 
     var body: some View {
-        TunerFace(value: shown, title: title, step: step, spacing: spacing)
+        TunerFace(value: shown, title: title, step: step, spacing: spacing, reference: reference)
             .contentShape(Rectangle())
             .gesture(drag)
             .sensoryFeedback(.selection, trigger: Self.snapped(shown, step: step))
+            .sensoryFeedback(.impact(weight: .light), trigger: isAtLowerStop)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(title.isEmpty ? "Time" : title)
-            .accessibilityValue(TunerFace.timeString(Self.wrap(Int(shown.rounded()))))
+            .accessibilityValue(TunerFace.readout(for: shown, step: step, reference: reference).joined(separator: ", "))
             .accessibilityAdjustableAction { direction in
                 switch direction {
-                case .increment: minutes = Self.wrap(minutes + step)
-                case .decrement: minutes = Self.wrap(minutes - step)
+                case .increment: commit(clamped(value + Double(step)))
+                case .decrement: commit(clamped(value - Double(step)))
                 @unknown default: break
                 }
             }
     }
 
+    private var isAtLowerStop: Bool {
+        guard let lower else { return false }
+        return shown <= lower + 0.5
+    }
+
+    private func clamped(_ v: Double) -> Double {
+        guard let lower else { return v }
+        return max(lower, v)
+    }
+
+    /// Past the lower stop, the dial resists (rubber band) instead of moving freely.
+    private func rubberBanded(_ v: Double) -> Double {
+        guard let lower, v < lower else { return v }
+        return lower - (lower - v) * 0.25
+    }
+
     private var drag: some Gesture {
         DragGesture(minimumDistance: 2)
-            .onChanged { value in
+            .onChanged { gesture in
                 let start = dragStart ?? shown
                 dragStart = start
                 // Dragging the scale left moves time forward, like turning a tuner.
-                live = start - Double(value.translation.width / spacing) * Double(step)
+                live = rubberBanded(start - Double(gesture.translation.width / spacing) * Double(step))
             }
-            .onEnded { value in
+            .onEnded { gesture in
                 let start = dragStart ?? shown
-                let projected = start - Double(value.predictedEndTranslation.width / spacing) * Double(step)
-                let target = (projected / Double(step)).rounded() * Double(step)
+                let projected = start - Double(gesture.predictedEndTranslation.width / spacing) * Double(step)
+                let target = clamped((projected / Double(step)).rounded() * Double(step))
                 dragStart = nil
                 withAnimation(.spring(response: 0.55, dampingFraction: 0.86)) {
                     live = target
                 } completion: {
-                    minutes = Self.wrap(Int(target))
+                    commit(target)
                     live = nil
                 }
             }
@@ -72,6 +122,8 @@ private struct TunerFace: View, Animatable {
     let title: String
     let step: Int
     let spacing: CGFloat
+    /// Midnight the value counts from (date mode), or nil (time of day).
+    let reference: Date?
 
     var animatableData: Double {
         get { value }
@@ -88,17 +140,20 @@ private struct TunerFace: View, Animatable {
     // MARK: Readout
 
     private var readout: some View {
-        let text = Self.timeString(TimeTuner.wrap(Int((value / Double(step)).rounded()) * step))
+        let parts = Self.readout(for: value, step: step, reference: reference)
+        let time = parts[0]
+        let day = parts.count > 1 ? parts[1] : nil
         return VStack(alignment: .leading, spacing: 2) {
-            if !title.isEmpty {
-                Text(title.uppercased())
+            if !title.isEmpty || day != nil {
+                Text([title.uppercased(), day?.uppercased()].compactMap { $0 }.filter { !$0.isEmpty }
+                        .joined(separator: " · "))
                     .font(.nogMicroLabel)
                     .tracking(1.8)
                     .foregroundStyle(Color(red: 0.36, green: 0.42, blue: 0.5))
             }
             ZStack(alignment: .leading) {
-                Text(Self.ghost(for: text)).foregroundStyle(Theme.blue.opacity(0.07))
-                Text(text)
+                Text(Self.ghost(for: time)).foregroundStyle(Theme.blue.opacity(0.07))
+                Text(time)
                     .foregroundStyle(Color(red: 0.75, green: 0.89, blue: 1.0))
                     .shadow(color: Theme.blue.opacity(0.55), radius: 8)
                     .shadow(color: Theme.blue.opacity(0.9), radius: 1)
@@ -110,6 +165,21 @@ private struct TunerFace: View, Animatable {
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
         .background(RecessedWell(cornerRadius: 9))
+    }
+
+    /// [time, day?]: e.g. ["9:30 PM", "Tomorrow"].
+    static func readout(for value: Double, step: Int, reference: Date?) -> [String] {
+        let snapped = Int((value / Double(step)).rounded()) * step
+        guard let reference else { return [timeString(TimeTuner.wrap(snapped))] }
+        let date = reference.addingTimeInterval(Double(snapped) * 60)
+        return [date.formatted(date: .omitted, time: .shortened), dayLabel(date)]
+    }
+
+    static func dayLabel(_ date: Date) -> String {
+        let calendar = Calendar.current
+        if calendar.isDateInToday(date) { return "Today" }
+        if calendar.isDateInTomorrow(date) { return "Tomorrow" }
+        return date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day())
     }
 
     // MARK: Scale
@@ -129,19 +199,29 @@ private struct TunerFace: View, Animatable {
                 let distance = abs(x - mid) / mid
                 let fade = max(0, 1 - pow(distance, 1.6))
                 let wrapped = TimeTuner.wrap(m)
+                let isMidnight = wrapped == 0
                 let isHour = wrapped % 60 == 0
                 let isQuarter = wrapped % 15 == 0
-                let height: CGFloat = isHour ? 22 : (isQuarter ? 14 : 8)
+                let height: CGFloat = isMidnight ? 30 : (isHour ? 22 : (isQuarter ? 14 : 8))
                 var tick = Path()
                 tick.move(to: CGPoint(x: x, y: size.height - 6))
                 tick.addLine(to: CGPoint(x: x, y: size.height - 6 - height))
                 context.stroke(tick,
-                               with: .color(Color(white: 0.75).opacity((isHour ? 0.85 : 0.45) * fade)),
+                               with: .color((isMidnight && reference != nil ? Theme.violet : Color(white: 0.75))
+                                                .opacity((isHour ? 0.85 : 0.45) * fade)),
                                lineWidth: isHour ? 1.6 : 1)
                 if isHour {
-                    let label = Text(Self.hourLabel(wrapped))
+                    let text: String
+                    if isMidnight, let reference {
+                        // Midnight shows the day you're rolling into.
+                        let day = reference.addingTimeInterval(Double(m) * 60)
+                        text = day.formatted(.dateTime.weekday(.abbreviated)).uppercased()
+                    } else {
+                        text = Self.hourLabel(wrapped)
+                    }
+                    let label = Text(text)
                         .font(.custom("Futura-Medium", size: 11))
-                        .foregroundColor(Color(white: 0.8).opacity(fade))
+                        .foregroundColor((isMidnight && reference != nil ? Theme.violet : Color(white: 0.8)).opacity(fade))
                     context.draw(label, at: CGPoint(x: x, y: 12), anchor: .center)
                 }
             }
