@@ -22,15 +22,32 @@ final class NotificationScheduler {
     private var running: Task<Void, Never>?
     private(set) var lastPlannedCount = 0
 
-    func registerCategories() {
+    private var registeredCategories: Set<String> = []
+    /// Custom categories seen at the last sync, kept when re-registering without items.
+    private var customCategories: Set<String> = []
+
+    /// The default nog category, the Doing one, plus one per custom snooze combination in use.
+    /// Without `items` (launch, Settings changes) it keeps the custom ones from the last sync.
+    func registerCategories(items: [Item]? = nil) {
+        if let items { customCategories = Set(items.map { NogPlanner.category(for: $0.reminder) }) }
+        let ids = customCategories.union([Self.categoryID])
+        let signature = ids.union(["\(NogSettings.snoozeMinutes)|\(NogSettings.morningMinutes)"])
+        guard signature != registeredCategories else { return }
+        registeredCategories = signature
+
         let done = UNNotificationAction(identifier: Action.done.rawValue, title: "Done ✓", options: [])
-        let snooze = UNNotificationAction(identifier: Action.snoozeHour.rawValue,
-                                          title: "Snooze \(IntervalFormat.amount(NogSettings.snoozeMinutes))", options: [])
-        let morning = UNNotificationAction(identifier: Action.morning.rawValue, title: NogSettings.morningLabel, options: [])
-        let category = UNNotificationCategory(identifier: Self.categoryID,
-                                              actions: [done, snooze, morning],
-                                              intentIdentifiers: [],
-                                              options: [])
+        var categories: Set<UNNotificationCategory> = []
+        for id in ids {
+            let custom = NogPlanner.snoozeSettings(fromCategory: id)
+            let snoozeMinutes = custom.snooze ?? NogSettings.snoozeMinutes
+            let morningMinutes = custom.morning ?? NogSettings.morningMinutes
+            let snooze = UNNotificationAction(identifier: Action.snoozeHour.rawValue,
+                                              title: NogSettings.snoozeLabel(minutes: snoozeMinutes), options: [])
+            let morning = UNNotificationAction(identifier: Action.morning.rawValue,
+                                               title: NogSettings.morningLabel(minutes: morningMinutes), options: [])
+            categories.insert(UNNotificationCategory(identifier: id, actions: [done, snooze, morning],
+                                                     intentIdentifiers: [], options: []))
+        }
         let doing = UNNotificationCategory(
             identifier: NogPlanner.categoryDoing,
             actions: [
@@ -40,7 +57,8 @@ final class NotificationScheduler {
             ],
             intentIdentifiers: [],
             options: [])
-        center.setNotificationCategories([category, doing])
+        categories.insert(doing)
+        center.setNotificationCategories(categories)
     }
 
     @discardableResult
@@ -68,6 +86,7 @@ final class NotificationScheduler {
     }
 
     private func performSync(items: [Item]) async {
+        registerCategories(items: items)
         let policy = NogSettings.policy
         let ringing = await AlarmScheduler.shared.sync(items: items, policy: policy)
         let plan = NogPlanner.plan(items: items, now: .now, policy: policy, alarmDates: ringing)

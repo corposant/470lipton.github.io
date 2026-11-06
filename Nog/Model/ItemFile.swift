@@ -37,9 +37,18 @@ enum ItemFile {
             if r.curve != .steady { lines.append("repeat_curve: \(r.curve.rawValue)") }
             if r.alarm { lines.append("alarm: true") }
             if let e = r.escalateAfter { lines.append("escalate_after: \(e)") }
+            if let s = r.snoozeMinutes { lines.append("snooze_minutes: \(s)") }
+            if let m = r.morningMinutes { lines.append("snooze_morning: \(String(format: "%02d:%02d", m / 60, m % 60))") }
         }
         lines.append("---")
         return lines.joined(separator: "\n") + "\n" + item.body
+    }
+
+    /// "08:30" → 510.
+    static func clockMinutes(_ text: String) -> Int? {
+        let parts = text.split(separator: ":").compactMap { Int($0) }
+        guard parts.count == 2, (0..<24).contains(parts[0]), (0..<60).contains(parts[1]) else { return nil }
+        return parts[0] * 60 + parts[1]
     }
 
     static func decode(_ text: String) -> Item? {
@@ -90,7 +99,9 @@ enum ItemFile {
             let curve = fields["repeat_curve"].flatMap(RepeatCurve.init(rawValue:)) ?? .steady
             item.reminder = Reminder(start: start, repeatMinutes: repeatMinutes, curve: curve,
                                      alarm: fields["alarm"] == "true",
-                                     escalateAfter: fields["escalate_after"].flatMap { Int($0) })
+                                     escalateAfter: fields["escalate_after"].flatMap { Int($0) },
+                                     snoozeMinutes: fields["snooze_minutes"].flatMap { Int($0) }.flatMap { $0 > 0 ? $0 : nil },
+                                     morningMinutes: fields["snooze_morning"].flatMap(Self.clockMinutes))
         }
         return item
     }

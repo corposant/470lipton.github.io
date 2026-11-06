@@ -179,16 +179,18 @@ struct ItemRow: View {
         .swipeActions(edge: .trailing) {
             Button("Delete", role: .destructive) { store.delete(item.id) }
             if item.status == .open || item.status == .someday {
+                let snooze = NogSettings.snoozeMinutes(for: item)
                 Button {
-                    store.snooze(item.id, until: now.addingTimeInterval(TimeInterval(NogSettings.snoozeMinutes * 60)))
+                    store.snooze(item.id, until: now.addingTimeInterval(TimeInterval(snooze * 60)))
                 } label: {
-                    Label("Snooze \(IntervalFormat.amount(NogSettings.snoozeMinutes))", systemImage: "zzz")
+                    Label(NogSettings.snoozeLabel(minutes: snooze), systemImage: "zzz")
                 }
                 .tint(Theme.pink)
                 Button {
-                    store.snooze(item.id, until: NogSettings.nextMorning(after: now))
+                    store.snooze(item.id, until: NogSettings.nextMorning(for: item, after: now))
                 } label: {
-                    Label(NogSettings.morningLabel, systemImage: "sunrise")
+                    Label(NogSettings.morningLabel(minutes: item.reminder?.morningMinutes ?? NogSettings.morningMinutes),
+                          systemImage: "sunrise")
                 }
                 .tint(Theme.violet)
             } else if item.isDoing {

@@ -113,6 +113,10 @@ struct Reminder: Hashable {
     var alarm: Bool = false
     /// Ring as an alarm after this many ignored nogs. nil = the global setting, 0 = never.
     var escalateAfter: Int? = nil
+    /// This item's "Snooze" length in minutes. nil = the Settings default.
+    var snoozeMinutes: Int? = nil
+    /// This item's "Snooze till morning" time, minutes after midnight. nil = the Settings default.
+    var morningMinutes: Int? = nil
 
     /// Logarithmic gaps stop growing here.
     static let logarithmicCapMinutes = 1440

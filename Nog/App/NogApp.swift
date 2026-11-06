@@ -82,9 +82,10 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
                 case NotificationScheduler.Action.done.rawValue:
                     store.markDone(id)
                 case NotificationScheduler.Action.snoozeHour.rawValue:
-                    store.snooze(id, until: .now.addingTimeInterval(TimeInterval(NogSettings.snoozeMinutes * 60)))
+                    let minutes = store.items[id].map(NogSettings.snoozeMinutes(for:)) ?? NogSettings.snoozeMinutes
+                    store.snooze(id, until: .now.addingTimeInterval(TimeInterval(minutes * 60)))
                 case NotificationScheduler.Action.morning.rawValue:
-                    store.snooze(id, until: NogSettings.nextMorning())
+                    store.snooze(id, until: store.items[id].map { NogSettings.nextMorning(for: $0) } ?? NogSettings.nextMorning())
                 case NotificationScheduler.Action.extend.rawValue:
                     store.extend(id, minutes: 10)
                 case NotificationScheduler.Action.stopDoing.rawValue:

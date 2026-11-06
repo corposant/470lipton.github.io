@@ -41,6 +41,25 @@ enum NogPlanner {
     static let categoryDoing = "NOG_DOING"
     static let defaultBudget = 60
 
+    /// The notification category for an item's nogs: "NOG", or e.g. "NOG_S30_M510" when it has
+    /// its own snooze length / morning time, so its notification buttons say the right thing.
+    static func category(for reminder: Reminder?) -> String {
+        var id = categoryNog
+        if let s = reminder?.snoozeMinutes { id += "_S\(s)" }
+        if let m = reminder?.morningMinutes { id += "_M\(m)" }
+        return id
+    }
+
+    /// Reads a category back: (snooze minutes, morning minutes), nil where it uses the defaults.
+    static func snoozeSettings(fromCategory id: String) -> (snooze: Int?, morning: Int?) {
+        var snooze: Int?, morning: Int?
+        for part in id.split(separator: "_").dropFirst() {
+            if part.hasPrefix("S") { snooze = Int(part.dropFirst()) }
+            if part.hasPrefix("M") { morning = Int(part.dropFirst()) }
+        }
+        return (snooze, morning)
+    }
+
     static func plan(items: [Item], now: Date,
                      budget: Int = defaultBudget,
                      maxFollowUpsPerItem: Int = 24,
@@ -64,8 +83,9 @@ enum NogPlanner {
             let body = doing
                 ? (item.timeboxMinutes != nil ? "Time's up. Done, or 10 more minutes?" : "Still on it?")
                 : (r.repeatSummary.map { "Nogging \($0) until done" } ?? "Reminder")
-            let category = doing ? categoryDoing : categoryNog
-            let titleTag = stableHash(item.title)
+            let category = doing ? categoryDoing : self.category(for: item.reminder)
+            // A change of category (its buttons) must replace already-scheduled nogs.
+            let titleTag = stableHash(category == categoryNog || doing ? item.title : item.title + "|" + category)
             let base = "\(prefix)\(item.id.uuidString)\(doing ? ".doing" : "")"
 
             func oneShot(_ date: Date, body: String = body, kind: String = "at") -> PlannedNotification {

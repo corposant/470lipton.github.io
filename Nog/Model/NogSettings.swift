@@ -77,18 +77,40 @@ enum NogSettings {
     }
 
     /// "Snooze till 9 AM" (or whatever "morning" is set to).
-    static var morningLabel: String {
-        let m = morningMinutes
-        let date = Calendar.current.date(bySettingHour: m / 60, minute: m % 60, second: 0, of: .now) ?? .now
-        return "Snooze till \(date.formatted(date: .omitted, time: .shortened))"
-    }
+    static var morningLabel: String { morningLabel(minutes: morningMinutes) }
 
-    /// The next "morning" (9 AM unless changed in Nogs & alerts).
-    static func nextMorning(after now: Date = .now) -> Date {
-        let m = morningMinutes
+    /// The next "morning" (9 AM unless changed in Nogs & alerts, or for this item).
+    static func nextMorning(after now: Date = .now, minutes: Int? = nil) -> Date {
+        let m = minutes ?? morningMinutes
         return Calendar.current.nextDate(after: now, matching: DateComponents(hour: m / 60, minute: m % 60),
                                          matchingPolicy: .nextTime) ?? now.addingTimeInterval(12 * 3600)
     }
+
+    // MARK: Per-item snooze
+
+    /// This item's snooze length (its own, or the default).
+    static func snoozeMinutes(for item: Item) -> Int {
+        item.reminder?.snoozeMinutes ?? snoozeMinutes
+    }
+
+    /// When "Snooze till morning" would move this item to.
+    static func nextMorning(for item: Item, after now: Date = .now) -> Date {
+        nextMorning(after: now, minutes: item.reminder?.morningMinutes)
+    }
+
+    /// "Snooze 1 hour" for this item.
+    static func snoozeLabel(minutes: Int) -> String {
+        "Snooze \(IntervalFormat.amount(minutes))"
+    }
+
+    /// "Snooze till 9 AM" for a morning time (minutes after midnight).
+    static func morningLabel(minutes: Int) -> String {
+        let date = Calendar.current.date(bySettingHour: minutes / 60, minute: minutes % 60, second: 0, of: .now) ?? .now
+        return "Snooze till \(date.formatted(date: .omitted, time: .shortened))"
+    }
+
+    /// Lengths offered for an item's Snooze button.
+    static let snoozeChoices = [5, 10, 15, 30, 60, 120, 180, 240, 480]
 }
 
 // MARK: - Control panel choices

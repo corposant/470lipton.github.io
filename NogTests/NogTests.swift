@@ -788,3 +788,37 @@ final class TagSuggesterTests: XCTestCase {
         XCTAssertEqual(TagSuggester.writtenTags(in: "#calls mum #ho"), ["calls"])
     }
 }
+
+final class SnoozeSettingsTests: XCTestCase {
+    func testPerItemSnoozeSurvivesTheFile() throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        var item = Item(title: "call plumber")
+        item.created = now
+        item.updated = now
+        item.reminder = Reminder(start: now, repeatMinutes: 8, snoozeMinutes: 30, morningMinutes: 8 * 60 + 30)
+        XCTAssertTrue(ItemFile.encode(item).contains("snooze_morning: 08:30"))
+        XCTAssertEqual(ItemFile.decode(ItemFile.encode(item)), item)
+    }
+
+    func testCategoryCarriesTheItemsOwnSnooze() {
+        XCTAssertEqual(NogPlanner.category(for: nil), "NOG")
+        XCTAssertEqual(NogPlanner.category(for: Reminder(start: .now)), "NOG")
+        let r = Reminder(start: .now, snoozeMinutes: 30, morningMinutes: 510)
+        let id = NogPlanner.category(for: r)
+        XCTAssertEqual(id, "NOG_S30_M510")
+        let back = NogPlanner.snoozeSettings(fromCategory: id)
+        XCTAssertEqual(back.snooze, 30)
+        XCTAssertEqual(back.morning, 510)
+        XCTAssertNil(NogPlanner.snoozeSettings(fromCategory: "NOG").snooze)
+    }
+
+    func testChangingSnoozeReschedulesTheNog() {
+        let now = Date(timeIntervalSince1970: 1_900_000_000)
+        var item = Item(title: "x", reminder: Reminder(start: now.addingTimeInterval(600)))
+        let before = NogPlanner.plan(items: [item], now: now).map(\.identifier)
+        item.reminder?.snoozeMinutes = 15
+        let after = NogPlanner.plan(items: [item], now: now)
+        XCTAssertNotEqual(before, after.map(\.identifier))
+        XCTAssertEqual(after.first?.category, "NOG_S15")
+    }
+}

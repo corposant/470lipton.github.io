@@ -40,6 +40,7 @@ struct NogSheet: View {
                         profileSection(reminder)
                         whenSection(reminder)
                         rhythmSection(reminder)
+                        snoozeSection(item, reminder)
                         previewSection(item, reminder)
                     }
                 }
@@ -217,6 +218,58 @@ struct NogSheet: View {
             }
         } header: {
             SectionLabel(title: "Repeat")
+        }
+        .listRowBackground(Theme.glass)
+    }
+
+    // MARK: Snooze
+
+    /// The two snoozes, as actions you can take now, plus this item's own lengths for them.
+    /// The same two buttons appear on its notifications (press and hold one).
+    private func snoozeSection(_ item: Item, _ reminder: Reminder) -> some View {
+        let snooze = NogSettings.snoozeMinutes(for: item)
+        let morningMinutes = reminder.morningMinutes ?? NogSettings.morningMinutes
+        let morning = NogSettings.nextMorning(for: item)
+        let morningTitle = Calendar.current.isDateInTomorrow(morning)
+            ? "Snooze till tomorrow \(morning.formatted(date: .omitted, time: .shortened))"
+            : NogSettings.morningLabel(minutes: morningMinutes)
+
+        return Section {
+            if item.isOpen {
+                VStack(spacing: 8) {
+                    Button {
+                        store.snooze(id, until: .now.addingTimeInterval(TimeInterval(snooze * 60)))
+                    } label: {
+                        Label(NogSettings.snoozeLabel(minutes: snooze), systemImage: "zzz")
+                    }
+                    .buttonStyle(OutlineButtonStyle(tint: Theme.pink))
+                    Button {
+                        store.snooze(id, until: morning)
+                    } label: {
+                        Label(morningTitle, systemImage: "sunrise")
+                    }
+                    .buttonStyle(OutlineButtonStyle(tint: Theme.violet))
+                }
+                .listRowInsets(EdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 12))
+            }
+            Picker("Snooze for", selection: Binding(
+                get: { reminder.snoozeMinutes ?? 0 },
+                set: { minutes in edit { $0.snoozeMinutes = minutes > 0 ? minutes : nil } })) {
+                Text("Default (\(IntervalFormat.amount(NogSettings.snoozeMinutes)))").tag(0)
+                ForEach(Array(Set(NogSettings.snoozeChoices + [reminder.snoozeMinutes ?? 5])).sorted(), id: \.self) {
+                    Text(IntervalFormat.amount($0)).tag($0)
+                }
+            }
+            TimeTunerRow(title: "Morning snooze until", minutes: Binding(
+                get: { morningMinutes },
+                set: { minutes in
+                    // Same as the default: follow the default (so changing it in Settings still applies).
+                    edit { $0.morningMinutes = minutes == NogSettings.morningMinutes ? nil : minutes }
+                }))
+        } header: {
+            SectionLabel(title: "Snooze")
+        } footer: {
+            Text("Push the next nog back. These are also the buttons on this item's notifications: press and hold one.")
         }
         .listRowBackground(Theme.glass)
     }
