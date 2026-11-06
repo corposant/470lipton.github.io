@@ -5,6 +5,8 @@ struct StartButton: View {
     @Environment(ItemStore.self) private var store
     let item: Item
     var prominent = false
+    /// Sub-item progress, drawn as a ring around the small ▶︎ (nil = no sub-items).
+    var subItems: (done: Int, total: Int)? = nil
     @State private var showPanel = false
     /// Set by a hold, so the button's tap (which fires on release) doesn't also start it.
     @State private var didHold = false
@@ -26,6 +28,7 @@ struct StartButton: View {
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Start \(item.title)")
             .accessibilityHint("Starts with \(suggestion.label.lowercased()). Hold to choose a timebox.")
+            .accessibilityValue(subItems.map { "\($0.done) of \($0.total) sub-items done" } ?? "")
             .accessibilityAddTraits(.isButton)
             .accessibilityAction { store.start(item.id, timebox: suggestion.minutes) }
             .accessibilityAction(named: "Choose timebox") { showPanel = true }
@@ -57,7 +60,8 @@ struct StartButton: View {
             .shadow(color: Theme.violet.opacity(0.18), radius: 14)
             .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         } else {
-            CircleOutlineIcon(systemName: "play.fill")
+            CircleOutlineIcon(systemName: "play.fill", size: 32,
+                              progress: subItems.flatMap { $0.total > 0 ? Double($0.done) / Double($0.total) : nil })
         }
     }
 }

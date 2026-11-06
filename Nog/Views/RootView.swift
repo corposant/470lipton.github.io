@@ -161,7 +161,7 @@ struct ItemRow: View {
                 }
             }
             if item.status == .open || item.status == .someday {
-                StartButton(item: item)
+                StartButton(item: item, subItems: counts.total > 0 ? counts : nil)
             }
         }
         // iOS 27: Siri can act on whichever row you're looking at.
@@ -204,8 +204,12 @@ struct ItemRow: View {
         }
     }
 
+    private var counts: (done: Int, total: Int) {
+        stats?[item.id] ?? ChildStats(Array(store.items.values))[item.id]
+    }
+
     private var detailLine: some View {
-        let counts = stats?[item.id] ?? ChildStats(Array(store.items.values))[item.id]
+        let counts = self.counts
         let childCount = counts.total
         var parts: [String] = []
         if let text = reminderText { parts.append(text) }

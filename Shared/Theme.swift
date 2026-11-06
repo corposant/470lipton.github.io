@@ -143,19 +143,53 @@ struct GradientOutlineButtonStyle: ButtonStyle {
     }
 }
 
-/// Small outlined circle, e.g. the row ▶︎.
+/// Small outlined circle, e.g. the row ▶︎. With `progress`, the outline becomes a ring
+/// that fills clockwise from the top (sub-items done), turning green when complete.
 struct CircleOutlineIcon: View {
     let systemName: String
     var tint: Color = Theme.blue
     var size: CGFloat = 30
+    /// 0…1, or nil for a plain outline.
+    var progress: Double? = nil
 
     var body: some View {
         Image(systemName: systemName)
             .font(.system(size: size * 0.38, weight: .bold))
             .foregroundStyle(tint)
             .frame(width: size, height: size)
-            .overlay(Circle().strokeBorder(tint.opacity(0.75), lineWidth: 1))
+            .overlay {
+                if let progress {
+                    ProgressRing(fraction: progress, tint: tint, lineWidth: 2.5)
+                } else {
+                    Circle().strokeBorder(tint.opacity(0.75), lineWidth: 1)
+                }
+            }
             .contentShape(Circle())
+    }
+}
+
+/// A thin ring: a faint track with the done part drawn over it, clockwise from the top.
+struct ProgressRing: View {
+    let fraction: Double
+    var tint: Color = Theme.blue
+    var lineWidth: CGFloat = 2.5
+
+    /// Mint, like Nogged.
+    static let complete = Color(light: 0x1E9E62, dark: 0x6FE3A8)
+
+    var body: some View {
+        let f = min(1, max(0, fraction))
+        let color = f >= 1 ? Self.complete : tint
+        ZStack {
+            Circle().stroke(color.opacity(0.2), lineWidth: lineWidth)
+            Circle()
+                .trim(from: 0, to: f)
+                .stroke(color, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+                .shadow(color: color.opacity(0.5), radius: 2)
+        }
+        .padding(lineWidth / 2)
+        .animation(.snappy, value: f)
     }
 }
 

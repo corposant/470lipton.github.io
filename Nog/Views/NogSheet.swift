@@ -85,7 +85,8 @@ struct NogSheet: View {
                             .strokeBorder(isOn ? tint : Theme.edgeStrong, lineWidth: isOn ? 1.5 : 1))
                         .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     }
-                    .buttonStyle(.plain)
+                    // Borderless: each card is its own tap target inside the row.
+                    .buttonStyle(.borderless)
                     .accessibilityAddTraits(isOn ? .isSelected : [])
                     .accessibilityHint(profile.summary)
                 }
@@ -96,7 +97,8 @@ struct NogSheet: View {
             Text(current?.summary ?? "Custom rhythm. Pick a profile to reset it.")
         }
         .listRowBackground(Color.clear)
-        .listRowInsets(EdgeInsets(top: 2, leading: 2, bottom: 2, trailing: 2))
+        // Room from the row's rounded corners, which would otherwise clip the outer cards.
+        .listRowInsets(EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12))
         .sensoryFeedback(.selection, trigger: current)
     }
 
@@ -161,7 +163,7 @@ struct NogSheet: View {
                 .overlay(Capsule().strokeBorder(isOn ? Theme.blue : Theme.edgeStrong, lineWidth: 1))
                 .contentShape(Capsule())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.borderless)
         .accessibilityAddTraits(isOn ? .isSelected : [])
     }
 

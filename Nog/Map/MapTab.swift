@@ -96,6 +96,7 @@ struct MindMapView: View {
             .sorted { $0.created < $1.created }
         let edges = MapLayout.edges(for: items)
         let hasChildren = Set(items.compactMap(\.parentID))
+        let progress = ChildStats(Array(store.items.values))
 
         GeometryReader { geo in
             ZStack(alignment: .topLeading) {
@@ -114,7 +115,8 @@ struct MindMapView: View {
                 // Zone titles sit on the zone's top border, above the lines, below the chips.
                 zoneLabels(zones)
                 ForEach(items) { item in
-                    MapNode(item: item, isFolder: hasChildren.contains(item.id), isDropTarget: dropTarget == item.id)
+                    MapNode(item: item, isFolder: hasChildren.contains(item.id), isDropTarget: dropTarget == item.id,
+                            subItems: progress[item.id])
                         .scaleEffect(min(1.15, max(0.55, scale)))
                         .position(screen(mapPoint(item.id)))
                         .gesture(nodeDrag(item.id, among: items), including: locked ? .none : .all)
@@ -540,12 +542,23 @@ private struct MapNode: View {
     let item: Item
     let isFolder: Bool
     var isDropTarget = false
+    var subItems: (done: Int, total: Int) = (0, 0)
     private var isProject: Bool { isFolder }
 
     var body: some View {
         HStack(spacing: 8) {
             if isFolder {
-                Image(systemName: "folder.fill").font(.caption).foregroundStyle(tint)
+                // The folder sits inside a ring showing how many of its sub-items are done.
+                Image(systemName: "folder.fill")
+                    .font(.system(size: 9))
+                    .foregroundStyle(tint)
+                    .frame(width: 22, height: 22)
+                    .overlay {
+                        if subItems.total > 0 {
+                            ProgressRing(fraction: Double(subItems.done) / Double(subItems.total), tint: tint, lineWidth: 2)
+                        }
+                    }
+                    .accessibilityLabel("\(subItems.done) of \(subItems.total) sub-items done")
             } else {
                 Circle().fill(tint).frame(width: 7, height: 7)
             }
@@ -715,13 +728,24 @@ private struct OutlineBranch: View {
 
 /// Section header for a top-level folder: tap the header to collapse, the arrow to open it.
 private struct FolderHeader: View {
+    @Environment(ItemStore.self) private var store
     let item: Item
     let count: Int
     let open: () -> Void
 
     var body: some View {
+        let kids = store.children(of: item.id)
         HStack(spacing: 8) {
-            Image(systemName: "folder.fill").foregroundStyle(Theme.blue)
+            Image(systemName: "folder.fill")
+                .font(.system(size: 11))
+                .foregroundStyle(Theme.blue)
+                .frame(width: 26, height: 26)
+                .overlay {
+                    if !kids.isEmpty {
+                        ProgressRing(fraction: Double(kids.filter { $0.status == .done }.count) / Double(kids.count),
+                                     lineWidth: 2)
+                    }
+                }
             Text(item.title.uppercased())
                 .font(.nogLabel)
                 .tracking(1.6)
