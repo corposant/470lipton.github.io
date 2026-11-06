@@ -310,7 +310,7 @@ extension MapLayout {
     }
 
     /// Nudges apart any nodes whose chips overlap.
-    static func separate(_ positions: [UUID: CGPoint], iterations: Int = 40) -> [UUID: CGPoint] {
+    static func separate(_ positions: [UUID: CGPoint], iterations: Int = 150) -> [UUID: CGPoint] {
         var p = positions
         let keys = p.keys.sorted { $0.uuidString < $1.uuidString }
         let w = cell.width - 6, h = cell.height - 8
