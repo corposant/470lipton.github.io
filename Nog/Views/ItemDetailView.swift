@@ -65,25 +65,17 @@ private struct ItemEditor: View {
     }
 
     var body: some View {
+        // Title → Start → Sub-items → Notes → Tags → Reminder → Status dial → the rest.
         Form {
             Section {
                 TextField("Title", text: binding(\.title), axis: .vertical)
                     .font(.title3.weight(.semibold))
-                VStack(spacing: 2) {
-                    StatusDial(status: item.status) { setStatus($0) }
-                    Text(StatusDial.summary(item.status))
-                        .font(.caption)
-                        .foregroundStyle(Theme.muted)
-                        .multilineTextAlignment(.center)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 6)
             }
             .listRowBackground(Theme.glass)
 
             doingSection
 
-            reminderSection
+            childrenSection
 
             Section {
                 TextEditor(text: binding(\.body))
@@ -105,7 +97,24 @@ private struct ItemEditor: View {
                     }
             }
 
-            childrenSection
+            reminderSection
+
+            Section {
+                VStack(spacing: 2) {
+                    StatusDial(status: item.status) { setStatus($0) }
+                    Text(StatusDial.summary(item.status))
+                        .font(.caption)
+                        .foregroundStyle(Theme.muted)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 6)
+            } header: {
+                SectionLabel(title: "Status")
+            }
+            .listRowBackground(Theme.glass)
+
+            timeSection
             parentSection
             linksSection
 
@@ -174,6 +183,10 @@ private struct ItemEditor: View {
                 Text("Tap to start with \(store.suggestedTimebox(for: item.id).label.lowercased()). Hold for other timeboxes.")
             }
         }
+    }
+
+    @ViewBuilder
+    private var timeSection: some View {
         GlassSection("Time") {
             Picker("Estimate", selection: Binding(
                 get: { item.estimateMinutes ?? 0 },
