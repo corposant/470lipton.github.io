@@ -71,6 +71,15 @@ struct CaptureHomeView: View {
                     }
                 }
 
+            // Typing a #tag: finish it with one tap.
+            if let typing = TagSuggester.typingTag(in: text) {
+                TagSuggestionStrip(title: typing.isEmpty ? "Recent" : "Tags",
+                                   tags: TagSuggester.suggest(typing, from: TagSuggester.stats(store.items.values),
+                                                              excluding: TagSuggester.writtenTags(in: text))) { tag in
+                    text = TagSuggester.completing(text, with: tag)
+                }
+            }
+
             HStack(alignment: .center) {
                 if let preview {
                     Text("→ " + preview.uppercased())

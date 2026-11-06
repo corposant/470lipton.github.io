@@ -339,10 +339,16 @@ private struct ItemEditor: View {
                         .padding(.horizontal, 12)
                         .overlay(Capsule().strokeBorder(Theme.edgeStrong, lineWidth: 1))
                         .onAppear { tagFieldFocused = true }
-                        .onChange(of: tagFieldFocused) { _, focused in if !focused { addTag() } }
+                        // Tapped away with nothing typed: put the field away. With text, keep it
+                        // (and its suggestions) so a tap on a suggestion still lands.
+                        .onChange(of: tagFieldFocused) { _, focused in
+                            if !focused, newTag.trimmingCharacters(in: .whitespaces).isEmpty {
+                                withAnimation(.snappy) { isAddingTag = false }
+                            }
+                        }
                 } else {
                     Button {
-                        isAddingTag = true
+                        withAnimation(.snappy) { isAddingTag = true }
                     } label: {
                         Text("+ tag")
                             .font(.subheadline)
@@ -356,16 +362,31 @@ private struct ItemEditor: View {
                 }
             }
             .padding(.vertical, 2)
+            if isAddingTag {
+                let suggestions = TagSuggester.suggest(newTag, from: TagSuggester.stats(store.items.values),
+                                                       excluding: Set(item.tags))
+                TagSuggestionStrip(title: newTag.isEmpty ? "Recent" : "Tags", tags: suggestions) { tag in
+                    add(tag)
+                    newTag = ""
+                }
+            }
         }
         .listRowBackground(Color.clear)
         .listRowInsets(EdgeInsets(top: 2, leading: 4, bottom: 2, trailing: 4))
     }
 
+    /// Return in the tag field: add what's typed and put the field away.
     private func addTag() {
-        let tag = newTag.trimmingCharacters(in: .whitespaces)
-            .trimmingCharacters(in: CharacterSet(charactersIn: "#,"))
+        add(newTag)
         newTag = ""
-        isAddingTag = false
+        withAnimation(.snappy) { isAddingTag = false }
+    }
+
+    /// Adds a tag (cleaned up, no duplicates). Spaces become dashes, since a #tag is one word.
+    private func add(_ raw: String) {
+        let tag = raw.trimmingCharacters(in: .whitespaces)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "#,"))
+            .split(whereSeparator: \.isWhitespace).joined(separator: "-")
         guard !tag.isEmpty, !item.tags.contains(where: { $0.caseInsensitiveCompare(tag) == .orderedSame }) else { return }
         set(\.tags, item.tags + [tag])
     }
@@ -654,8 +675,7 @@ private struct TagChip: View {
     let remove: () -> Void
 
     var body: some View {
-        let c = TagPalette.color(for: tag)
-        let color = Color(light: c.light, dark: c.dark)
+        let color = TagPalette.tint(for: tag)
         Text("#\(tag)")
             .font(.subheadline)
             .foregroundStyle(color)

@@ -750,3 +750,41 @@ final class RouterTests: XCTestCase {
         XCTAssertEqual(router.path, [child, parent])
     }
 }
+
+final class TagSuggesterTests: XCTestCase {
+    let now = Date(timeIntervalSince1970: 1_900_000_000)
+
+    func item(_ tags: [String], daysAgo: Double) -> Item {
+        var i = Item(title: "x")
+        i.tags = tags
+        i.created = now.addingTimeInterval(-daysAgo * 86_400)
+        i.updated = i.created
+        return i
+    }
+
+    func testRecentsWhenNothingTyped() {
+        let stats = TagSuggester.stats([item(["home"], daysAgo: 10), item(["work"], daysAgo: 1), item(["Home"], daysAgo: 20)])
+        XCTAssertEqual(TagSuggester.suggest("", from: stats, now: now), ["work", "home"])
+    }
+
+    func testPrefixMatchesComeFirstAndExclusionsAreLeftOut() {
+        let stats = TagSuggester.stats([item(["homework"], daysAgo: 1), item(["athome"], daysAgo: 0),
+                                        item(["home"], daysAgo: 2), item(["calls"], daysAgo: 0)])
+        let s = TagSuggester.suggest("hom", from: stats, excluding: ["HOME"], now: now)
+        XCTAssertEqual(s, ["homework", "athome"])
+    }
+
+    func testFrequentBeatsOnceAtTheSameAge() {
+        let stats = TagSuggester.stats([item(["travel"], daysAgo: 3), item(["travel"], daysAgo: 3), item(["trivia"], daysAgo: 3)])
+        XCTAssertEqual(TagSuggester.suggest("tr", from: stats, now: now).first, "travel")
+    }
+
+    func testTypingAndCompletingATagInText() {
+        XCTAssertEqual(TagSuggester.typingTag(in: "call mum #ho"), "ho")
+        XCTAssertEqual(TagSuggester.typingTag(in: "call mum #"), "")
+        XCTAssertNil(TagSuggester.typingTag(in: "call mum #home "))
+        XCTAssertNil(TagSuggester.typingTag(in: "call mum"))
+        XCTAssertEqual(TagSuggester.completing("call mum #ho", with: "home"), "call mum #home ")
+        XCTAssertEqual(TagSuggester.writtenTags(in: "#calls mum #ho"), ["calls"])
+    }
+}
