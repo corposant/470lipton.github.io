@@ -129,6 +129,12 @@ struct MindMapView: View {
                 centreIfNeeded(items, in: geo.size)
             }
             .onChange(of: geo.size) { centreIfNeeded(items, in: geo.size) }
+            // Re-centre every time the map opens, once layout has settled.
+            .onDisappear { didCenter = false }
+            .task {
+                await Task.yield()
+                centreIfNeeded(items, in: geo.size)
+            }
             .onChange(of: items.map(\.id)) { doc.placeMissing(items, edges: edges) }
             .overlay(alignment: .bottomTrailing) { controls(items, edges: edges, size: geo.size) }
             .overlay {
