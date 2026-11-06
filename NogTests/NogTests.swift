@@ -639,7 +639,8 @@ final class ArrangeTests: XCTestCase {
         let items = makeItems()
         let p = MapLayout.arrange(items)
         XCTAssertEqual(p.count, items.count)
-        let w = MapLayout.cell.width - 6, h = MapLayout.cell.height - 8
+        // Not just no overlap: keep a gap between chips.
+        let w = MapLayout.cell.width + 12, h = MapLayout.cell.height + 10
         let pts = Array(p.values)
         for i in pts.indices {
             for j in pts.indices where j > i {

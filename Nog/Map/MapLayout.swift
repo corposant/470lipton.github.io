@@ -183,6 +183,10 @@ enum MapPage {
 extension MapLayout {
     /// Room each node needs (a chip plus breathing space).
     static let cell = CGSize(width: 196, height: 58)
+    /// Clear space kept between chips, so titles never touch.
+    static let spacing = CGSize(width: 28, height: 22)
+    /// Distance from one chip's centre to the next on a shelf.
+    static let pitch = CGSize(width: cell.width + spacing.width, height: cell.height + spacing.height)
 
     /// A deliberate, tidy arrangement:
     /// - each project is a star: sub-items in a ring around it, their own sub-items fanned outward;
@@ -220,7 +224,7 @@ extension MapLayout {
                 guard !kids.isEmpty, depth < 8 else { return }
                 let total = Double(kids.reduce(0) { $0 + weight($1.id) })
                 // Radius big enough that the kids' chips fit along the arc.
-                let radius = max(depth == 0 ? 170 : 140, Double(kids.count) * 170 / max(spread, 0.7))
+                let radius = max(depth == 0 ? 210 : 180, Double(kids.count) * 210 / max(spread, 0.7))
                 var a = angle - spread / 2
                 for kid in kids {
                     let share = spread * Double(weight(kid.id)) / total
@@ -286,34 +290,35 @@ extension MapLayout {
             if !loose.isEmpty {
                 var shelf: [UUID: CGPoint] = [:]
                 for (i, item) in loose.enumerated() {
-                    shelf[item.id] = CGPoint(x: CGFloat(i % 2) * cell.width, y: CGFloat(i / 2) * cell.height)
+                    shelf[item.id] = CGPoint(x: CGFloat(i % 2) * pitch.width, y: CGFloat(i / 2) * pitch.height)
                 }
                 blocks.append(block(shelf))
             }
-            if !blocks.isEmpty { groupBlocks.append(pack(blocks, maxWidth: 1000, gap: 60)) }
+            if !blocks.isEmpty { groupBlocks.append(pack(blocks, maxWidth: 1100, gap: 90)) }
         }
         // Anything not yet placed (e.g. caught in a parent loop) goes on a final shelf.
         roots = items.filter { !visited.contains($0.id) }
         if !roots.isEmpty {
             var shelf: [UUID: CGPoint] = [:]
             for (i, item) in roots.enumerated() {
-                shelf[item.id] = CGPoint(x: CGFloat(i % 2) * cell.width, y: CGFloat(i / 2) * cell.height)
+                shelf[item.id] = CGPoint(x: CGFloat(i % 2) * pitch.width, y: CGFloat(i / 2) * pitch.height)
             }
             groupBlocks.append(block(shelf))
         }
 
-        var all = pack(groupBlocks, maxWidth: 1500, gap: 140)
+        // Groups sit far enough apart that their tag zones (and the labels on top) never touch.
+        var all = pack(groupBlocks, maxWidth: 1700, gap: 200)
         // Centre on (0, 0).
         let cx = all.bounds.midX, cy = all.bounds.midY
         for (id, p) in all.positions { all.positions[id] = CGPoint(x: p.x - cx, y: p.y - cy) }
         return separate(all.positions)
     }
 
-    /// Nudges apart any nodes whose chips overlap.
+    /// Nudges apart any nodes whose chips overlap or crowd each other.
     static func separate(_ positions: [UUID: CGPoint], iterations: Int = 150) -> [UUID: CGPoint] {
         var p = positions
         let keys = p.keys.sorted { $0.uuidString < $1.uuidString }
-        let w = cell.width - 6, h = cell.height - 8
+        let w = pitch.width, h = pitch.height
         for _ in 0..<iterations {
             var moved = false
             for i in keys.indices {

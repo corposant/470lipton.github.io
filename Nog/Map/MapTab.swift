@@ -108,8 +108,11 @@ struct MindMapView: View {
                 }
                 .frame(width: geo.size.width, height: geo.size.height)
                 .allowsHitTesting(isScribbling)
-                zones(items)
+                let zones = zoneList(items)
+                zoneFills(zones)
                 edgeLayer(edges, size: geo.size)
+                // Zone titles sit on the zone's top border, above the lines, below the chips.
+                zoneLabels(zones)
                 ForEach(items) { item in
                     MapNode(item: item, isFolder: hasChildren.contains(item.id), isDropTarget: dropTarget == item.id)
                         .scaleEffect(min(1.15, max(0.55, scale)))
@@ -179,48 +182,96 @@ struct MindMapView: View {
     // MARK: Layers
 
     private struct Zone: Identifiable {
-        let tag: String
-        let rect: CGRect // map coordinates
-        var id: String { tag }
+        /// Tags that wrap exactly these items (usually one).
+        let tags: [String]
+        let members: Set<UUID>
+        var rect: CGRect // map coordinates
+        var id: String { tags.joined(separator: "+") }
+        var label: String { tags.map { "#" + $0.uppercased() }.joined(separator: " · ") }
+        var color: Color {
+            let pair = TagPalette.color(for: tags[0])
+            return Color(light: pair.light, dark: pair.dark)
+        }
     }
 
+    /// Room around the chips inside a zone: extra on top for the title tab on the border.
+    private static let zoneInset = (side: MapLayout.cell.width / 2 + 26, top: MapLayout.cell.height / 2 + 42,
+                                    bottom: MapLayout.cell.height / 2 + 26)
+
     /// One soft, coloured zone per #tag, wrapped around its items.
-    @ViewBuilder
-    private func zones(_ items: [Item]) -> some View {
-        let zones: [Zone] = {
-            var byTag: [String: [CGPoint]] = [:]
-            for item in items {
-                // Tags flow down, so a zone wraps a whole project with its sub-items.
-                // On a tag's own page, its zone would just surround everything, so skip it.
-                for tag in MapPage.effectiveTags(item, in: store.items) where tag != page {
-                    byTag[tag, default: []].append(mapPoint(item.id))
-                }
+    private func zoneList(_ items: [Item]) -> [Zone] {
+        var members: [String: Set<UUID>] = [:]
+        for item in items {
+            // Tags flow down, so a zone wraps a whole project with its sub-items.
+            // On a tag's own page, its zone would just surround everything, so skip it.
+            for tag in MapPage.effectiveTags(item, in: store.items) where tag != page {
+                members[tag, default: []].insert(item.id)
             }
-            return byTag.compactMap { tag, points in
-                guard let minX = points.map(\.x).min(), let maxX = points.map(\.x).max(),
-                      let minY = points.map(\.y).min(), let maxY = points.map(\.y).max() else { return nil }
-                let rect = CGRect(x: minX - 110, y: minY - 56, width: maxX - minX + 220, height: maxY - minY + 112)
-                return Zone(tag: tag, rect: rect)
+        }
+        // Tags that wrap exactly the same items share one zone and one title ("#HOME · #CALLS").
+        var byMembers: [Set<UUID>: [String]] = [:]
+        for (tag, ids) in members { byMembers[ids, default: []].append(tag) }
+
+        let inset = Self.zoneInset
+        var zones: [Zone] = byMembers.compactMap { ids, tags in
+            let points = ids.map(mapPoint)
+            guard let minX = points.map(\.x).min(), let maxX = points.map(\.x).max(),
+                  let minY = points.map(\.y).min(), let maxY = points.map(\.y).max() else { return nil }
+            let rect = CGRect(x: minX - inset.side, y: minY - inset.top,
+                              width: maxX - minX + 2 * inset.side, height: maxY - minY + inset.top + inset.bottom)
+            return Zone(tags: tags.sorted(), members: ids, rect: rect)
+        }
+        // Smallest first, so each zone can grow around the ones nested inside it:
+        // borders never coincide and the titles stack instead of overprinting.
+        zones.sort { ($0.members.count, $0.id) < ($1.members.count, $1.id) }
+        for j in zones.indices {
+            for i in zones.indices where i < j && zones[i].members.isStrictSubset(of: zones[j].members) {
+                let inner = zones[i].rect
+                var outer = zones[j].rect
+                outer = outer.union(CGRect(x: inner.minX - 18, y: inner.minY - 32,
+                                           width: inner.width + 36, height: inner.height + 50))
+                zones[j].rect = outer
             }
-            .sorted { $0.rect.width * $0.rect.height > $1.rect.width * $1.rect.height }
-        }()
+        }
+        // Biggest drawn first (underneath).
+        return zones.reversed()
+    }
+
+    private func zoneFills(_ zones: [Zone]) -> some View {
         ForEach(zones) { zone in
-            let pair = TagPalette.color(for: zone.tag)
-            let color = Color(light: pair.light, dark: pair.dark)
             let r = screen(zone.rect)
             RoundedRectangle(cornerRadius: 32 * scale, style: .continuous)
-                .fill(color.opacity(0.08))
+                .fill(zone.color.opacity(0.08))
                 .overlay(RoundedRectangle(cornerRadius: 32 * scale, style: .continuous)
-                    .strokeBorder(color.opacity(0.45), style: StrokeStyle(lineWidth: 1.2, dash: [6, 5])))
+                    .strokeBorder(zone.color.opacity(0.45), style: StrokeStyle(lineWidth: 1.2, dash: [6, 5])))
+                .frame(width: max(1, r.width), height: max(1, r.height))
+                .position(x: r.midX, y: r.midY)
+                .allowsHitTesting(false)
+        }
+    }
+
+    /// Each zone's title as a tab sitting on its top border, outside the chips' space,
+    /// on a solid backing so lines passing underneath don't cut through it.
+    private func zoneLabels(_ zones: [Zone]) -> some View {
+        ForEach(zones) { zone in
+            let r = screen(zone.rect)
+            Color.clear
+                .frame(width: max(1, r.width), height: max(1, r.height))
                 .overlay(alignment: .topLeading) {
-                    Text("#\(zone.tag.uppercased())")
+                    Text(zone.label)
                         .font(.nogLabel)
                         .tracking(1.6)
-                        .foregroundStyle(color)
-                        .padding(.horizontal, 14)
-                        .padding(.top, 10)
+                        .lineLimit(1)
+                        .fixedSize()
+                        .foregroundStyle(zone.color)
+                        .padding(.horizontal, 10)
+                        .frame(height: 22)
+                        .background(Theme.base, in: Capsule())
+                        .overlay(Capsule().strokeBorder(zone.color.opacity(0.6), lineWidth: 1))
+                        // Centred on the border line, a little in from the corner.
+                        .alignmentGuide(.top) { $0.height / 2 }
+                        .alignmentGuide(.leading) { _ in -max(14, 30 * scale) }
                 }
-                .frame(width: r.width, height: r.height)
                 .position(x: r.midX, y: r.midY)
                 .allowsHitTesting(false)
         }
