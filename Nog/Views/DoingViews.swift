@@ -53,9 +53,9 @@ struct StartButton: View {
             .foregroundStyle(.primary)
             .padding(.vertical, 15)
             .frame(maxWidth: .infinity)
-            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Theme.synth, lineWidth: 1.5))
+            .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(Theme.synth, lineWidth: 1.5))
             .shadow(color: Theme.violet.opacity(0.18), radius: 14)
-            .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         } else {
             CircleOutlineIcon(systemName: "play.fill")
         }

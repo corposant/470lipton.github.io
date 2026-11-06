@@ -170,14 +170,16 @@ private struct ItemEditor: View {
             Section {
                 DoingCard(item: item, showsTitle: false)
                     .listRowBackground(Color.clear)
-                    .listRowInsets(EdgeInsets())
+                    // A little room so the section's rounded clip doesn't cut the card.
+                    .listRowInsets(EdgeInsets(top: 4, leading: 4, bottom: 4, trailing: 4))
             } header: {
                 SectionLabel(title: "Nogitivity", tint: Theme.blue)
             }
         } else if item.status != .done {
             Section {
                 StartButton(item: item, prominent: true)
-                    .listRowInsets(EdgeInsets())
+                    // Room around the button so the section's rounded clip doesn't cut it.
+                    .listRowInsets(EdgeInsets(top: 6, leading: 6, bottom: 6, trailing: 6))
                     .listRowBackground(Color.clear)
             } footer: {
                 Text("Tap to start with \(store.suggestedTimebox(for: item.id).label.lowercased()). Hold for other timeboxes.")
