@@ -120,6 +120,15 @@ private struct ItemEditor: View {
 
             Section {
                 Button("Delete", role: .destructive) { confirmDelete = true }
+                    // Anchored to the button, so the confirmation pops up right here.
+                    .confirmationDialog("Delete this item?", isPresented: $confirmDelete, titleVisibility: .visible) {
+                        Button("Delete", role: .destructive) {
+                            store.delete(item.id)
+                            dismiss()
+                        }
+                    } message: {
+                        Text("“\(item.title)” and its notes will be removed. Sub-items stay, unfiled.")
+                    }
             }
             .listRowBackground(Theme.glass)
         }
@@ -144,12 +153,6 @@ private struct ItemEditor: View {
                     }
                     .tint(Theme.blue)
                 }
-            }
-        }
-        .confirmationDialog("Delete this item?", isPresented: $confirmDelete, titleVisibility: .visible) {
-            Button("Delete", role: .destructive) {
-                store.delete(item.id)
-                dismiss()
             }
         }
         .sheet(isPresented: $showParentPicker) {
