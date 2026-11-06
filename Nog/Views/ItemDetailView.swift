@@ -500,7 +500,7 @@ private struct ItemEditor: View {
 // MARK: - State cards
 
 /// The one question you have about an open item: when will it nog me next?
-/// Big glowing readout, the rhythm underneath (tap to change), and the two snoozes.
+/// Big glowing readout, and the rhythm underneath (tap to change it).
 private struct NextNogCard: View {
     @Environment(ItemStore.self) private var store
     let item: Item
@@ -528,12 +528,10 @@ private struct NextNogCard: View {
                         .foregroundStyle(Theme.blue)
                 }
                 rhythmRow(reminder.repeatSummary.map { "then \($0)" } ?? "once, no repeat", reminder: reminder)
-                snoozes
             } else if let reminder = item.reminder {
                 // A one-off that has already gone off.
                 PanelLabel(text: "Nogged you at \(reminder.start.formatted(date: .omitted, time: .shortened))")
-                rhythmRow("no repeat", reminder: reminder)
-                snoozes
+                rhythmRow("no repeat · tap to pick a new time", reminder: reminder)
             } else {
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
@@ -575,17 +573,6 @@ private struct NextNogCard: View {
         }
         .buttonStyle(.plain)
         .accessibilityHint("Change how this nogs you")
-    }
-
-    private var snoozes: some View {
-        HStack(spacing: 8) {
-            Button("Snooze \(IntervalFormat.amount(NogSettings.snoozeMinutes))") {
-                store.snooze(item.id, until: .now.addingTimeInterval(TimeInterval(NogSettings.snoozeMinutes * 60)))
-            }
-            .buttonStyle(OutlineButtonStyle(tint: Theme.pink))
-            Button(NogSettings.morningLabel) { store.snooze(item.id, until: NogSettings.nextMorning()) }
-                .buttonStyle(OutlineButtonStyle(tint: Theme.violet))
-        }
     }
 
     /// "in 12 min", "in 3h 5m", "now"

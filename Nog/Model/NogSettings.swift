@@ -76,11 +76,11 @@ enum NogSettings {
         minutes == 0 ? "No repeat" : "Every \(IntervalFormat.short(minutes))"
     }
 
-    /// "Until 9 AM" (or whatever "morning" is set to).
+    /// "Snooze till 9 AM" (or whatever "morning" is set to).
     static var morningLabel: String {
         let m = morningMinutes
         let date = Calendar.current.date(bySettingHour: m / 60, minute: m % 60, second: 0, of: .now) ?? .now
-        return "Until \(date.formatted(date: .omitted, time: .shortened))"
+        return "Snooze till \(date.formatted(date: .omitted, time: .shortened))"
     }
 
     /// The next "morning" (9 AM unless changed in Nogs & alerts).
