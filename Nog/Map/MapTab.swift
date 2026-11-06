@@ -76,6 +76,15 @@ struct MindMapView: View {
 
         GeometryReader { geo in
             ZStack(alignment: .topLeading) {
+                // Scribbles sit underneath everything else. While scribbling, the nodes
+                // ignore touches, so strokes reach this layer even where they pass under a node.
+                // Scribbles are stored in map coordinates and shown through the current pan/zoom.
+                ScribbleCanvas(drawing: doc.drawing.transformed(using: viewTransform),
+                               isActive: isScribbling, controller: scribble) { onScreen in
+                    doc.setDrawing(onScreen.transformed(using: viewTransform.inverted()))
+                }
+                .frame(width: geo.size.width, height: geo.size.height)
+                .allowsHitTesting(isScribbling)
                 zones(items)
                 edgeLayer(edges, size: geo.size)
                 ForEach(items) { item in
@@ -87,14 +96,6 @@ struct MindMapView: View {
                         .contextMenu { nodeMenu(item) }
                         .allowsHitTesting(!isScribbling)
                 }
-                // A screen-sized drawing layer: scribbles are stored in map coordinates
-                // and shown through the current pan/zoom.
-                ScribbleCanvas(drawing: doc.drawing.transformed(using: viewTransform),
-                               isActive: isScribbling, controller: scribble) { onScreen in
-                    doc.setDrawing(onScreen.transformed(using: viewTransform.inverted()))
-                }
-                .frame(width: geo.size.width, height: geo.size.height)
-                .allowsHitTesting(isScribbling)
             }
             .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
             .clipped()
