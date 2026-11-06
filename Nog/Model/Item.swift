@@ -219,6 +219,15 @@ enum DurationFormat {
 }
 
 enum IntervalFormat {
+    /// An amount of time on its own: 30 → "30 min", 60 → "1 hour", 120 → "2 hours", 1440 → "1 day".
+    /// (Unlike `short`, which reads "hour" for use after "every".)
+    static func amount(_ minutes: Int) -> String {
+        if minutes < 60 { return "\(minutes) min" }
+        if minutes % 1440 == 0 { let d = minutes / 1440; return d == 1 ? "1 day" : "\(d) days" }
+        if minutes % 60 == 0 { let h = minutes / 60; return h == 1 ? "1 hour" : "\(h) hours" }
+        return "\(minutes / 60)h \(minutes % 60)m"
+    }
+
     /// 8 → "8 min", 60 → "hour", 90 → "1h 30m", 120 → "2 hours", 1440 → "day"
     static func short(_ minutes: Int) -> String {
         if minutes < 60 { return "\(minutes) min" }

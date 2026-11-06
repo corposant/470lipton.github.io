@@ -25,8 +25,8 @@ final class NotificationScheduler {
     func registerCategories() {
         let done = UNNotificationAction(identifier: Action.done.rawValue, title: "Done ✓", options: [])
         let snooze = UNNotificationAction(identifier: Action.snoozeHour.rawValue,
-                                          title: "Snooze \(IntervalFormat.short(NogSettings.snoozeMinutes))", options: [])
-        let morning = UNNotificationAction(identifier: Action.morning.rawValue, title: "Tomorrow morning", options: [])
+                                          title: "Snooze \(IntervalFormat.amount(NogSettings.snoozeMinutes))", options: [])
+        let morning = UNNotificationAction(identifier: Action.morning.rawValue, title: NogSettings.morningLabel, options: [])
         let category = UNNotificationCategory(identifier: Self.categoryID,
                                               actions: [done, snooze, morning],
                                               intentIdentifiers: [],

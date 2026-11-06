@@ -78,7 +78,7 @@ enum NogPlanner {
             if !doing, policy.headsUpMinutes > 0 {
                 let headsUp = r.start.addingTimeInterval(TimeInterval(-policy.headsUpMinutes * 60))
                 if headsUp > now, !policy.quiet.contains(headsUp, calendar: calendar) {
-                    followUps.append(oneShot(headsUp, body: "Coming up in \(IntervalFormat.short(policy.headsUpMinutes))",
+                    followUps.append(oneShot(headsUp, body: "Coming up in \(IntervalFormat.amount(policy.headsUpMinutes))",
                                              kind: "heads"))
                 }
             }

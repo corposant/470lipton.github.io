@@ -54,7 +54,7 @@ struct StartItemIntent: AppIntent {
         store.start(existing.id, timebox: timebox)
         Router.shared.open(existing.id)
         await store.flush()
-        let length = timebox.map { "for \(IntervalFormat.short($0))" } ?? "with no time limit"
+        let length = timebox.map { "for \(IntervalFormat.amount($0))" } ?? "with no time limit"
         return .result(dialog: IntentDialog(full: "Started \(existing.title) \(length). Go!", supporting: "Started"))
     }
 }

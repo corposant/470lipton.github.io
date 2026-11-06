@@ -179,10 +179,10 @@ struct ItemRow: View {
         .swipeActions(edge: .trailing) {
             Button("Delete", role: .destructive) { store.delete(item.id) }
             if item.status == .open || item.status == .someday {
-                Button(IntervalFormat.short(NogSettings.snoozeMinutes)) {
+                Button(IntervalFormat.amount(NogSettings.snoozeMinutes)) {
                     store.snooze(item.id, until: now.addingTimeInterval(TimeInterval(NogSettings.snoozeMinutes * 60)))
                 }.tint(Theme.pink)
-                Button("Morning") { store.snooze(item.id, until: NogSettings.nextMorning(after: now)) }.tint(Theme.violet)
+                Button(NogSettings.morningLabel) { store.snooze(item.id, until: NogSettings.nextMorning(after: now)) }.tint(Theme.violet)
             } else if item.isDoing {
                 Button("+10 min") { store.extend(item.id, minutes: 10) }.tint(Theme.pink)
             }
@@ -217,7 +217,7 @@ struct ItemRow: View {
         if item.status == .done, item.timeSpent >= 60 {
             parts.append("took \(DurationFormat.short(item.timeSpent))")
         } else if item.status != .done, let estimate = item.estimateMinutes {
-            parts.append("~\(IntervalFormat.short(estimate))")
+            parts.append("~\(IntervalFormat.amount(estimate))")
         }
         if childCount > 0 {
             parts.append("\(counts.done)/\(childCount) sub-items")

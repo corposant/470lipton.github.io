@@ -46,7 +46,7 @@ struct StartButton: View {
         if prominent {
             HStack(spacing: 10) {
                 Image(systemName: "play.fill").font(.system(size: 12, weight: .bold))
-                Text(suggestion.minutes.map { "START · \(IntervalFormat.short($0).uppercased())" } ?? "START")
+                Text(suggestion.minutes.map { "START · \(IntervalFormat.amount($0).uppercased())" } ?? "START")
                     .font(.nogTitle(13))
                     .tracking(2)
             }
@@ -96,13 +96,13 @@ struct TimeboxPanel: View {
             .overlay(alignment: .bottom) { Rectangle().fill(.white.opacity(0.1)).frame(height: 1) }
 
             group("Suggested")
-            row(suggestion.minutes.map(IntervalFormat.short) ?? "No timer", detail: suggestion.reason, isSelected: true) {
+            row(suggestion.minutes.map(IntervalFormat.amount) ?? "No timer", detail: suggestion.reason, isSelected: true) {
                 choose(suggestion.minutes)
             }
             separator
             group("Choose")
             ForEach(NogSettings.timeboxChoices, id: \.self) { minutes in
-                row(IntervalFormat.short(minutes),
+                row(IntervalFormat.amount(minutes),
                     detail: minutes == NogSettings.timeboxMinutes ? "default" : nil) { choose(minutes) }
             }
             separator

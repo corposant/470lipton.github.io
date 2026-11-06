@@ -143,7 +143,7 @@ struct SettingsView: View {
                 DoingPage()
             } label: {
                 row("Nogitivity", "play.circle", Theme.blue,
-                    detail: timebox > 0 ? "\(IntervalFormat.short(timebox)) box" : "open-ended")
+                    detail: timebox > 0 ? "\(IntervalFormat.amount(timebox)) box" : "open-ended")
             }
             NavigationLink {
                 CaptureCheatSheet()
@@ -249,7 +249,7 @@ private struct NogsAlertsPage: View {
                 }
                 DisclosureGroup(isExpanded: $showFineTune) {
                     Stepper(value: $firstDelay, in: 0...240, step: 1) {
-                        LabeledContent("First nog", value: firstDelay == 0 ? "Right away" : "after \(IntervalFormat.short(firstDelay))")
+                        LabeledContent("First nog", value: firstDelay == 0 ? "Right away" : "after \(IntervalFormat.amount(firstDelay))")
                     }
                     Picker("Then", selection: $repeatMinutes) {
                         ForEach(Array(Set(NogSettings.repeatChoices + [repeatMinutes])).sorted(), id: \.self) {
@@ -288,13 +288,13 @@ private struct NogsAlertsPage: View {
 
             Section {
                 Picker("Heads-up before", selection: $headsUp) {
-                    ForEach(NogSettings.headsUpChoices, id: \.self) { Text($0 == 0 ? "Off" : IntervalFormat.short($0)).tag($0) }
+                    ForEach(NogSettings.headsUpChoices, id: \.self) { Text($0 == 0 ? "Off" : IntervalFormat.amount($0)).tag($0) }
                 }
                 Picker("Ring as an alarm after", selection: $escalateAfter) {
                     ForEach(NogSettings.escalateChoices, id: \.self) { Text($0 == 0 ? "Never" : "\($0) ignored nogs").tag($0) }
                 }
                 Picker("Snooze button", selection: $snoozeMinutes) {
-                    ForEach(NogSettings.snoozeChoices, id: \.self) { Text(IntervalFormat.short($0)).tag($0) }
+                    ForEach(NogSettings.snoozeChoices, id: \.self) { Text(IntervalFormat.amount($0)).tag($0) }
                 }
                 DatePicker("“Morning” means", selection: timeBinding($morningMinutes), displayedComponents: .hourAndMinute)
             } header: {
@@ -394,7 +394,7 @@ private struct DoingPage: View {
             Section {
                 Picker("Default timebox", selection: $timebox) {
                     Text("Open-ended").tag(0)
-                    ForEach(NogSettings.timeboxChoices, id: \.self) { Text(IntervalFormat.short($0)).tag($0) }
+                    ForEach(NogSettings.timeboxChoices, id: \.self) { Text(IntervalFormat.amount($0)).tag($0) }
                 }
             } header: {
                 SectionLabel(title: "▶︎ Nogitivity")

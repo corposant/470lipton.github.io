@@ -8,7 +8,7 @@ struct TimeboxSuggestion: Equatable {
 
     var label: String {
         guard let minutes else { return "Open-ended" }
-        return "\(IntervalFormat.short(minutes)) · \(reason)"
+        return "\(IntervalFormat.amount(minutes)) · \(reason)"
     }
 }
 

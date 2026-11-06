@@ -547,3 +547,15 @@ final class MapPageTests: XCTestCase {
         XCTAssertEqual(tags.map(\.count), [2, 1])
     }
 }
+
+final class IntervalFormatTests: XCTestCase {
+    func testAmountsReadNaturallyOnTheirOwn() {
+        XCTAssertEqual(IntervalFormat.amount(30), "30 min")
+        XCTAssertEqual(IntervalFormat.amount(60), "1 hour")
+        XCTAssertEqual(IntervalFormat.amount(120), "2 hours")
+        XCTAssertEqual(IntervalFormat.amount(90), "1h 30m")
+        XCTAssertEqual(IntervalFormat.amount(1440), "1 day")
+        // After "every", the short form still reads "every hour".
+        XCTAssertEqual("every \(IntervalFormat.short(60))", "every hour")
+    }
+}

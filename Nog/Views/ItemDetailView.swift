@@ -180,7 +180,7 @@ private struct ItemEditor: View {
                 set: { set(\.estimateMinutes, $0 > 0 ? $0 : nil) })) {
                 Text("None").tag(0)
                 ForEach(Array(Set(NogSettings.timeboxChoices + [item.estimateMinutes ?? 0])).filter { $0 > 0 }.sorted(),
-                        id: \.self) { Text(IntervalFormat.short($0)).tag($0) }
+                        id: \.self) { Text(IntervalFormat.amount($0)).tag($0) }
             }
             if item.totalTimeSpent() >= 60 {
                 LabeledContent("Time spent", value: DurationFormat.short(item.totalTimeSpent()))
@@ -252,11 +252,11 @@ private struct ItemEditor: View {
                     Label("Ring like an alarm", systemImage: "alarm.waves.left.and.right")
                 }
                 HStack {
-                    Button("Snooze \(IntervalFormat.short(NogSettings.snoozeMinutes))") {
+                    Button("Snooze \(IntervalFormat.amount(NogSettings.snoozeMinutes))") {
                         store.snooze(item.id, until: .now.addingTimeInterval(TimeInterval(NogSettings.snoozeMinutes * 60)))
                     }
                         .buttonStyle(OutlineButtonStyle(tint: Theme.pink))
-                    Button("Morning") { store.snooze(item.id, until: NogSettings.nextMorning()) }
+                    Button(NogSettings.morningLabel) { store.snooze(item.id, until: NogSettings.nextMorning()) }
                         .buttonStyle(OutlineButtonStyle(tint: Theme.violet))
                 }
             }
