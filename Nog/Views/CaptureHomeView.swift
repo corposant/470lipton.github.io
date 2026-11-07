@@ -1,247 +1,504 @@
 import SwiftUI
 
-/// The tab Nog opens to: one text box, and just enough below it to know your
-/// capture landed and what's coming next. No timers, no long lists.
+/// The Capture tab: one text box for the thought, sub-items as lines under it, and a
+/// tray of options riding on the keyboard (when, Note/Nog/Alarm, tags, sub-items,
+/// parent). Typed text still works ("tomorrow 9am #home"); the tray shows what it
+/// understood, and anything picked there wins.
 struct CaptureHomeView: View {
     @Environment(ItemStore.self) private var store
     @Environment(Router.self) private var router
-    @State private var text = ""
+    @State private var draft = CaptureDraft()
+    @State private var panel: TrayPanel?
+    @State private var showSubItems = false
+    @State private var newSubItem = ""
+    @State private var newTag = ""
     @State private var showSettings = false
-    @State private var confirmation: String?
-    @FocusState private var focused: Bool
+    @State private var showKindHelp = false
+    @State private var showParentPicker = false
+    @State private var confirmation: (text: String, id: UUID)?
+    @FocusState private var focus: Field?
+
+    private enum Field: Hashable { case title, subItem, tag }
+    enum TrayPanel: Hashable { case when, kind, tags }
+
+    private var defaults: CaptureDefaults { NogSettings.captureDefaults }
 
     var body: some View {
         @Bindable var router = router
         NavigationStack(path: $router.capturePath) {
             ScrollView {
-                VStack(alignment: .leading, spacing: 22) {
+                VStack(alignment: .leading, spacing: 16) {
                     composer
-                    justCaught
-                    nextNogs
+                    if showSubItems || !draft.subItems.isEmpty { subItemList }
+                    readout
+                    if draft.isEmpty && focus == nil { hint }
                 }
                 .padding(.horizontal, 18)
                 .padding(.top, 4)
-                .padding(.bottom, 40)
+                .padding(.bottom, 24)
             }
             .scrollDismissesKeyboard(.interactively)
             .background { NogBackground() }
-            .navigationTitle("NOG")
+            .navigationTitle("Capture")
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .topBarLeading) {
                     Button { showSettings = true } label: { Image(systemName: "gearshape") }
+                        .accessibilityLabel("Settings")
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(action: submit) {
+                        Text("NOG IT").font(.nogTitle(13)).tracking(2)
+                    }
+                    .disabled(draft.isEmpty)
                 }
             }
+            // The tray sits on the keyboard while typing, and above the tab bar otherwise.
+            .safeAreaInset(edge: .bottom) { tray }
             .navigationDestination(for: UUID.self) { id in
                 ItemDetailView(id: id)
             }
             .sheet(isPresented: $showSettings) { SettingsView() }
-            // The keyboard opens only when you tap the box (or ask for Quick Capture),
-            // so the tab bar stays reachable.
-            .onChange(of: router.captureFocusRequest) { focused = true }
-            .toolbar {
-                ToolbarItemGroup(placement: .keyboard) {
-                    Spacer()
-                    Button("Done") { focused = false }
-                        .font(.body.weight(.semibold))
-                }
-            }
+            .sheet(isPresented: $showKindHelp) { NogKindSheet() }
+            .sheet(isPresented: $showParentPicker) { CaptureParentPicker(selection: $draft.parentID) }
+            // The keyboard opens only when you tap the box (or ask for Quick Capture).
+            .onChange(of: router.captureFocusRequest) { focus = .title }
+            .sensoryFeedback(.success, trigger: confirmation?.id)
         }
     }
 
     // MARK: Composer
 
     private var composer: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            TextField("What's on your mind?", text: $text, axis: .vertical)
-                .font(.title3)
-                .lineLimit(1...6)
-                .focused($focused)
-                .submitLabel(.send)
-                .padding(16)
-                .nogPanel(cornerRadius: 18)
-                .overlay {
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .strokeBorder(focused ? Theme.violet.opacity(0.55) : .clear, lineWidth: 1)
+        TextField("What's on your mind?", text: $draft.text, axis: .vertical)
+            .font(.title3)
+            .lineLimit(1...6)
+            .focused($focus, equals: .title)
+            .submitLabel(.send)
+            .padding(16)
+            .nogPanel(cornerRadius: 18)
+            .overlay {
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .strokeBorder(focus == .title ? Theme.violet.opacity(0.55) : .clear, lineWidth: 1)
+            }
+            .onChange(of: draft.text) {
+                // Return sends (a multi-line field otherwise inserts a newline).
+                if draft.text.hasSuffix("\n") {
+                    draft.text.removeLast()
+                    submit()
                 }
-                .onChange(of: text) {
-                    // Return sends (a multi-line field otherwise inserts a newline).
-                    if text.hasSuffix("\n") {
-                        text.removeLast()
-                        submit()
+            }
+    }
+
+    /// Sub-items typed straight in: Return adds one and keeps going; they nog like this item.
+    private var subItemList: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionLabel(title: "Sub-items · nog like this one")
+            VStack(spacing: 0) {
+                ForEach(Array(draft.subItems.enumerated()), id: \.offset) { index, line in
+                    HStack(spacing: 12) {
+                        Circle().strokeBorder(Theme.muted, lineWidth: 1.5).frame(width: 18, height: 18)
+                        Text(line)
+                        Spacer()
+                        Button {
+                            draft.subItems.remove(at: index)
+                        } label: {
+                            Image(systemName: "xmark").font(.caption.weight(.bold)).foregroundStyle(Theme.muted)
+                                .frame(width: 32, height: 32)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Remove \(line)")
                     }
+                    .padding(.horizontal, 14)
+                    .frame(minHeight: 44)
+                    Divider().overlay(Theme.edge)
                 }
-
-            // Typing a #tag: finish it with one tap.
-            if let typing = TagSuggester.typingTag(in: text) {
-                TagSuggestionStrip(title: typing.isEmpty ? "Recent" : "Tags",
-                                   tags: TagSuggester.suggest(typing, from: TagSuggester.stats(store.items.values),
-                                                              excluding: TagSuggester.writtenTags(in: text))) { tag in
-                    text = TagSuggester.completing(text, with: tag)
+                HStack(spacing: 12) {
+                    Image(systemName: "plus").foregroundStyle(Theme.muted).frame(width: 18)
+                    TextField("Add sub-item", text: $newSubItem, axis: .vertical)
+                        .focused($focus, equals: .subItem)
+                        .submitLabel(.next)
+                        .onChange(of: newSubItem) { addSubItemsOnReturn() }
                 }
+                .padding(.horizontal, 14)
+                .frame(minHeight: 44)
             }
-
-            HStack(alignment: .center) {
-                if let preview {
-                    Text("→ " + preview.uppercased())
-                        .font(.nogMeta)
-                        .tracking(0.4)
-                        .foregroundStyle(Theme.blue)
-                        .lineLimit(2)
-                } else if let confirmation {
-                    Text(confirmation)
-                        .font(.nogMeta)
-                        .foregroundStyle(Theme.muted)
-                        .lineLimit(2)
-                        .transition(.opacity)
-                }
-                Spacer(minLength: 12)
-                Button("NOG IT", action: submit)
-                    .buttonStyle(GradientOutlineButtonStyle())
-                    .frame(width: 128)
-                    .disabled(isEmpty)
-                    .opacity(isEmpty ? 0.45 : 1)
-            }
+            .nogPanel(cornerRadius: 14)
         }
     }
 
-    private var isEmpty: Bool { text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-
-    private var preview: String? {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
-        let parsed = CaptureParser.parse(trimmed, defaults: NogSettings.captureDefaults, now: .now)
-        guard !parsed.title.isEmpty else { return nil }
-        return "\(parsed.title) · \(CaptureBar.describe(parsed.reminder))"
+    /// Return adds the line and keeps the cursor here; Return on an empty line goes back to the title.
+    private func addSubItemsOnReturn() {
+        guard newSubItem.contains("\n") else { return }
+        let lines = newSubItem.split(separator: "\n", omittingEmptySubsequences: false)
+        let finished = lines.dropLast().map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        let rest = String(lines.last ?? "")
+        if finished.isEmpty && rest.trimmingCharacters(in: .whitespaces).isEmpty {
+            newSubItem = ""
+            focus = .title
+            return
+        }
+        draft.subItems.append(contentsOf: finished)
+        newSubItem = rest
+        focus = .subItem
     }
+
+    /// Live read-back of what will be saved, or the last capture's confirmation.
+    @ViewBuilder
+    private var readout: some View {
+        if !draft.isEmpty {
+            let result = draft.resolved(defaults: defaults, now: .now)
+            Text("→ " + Self.summary(result, subItems: draft.subItems.count,
+                                     parent: draft.parentID.flatMap { store.items[$0]?.title }).uppercased())
+                .font(.nogMeta)
+                .tracking(0.4)
+                .foregroundStyle(Theme.blue)
+                .padding(.horizontal, 6)
+        } else if let confirmation {
+            Button {
+                router.push(confirmation.id)
+            } label: {
+                Text(confirmation.text + "  ›")
+                    .font(.nogMeta)
+                    .foregroundStyle(Theme.muted)
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 6)
+            .transition(.opacity)
+        }
+    }
+
+    private var hint: some View {
+        Text("Type anything: a to-do, an idea, \"lunch next tues\", \"call mum tomorrow 9am #family\". Use the tray below for when, how it gets you, tags and sub-items.")
+            .font(.callout)
+            .foregroundStyle(Theme.muted)
+    }
+
+    static func summary(_ result: CaptureResult, subItems: Int, parent: String?) -> String {
+        var parts = [result.title.isEmpty ? "Untitled" : result.title]
+        if let r = result.reminder {
+            parts.append(Self.whenText(r.start, now: .now))
+            parts.append(r.alarm ? "alarm" : "nog")
+            if let every = r.repeatSummary { parts.append(every) }
+        } else {
+            parts.append("note, never nogs")
+        }
+        if !result.tags.isEmpty { parts.append(result.tags.map { "#\($0)" }.joined(separator: " ")) }
+        if subItems > 0 { parts.append("\(subItems) sub-item\(subItems == 1 ? "" : "s")") }
+        if let parent { parts.append("in \(parent)") }
+        return parts.joined(separator: " · ")
+    }
+
+    /// "In 15 min", "6:00 PM", "Tomorrow 9:00 AM", "Tue 9:00 AM".
+    static func whenText(_ date: Date, now: Date) -> String {
+        let minutes = Int((date.timeIntervalSince(now) / 60).rounded())
+        if minutes <= 0 { return "Now" }
+        if minutes < 60 { return "In \(minutes) min" }
+        let time = date.formatted(date: .omitted, time: .shortened)
+        let calendar = Calendar.current
+        if calendar.isDate(date, inSameDayAs: now) { return time }
+        if calendar.isDateInTomorrow(date) { return "Tomorrow \(time)" }
+        return "\(date.formatted(.dateTime.weekday(.abbreviated))) \(time)"
+    }
+
+    // MARK: Saving
 
     private func submit() {
-        guard !isEmpty, let item = store.capture(text) else { return }
-        text = ""
-        focused = true
-        withAnimation { confirmation = "✓ CAUGHT · \(CaptureBar.describe(item.reminder).uppercased())" }
-        Task {
-            try? await Task.sleep(for: .seconds(4))
-            withAnimation { confirmation = nil }
-        }
-    }
-
-    // MARK: Lists
-
-    /// The three latest captures (shown once, under Just caught).
-    private var recentItems: [Item] {
-        Array(store.items.values.sorted { $0.created > $1.created }.prefix(3))
-    }
-
-    @ViewBuilder
-    private var justCaught: some View {
-        let recent = recentItems
-        if !recent.isEmpty {
-            VStack(alignment: .leading, spacing: 8) {
-                SectionLabel(title: "Just caught")
-                VStack(spacing: 0) {
-                    ForEach(recent) { item in
-                        CompactRow(item: item, trailing: item.created.formatted(.relative(presentation: .named)))
-                        if item.id != recent.last?.id { Divider().overlay(Theme.edge) }
-                    }
-                }
-                .nogPanel()
-            }
-        } else {
-            Text("Type anything: a to-do, an idea, \"lunch next tues\". Nog will keep reminding you until it's done.")
-                .font(.callout)
-                .foregroundStyle(Theme.muted)
-        }
-    }
-
-    @ViewBuilder
-    private var nextNogs: some View {
+        guard !draft.isEmpty else { return }
         let now = Date.now
-        // Skip what's already listed under Just caught, so nothing shows twice.
-        let shown = Set(recentItems.map(\.id))
-        let upcoming = store.items.values
-            .compactMap { item -> (Item, Date)? in
-                guard item.isOpen, !shown.contains(item.id), let r = item.reminder else { return nil }
-                return (item, r.isActive(at: now) ? now : r.start)
+        let result = draft.resolved(defaults: defaults, now: now)
+        let own = draft.choseOwnRhythm(defaults: defaults, now: now)
+        let pending = newSubItem.trimmingCharacters(in: .whitespacesAndNewlines)
+        let subItems = draft.subItems + (pending.isEmpty ? [] : [pending])
+        var created: Item?
+        store.batch {
+            created = store.add(result, parent: draft.parentID, ownRhythm: own, now: now)
+            if let parent = created {
+                for line in subItems { store.capture(line, parent: parent.id, now: now) }
             }
-            .sorted { $0.1 < $1.1 }
-            .prefix(5)
-        if !upcoming.isEmpty {
-            VStack(alignment: .leading, spacing: 8) {
-                SectionLabel(title: "Next nogs")
-                VStack(spacing: 0) {
-                    ForEach(Array(upcoming), id: \.0.id) { item, when in
-                        CompactRow(item: item, trailing: Self.whenLabel(when, now: now))
-                        if item.id != upcoming.last?.0.id { Divider().overlay(Theme.edge) }
+        }
+        guard let item = created else { return }
+        draft = CaptureDraft()
+        newSubItem = ""
+        showSubItems = false
+        panel = nil
+        focus = .title // keep the keyboard up for the next thought
+        withAnimation {
+            confirmation = ("✓ Caught · " + Self.summary(result, subItems: subItems.count, parent: nil).uppercased(), item.id)
+        }
+        Task {
+            try? await Task.sleep(for: .seconds(5))
+            withAnimation { if confirmation?.id == item.id { confirmation = nil } }
+        }
+    }
+
+    // MARK: Tray
+
+    private var tray: some View {
+        let result = draft.resolved(defaults: defaults, now: .now)
+        let kind = draft.kind ?? NogKind.of(result.reminder)
+        return VStack(spacing: 8) {
+            if let panel {
+                panelView(panel, result: result, kind: kind)
+                    .padding(14)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                    .padding(.horizontal, 10)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    chip(result.reminder.map { Self.whenText($0.start, now: .now) } ?? "No time",
+                         systemImage: "calendar", tint: Theme.blue,
+                         isOn: draft.when != nil, isOpen: panel == .when) { toggle(.when) }
+                    chip(kind.label, systemImage: kind.systemImage, tint: kind.tint,
+                         isOn: kind != .note, isOpen: panel == .kind) { toggle(.kind) }
+                    chip(result.tags.isEmpty ? "Tags" : result.tags.map { "#\($0)" }.joined(separator: " "),
+                         systemImage: "number", tint: Theme.violet,
+                         isOn: !result.tags.isEmpty, isOpen: panel == .tags) { toggle(.tags) }
+                    chip(draft.subItems.isEmpty ? "Sub-items" : "\(draft.subItems.count) sub-items",
+                         systemImage: "list.bullet", tint: Theme.blue,
+                         isOn: !draft.subItems.isEmpty, isOpen: false) {
+                        panel = nil
+                        showSubItems = true
+                        focus = .subItem
+                    }
+                    chip(draft.parentID.flatMap { store.items[$0]?.title } ?? "Part of…",
+                         systemImage: "arrow.up", tint: Theme.violet,
+                         isOn: draft.parentID != nil, isOpen: false) { showParentPicker = true }
+                    if focus != nil {
+                        Button {
+                            focus = nil
+                            panel = nil
+                        } label: {
+                            Image(systemName: "keyboard.chevron.compact.down")
+                                .frame(width: 40, height: 36)
+                        }
+                        .buttonStyle(.borderless)
+                        .accessibilityLabel("Hide keyboard")
                     }
                 }
-                .nogPanel()
+                .padding(.horizontal, 12)
             }
+            .padding(.vertical, 8)
+            .background(.bar)
         }
+        .animation(.snappy, value: panel)
     }
 
-    static func whenLabel(_ date: Date, now: Date) -> String {
-        if date <= now.addingTimeInterval(30) { return "NOW" }
-        let calendar = Calendar.current
-        if calendar.isDate(date, inSameDayAs: now) {
-            return date.formatted(date: .omitted, time: .shortened)
-        }
-        return date.formatted(.dateTime.weekday(.abbreviated).hour().minute()).uppercased()
+    private func toggle(_ p: TrayPanel) {
+        panel = panel == p ? nil : p
+        if p == .tags, panel == .tags { focus = .tag }
     }
-}
 
-/// A single tappable line: status icon, title, and a mono readout on the right.
-struct CompactRow: View {
-    let item: Item
-    let trailing: String
-
-    var body: some View {
-        NavigationLink(value: item.id) {
-            HStack(spacing: 10) {
-                Image(systemName: icon)
-                    .foregroundStyle(tint)
-                    .frame(width: 20)
-                Text(item.title)
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-                Spacer(minLength: 8)
-                Text(trailing)
-                    .font(.nogMeta)
-                    .foregroundStyle(trailing == "NOW" ? Theme.pink : Theme.muted)
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
-            .contentShape(Rectangle())
+    private func chip(_ title: String, systemImage: String, tint: Color, isOn: Bool, isOpen: Bool,
+                      action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: systemImage)
+                .font(.subheadline)
+                .lineLimit(1)
+                .foregroundStyle(isOn || isOpen ? tint : Color.primary.opacity(0.8))
+                .padding(.horizontal, 12)
+                .frame(height: 36)
+                .background(isOpen ? tint.opacity(0.18) : (isOn ? tint.opacity(0.10) : .clear), in: Capsule())
+                .overlay(Capsule().strokeBorder(isOn || isOpen ? tint.opacity(0.7) : Theme.edgeStrong,
+                                                lineWidth: isOpen ? 1.5 : 1))
+                .contentShape(Capsule())
         }
         .buttonStyle(.plain)
+        .accessibilityAddTraits(isOpen ? .isSelected : [])
     }
 
-    private var icon: String {
-        switch item.status {
-        case .done: "checkmark.circle"
-        case .doing: "play.circle"
-        case .someday: "moon.stars"
-        case .open: item.reminder == nil ? "lightbulb" : (item.reminder!.alarm ? "alarm" : "bell")
+    @ViewBuilder
+    private func panelView(_ p: TrayPanel, result: CaptureResult, kind: NogKind) -> some View {
+        switch p {
+        case .when: whenPanel(result)
+        case .kind: kindPanel(result, kind: kind)
+        case .tags: tagsPanel(result)
         }
     }
 
-    private var tint: Color {
-        switch item.status {
-        case .done, .doing: Theme.blue
-        case .someday: Theme.violet
-        case .open: item.reminder.map { $0.isActive(at: .now) ? Theme.pink : Theme.violet } ?? Theme.muted
+    // MARK: Panels
+
+    private func whenPanel(_ result: CaptureResult) -> some View {
+        let now = Date.now
+        let calendar = Calendar.current
+        var choices: [(String, Date)] = [
+            ("In 15 min", now.addingTimeInterval(15 * 60)),
+            ("In 1 hour", now.addingTimeInterval(3600)),
+        ]
+        if let tonight = calendar.date(bySettingHour: 20, minute: 0, second: 0, of: now), tonight > now {
+            choices.append(("Tonight", tonight))
+        }
+        let morning = NogSettings.nextMorning(after: now)
+        choices.append((calendar.isDateInToday(morning) ? "This morning" : "Tomorrow morning", morning))
+        return VStack(alignment: .leading, spacing: 10) {
+            FlowLayout(spacing: 6) {
+                ForEach(choices, id: \.0) { label, date in
+                    smallChip(label, isOn: draft.when.map { abs($0.timeIntervalSince(date)) < 90 } ?? false) {
+                        setWhen(date)
+                    }
+                }
+                if draft.when != nil {
+                    smallChip("From text", isOn: false) { draft.when = nil }
+                }
+            }
+            DatePicker("Pick", selection: Binding(
+                get: { result.reminder?.start ?? now.addingTimeInterval(15 * 60) },
+                set: { setWhen($0) }),
+                in: now..., displayedComponents: [.date, .hourAndMinute])
+                .font(.subheadline)
+        }
+    }
+
+    /// Picking a time means you want reminding, so a Note becomes a Nog.
+    private func setWhen(_ date: Date) {
+        draft.when = date
+        if draft.kind == .note { draft.kind = .nog }
+    }
+
+    private func kindPanel(_ result: CaptureResult, kind: NogKind) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            KindPicker(selected: kind) { picked in
+                draft.kind = picked
+                // Alarms need permission to ring; ask now, not when it's due.
+                if picked == .alarm { Task { _ = await AlarmScheduler.shared.requestAuthorization() } }
+            }
+            Text(NogKind.promise(for: result.reminder))
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            if let r = result.reminder {
+                let current = draft.profile ?? NogProfile.matching(r)
+                HStack(spacing: 6) {
+                    ForEach(NogProfile.allCases) { profile in
+                        smallChip(profile.label, isOn: profile == current) { draft.profile = profile }
+                    }
+                }
+            }
+            Button("What's the difference?") { showKindHelp = true }
+                .font(.subheadline)
+                .buttonStyle(.borderless)
+                .tint(Theme.violet)
+        }
+    }
+
+    private func tagsPanel(_ result: CaptureResult) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            FlowLayout(spacing: 6) {
+                ForEach(result.tags, id: \.self) { tag in
+                    let added = draft.extraTags.contains(tag)
+                    Button {
+                        if added { draft.extraTags.removeAll { $0 == tag } }
+                    } label: {
+                        Text(added ? "#\(tag) ✕" : "#\(tag)")
+                            .font(.subheadline)
+                            .foregroundStyle(TagPalette.tint(for: tag))
+                            .padding(.horizontal, 10)
+                            .frame(height: 30)
+                            .overlay(Capsule().strokeBorder(TagPalette.tint(for: tag).opacity(0.5), lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!added)
+                    .accessibilityLabel(added ? "Remove tag \(tag)" : "Tag \(tag), typed in the text")
+                }
+                TextField("add tag", text: $newTag)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .focused($focus, equals: .tag)
+                    .submitLabel(.done)
+                    .onSubmit { addTag(newTag) }
+                    .frame(width: 120, height: 30)
+                    .padding(.horizontal, 10)
+                    .overlay(Capsule().strokeBorder(Theme.edgeStrong, lineWidth: 1))
+            }
+            TagSuggestionStrip(title: newTag.isEmpty ? "Recent" : "Tags",
+                               tags: TagSuggester.suggest(newTag, from: TagSuggester.stats(store.items.values),
+                                                          excluding: Set(result.tags))) { addTag($0) }
+        }
+    }
+
+    private func addTag(_ raw: String) {
+        let tag = Item.cleanTag(raw)
+        newTag = ""
+        guard !tag.isEmpty, !draft.extraTags.contains(where: { $0.caseInsensitiveCompare(tag) == .orderedSame }) else { return }
+        draft.extraTags.append(tag)
+    }
+
+    private func smallChip(_ title: String, isOn: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.subheadline)
+                .lineLimit(1)
+                .foregroundStyle(isOn ? Theme.blue : Color.primary.opacity(0.85))
+                .padding(.horizontal, 11)
+                .frame(height: 32)
+                .background(isOn ? Theme.blue.opacity(0.14) : .clear, in: Capsule())
+                .overlay(Capsule().strokeBorder(isOn ? Theme.blue : Theme.edgeStrong, lineWidth: 1))
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isOn ? .isSelected : [])
+    }
+}
+
+/// Pick the item a new capture goes inside.
+private struct CaptureParentPicker: View {
+    @Environment(ItemStore.self) private var store
+    @Environment(\.dismiss) private var dismiss
+    @Binding var selection: UUID?
+    @State private var search = ""
+
+    var body: some View {
+        NavigationStack {
+            List {
+                if selection != nil {
+                    Button("Not inside anything") {
+                        selection = nil
+                        dismiss()
+                    }
+                }
+                let query = search.lowercased()
+                let candidates = store.items.values
+                    .filter { $0.status != .done }
+                    .filter { query.isEmpty || $0.title.lowercased().contains(query) }
+                    .sorted { $0.updated > $1.updated }
+                    .prefix(60)
+                ForEach(Array(candidates)) { candidate in
+                    Button {
+                        selection = candidate.id
+                        dismiss()
+                    } label: {
+                        HStack {
+                            Text(candidate.title).foregroundStyle(.primary)
+                            Spacer()
+                            if candidate.id == selection { Image(systemName: "checkmark").foregroundStyle(Theme.blue) }
+                        }
+                    }
+                }
+            }
+            .nogListStyle()
+            .searchable(text: $search)
+            .navigationTitle("Put inside…")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+            }
         }
     }
 }
 
-/// Capture · Nogs · Map
+/// Capture · Agenda · Nogs · Map
 struct RootView: View {
     @Environment(Router.self) private var router
 
     var body: some View {
         @Bindable var router = router
         TabView(selection: $router.tab) {
-            Tab("Capture", systemImage: "square.and.pencil", value: AppTab.capture) {
+            Tab("Capture", systemImage: "plus.circle", value: AppTab.capture) {
                 CaptureHomeView()
+            }
+            Tab("Agenda", systemImage: "calendar", value: AppTab.agenda) {
+                AgendaView()
             }
             Tab("Nogs", systemImage: "bell", value: AppTab.nogs) {
                 NogsTab()

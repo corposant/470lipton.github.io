@@ -7,6 +7,7 @@ struct NogSheet: View {
     @Environment(\.dismiss) private var dismiss
     let id: UUID
     @State private var showCalendar = false
+    @State private var showKindHelp = false
 
     private var item: Item? { store.items[id] }
 
@@ -32,6 +33,24 @@ struct NogSheet: View {
         store.update(current)
     }
 
+    /// Note turns nogging off; Nog and Alarm turn it on (Alarm asks for permission to ring).
+    private func setKind(_ kind: NogKind) {
+        switch kind {
+        case .note:
+            setOn(false)
+        case .nog:
+            if store.items[id]?.reminder == nil { setOn(true) }
+            edit { $0.alarm = false }
+        case .alarm:
+            if store.items[id]?.reminder == nil { setOn(true) }
+            Task {
+                if await AlarmScheduler.shared.requestAuthorization() {
+                    edit { $0.alarm = true }
+                }
+            }
+        }
+    }
+
     /// The parent's reminder, when it passes its rhythm down.
     private var parentReminder: Reminder? {
         guard let item, let parent = store.parent(of: item), let r = parent.reminder, r.passesDown else { return nil }
@@ -50,12 +69,18 @@ struct NogSheet: View {
         NavigationStack {
             Form {
                 if let item {
+                    // Note · Nog · Alarm, the same cards as on Capture, with what will happen.
                     Section {
-                        Toggle("Nog until it's nogged", isOn: Binding(get: { item.reminder != nil }, set: setOn))
-                    } footer: {
-                        if item.reminder == nil {
-                            Text("Turn on to get reminded, again and again, until you mark it nogged.")
-                        }
+                        KindPicker(selected: NogKind.of(item.reminder)) { setKind($0) }
+                        Text(NogKind.promise(for: item.reminder))
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        Button("What's the difference?") { showKindHelp = true }
+                            .font(.subheadline)
+                            .buttonStyle(.borderless)
+                            .tint(Theme.violet)
+                    } header: {
+                        SectionLabel(title: "How it gets you")
                     }
                     .listRowBackground(Theme.glass)
 
@@ -80,6 +105,7 @@ struct NogSheet: View {
         }
         .tint(Theme.pink)
         .presentationDragIndicator(.visible)
+        .sheet(isPresented: $showKindHelp) { NogKindSheet() }
     }
 
     // MARK: Parent and sub-items
@@ -258,21 +284,6 @@ struct NogSheet: View {
                     ForEach(RepeatCurve.allCases, id: \.self) { Text($0.label).tag($0) }
                 }
                 .pickerStyle(.segmented)
-            }
-            Toggle(isOn: Binding(
-                get: { reminder.alarm },
-                set: { on in
-                    if on {
-                        Task {
-                            if await AlarmScheduler.shared.requestAuthorization() {
-                                edit { $0.alarm = true }
-                            }
-                        }
-                    } else {
-                        edit { $0.alarm = false }
-                    }
-                })) {
-                Label("Ring like an alarm", systemImage: "alarm.waves.left.and.right")
             }
         } header: {
             SectionLabel(title: "Repeat")

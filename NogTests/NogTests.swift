@@ -932,3 +932,75 @@ final class RhythmFlowTests: XCTestCase {
         XCTAssertEqual(store.items[b.id]?.status, .done)
     }
 }
+
+final class CaptureDraftTests: XCTestCase {
+    let now = Date(timeIntervalSince1970: 1_900_000_000)
+    let defaults = CaptureDefaults(firstDelayMinutes: 15, repeatMinutes: 8)
+
+    func testTextAloneWorksAsBefore() {
+        let draft = CaptureDraft(text: "call plumber #home")
+        let r = draft.resolved(defaults: defaults, now: now)
+        XCTAssertEqual(r.title, "call plumber")
+        XCTAssertEqual(r.tags, ["home"])
+        XCTAssertEqual(r.reminder?.start, now.addingTimeInterval(15 * 60))
+        XCTAssertEqual(NogKind.of(r.reminder), .nog)
+        XCTAssertFalse(draft.choseOwnRhythm(defaults: defaults, now: now))
+    }
+
+    func testTrayChoicesWinOverTheText() {
+        let when = now.addingTimeInterval(3 * 3600)
+        var draft = CaptureDraft(text: "paint samples !off #home")
+        draft.kind = .alarm
+        draft.when = when
+        draft.profile = .relentless
+        draft.extraTags = ["Kitchen", "HOME"]
+        let r = draft.resolved(defaults: defaults, now: now)
+        XCTAssertEqual(r.reminder?.start, when)
+        XCTAssertEqual(r.reminder?.alarm, true)
+        XCTAssertEqual(r.reminder?.repeatMinutes, NogProfile.relentless.repeatMinutes)
+        XCTAssertEqual(r.tags, ["home", "Kitchen"], "no duplicate #home")
+        XCTAssertTrue(draft.choseOwnRhythm(defaults: defaults, now: now))
+    }
+
+    func testNoteMeansNoReminder() {
+        var draft = CaptureDraft(text: "idea for the garden tomorrow 9am")
+        draft.kind = .note
+        XCTAssertNil(draft.resolved(defaults: defaults, now: now).reminder)
+    }
+
+    func testPromiseSaysWhatWillHappen() {
+        XCTAssertTrue(NogKind.promise(for: nil).contains("Never nogs"))
+        let alarm = Reminder(start: now.addingTimeInterval(600), repeatMinutes: 8, alarm: true)
+        XCTAssertTrue(NogKind.promise(for: alarm).contains("even on Silent"))
+        let nog = Reminder(start: now.addingTimeInterval(600))
+        XCTAssertTrue(NogKind.promise(for: nog).hasSuffix("Quiet on Silent and in Focus."))
+    }
+}
+
+final class AgendaTests: XCTestCase {
+    func testGroupsOnlyTimedOpenThingsWithinTheWeek() {
+        let calendar = Calendar.current
+        let now = calendar.date(from: DateComponents(year: 2030, month: 3, day: 5, hour: 10))!
+        func item(_ title: String, start: Date?, status: ItemStatus = .open) -> Item {
+            var i = Item(title: title)
+            i.status = status
+            i.reminder = start.map { Reminder(start: $0, repeatMinutes: 8) }
+            return i
+        }
+        let items = [
+            item("nogging", start: now.addingTimeInterval(-600)),
+            item("later", start: now.addingTimeInterval(3 * 3600)),
+            item("tomorrow", start: now.addingTimeInterval(24 * 3600)),
+            item("friday", start: now.addingTimeInterval(3 * 24 * 3600)),
+            item("next month", start: now.addingTimeInterval(30 * 24 * 3600)),
+            item("loose", start: nil),
+            item("dream", start: now.addingTimeInterval(3600), status: .someday),
+            item("done", start: now.addingTimeInterval(3600), status: .done),
+        ]
+        let groups = Agenda.groups(items, now: now, calendar: calendar)
+        XCTAssertEqual(groups.map(\.title), ["Nogging now", "Later today", "Tomorrow", "This week"])
+        XCTAssertEqual(groups.flatMap(\.entries).map(\.item.title), ["nogging", "later", "tomorrow", "friday"])
+        XCTAssertTrue(groups[0].entries[0].isNogging)
+        XCTAssertGreaterThan(groups[0].entries[0].when, now, "a nogging item shows its next nog")
+    }
+}

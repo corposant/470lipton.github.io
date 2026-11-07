@@ -209,14 +209,18 @@ final class ItemStore {
     func capture(_ text: String, parent: UUID? = nil, now: Date = .now) -> Item? {
         let defaults = NogSettings.captureDefaults
         let parsed = CaptureParser.parse(text, defaults: defaults, now: now)
+        // Typed your own rhythm ("every 5m", "!relentless")? Then a parent's doesn't replace it.
+        return add(parsed, parent: parent, ownRhythm: CaptureDefaults.differs(parsed.reminder, from: defaults), now: now)
+    }
+
+    /// Adds a parsed capture. A sub-item nogs like its parent, unless `ownRhythm`.
+    @discardableResult
+    func add(_ parsed: CaptureResult, parent: UUID? = nil, ownRhythm: Bool, now: Date = .now) -> Item? {
         guard !parsed.title.isEmpty else { return nil }
         var reminder = parsed.reminder
-        // A new sub-item nogs like its parent, unless you typed your own rhythm ("every 5m", "!relentless").
         if var r = reminder, let parentID = parent, let parentReminder = items[parentID]?.reminder,
            parentReminder.passesDown {
-            let typedOwnRhythm = r.repeatMinutes != defaults.repeatMinutes || r.curve != defaults.curve
-                || r.escalateAfter != defaults.escalateAfter
-            if typedOwnRhythm { r.followsParent = false } else { r = r.takingRhythm(of: parentReminder) }
+            if ownRhythm { r.followsParent = false } else { r = r.takingRhythm(of: parentReminder) }
             reminder = r
         }
         var item = Item(title: parsed.title, created: now, updated: now,
@@ -490,7 +494,7 @@ final class ItemStore {
 }
 
 enum AppTab: Hashable {
-    case capture, nogs, map
+    case capture, agenda, nogs, map
 }
 
 /// Navigation state shared with the notification delegate (tapping a nog opens its item).
@@ -500,6 +504,7 @@ final class Router {
     static let shared = Router()
     var tab: AppTab = .capture
     var capturePath: [UUID] = []
+    var agendaPath: [UUID] = []
     /// The Nogs tab's stack.
     var path: [UUID] = []
     var mapPath: [UUID] = []
@@ -510,6 +515,7 @@ final class Router {
     func push(_ id: UUID) {
         switch tab {
         case .capture: capturePath.append(id)
+        case .agenda: agendaPath.append(id)
         case .nogs: path.append(id)
         case .map: mapPath.append(id)
         }
@@ -522,6 +528,7 @@ final class Router {
         }
         switch tab {
         case .capture: up(&capturePath)
+        case .agenda: up(&agendaPath)
         case .nogs: up(&path)
         case .map: up(&mapPath)
         }
