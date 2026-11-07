@@ -146,6 +146,11 @@ struct Reminder: Hashable {
     var snoozeMinutes: Int? = nil
     /// This item's "Snooze till morning" time, minutes after midnight. nil = the Settings default.
     var morningMinutes: Int? = nil
+    /// A sub-item: takes its parent's rhythm (repeat, style, alarm, snooze) when that changes.
+    /// Set to false once you change the sub-item's own rhythm.
+    var followsParent = true
+    /// A parent: its rhythm flows down to sub-items that follow it.
+    var passesDown = true
 
     /// Logarithmic gaps stop growing here.
     static let logarithmicCapMinutes = 1440
@@ -226,6 +231,27 @@ struct Reminder: Hashable {
         case .steady: return "every \(IntervalFormat.short(m))"
         case .logarithmic: return "every \(IntervalFormat.short(m)), easing off to daily"
         }
+    }
+}
+
+extension Reminder {
+    /// Same rhythm: everything about how it nogs except when it starts.
+    func sameRhythm(as other: Reminder) -> Bool {
+        repeatMinutes == other.repeatMinutes && curve == other.curve && alarm == other.alarm
+            && escalateAfter == other.escalateAfter
+            && snoozeMinutes == other.snoozeMinutes && morningMinutes == other.morningMinutes
+    }
+
+    /// This reminder with a parent's rhythm, keeping its own start (and its follow / pass-down switches).
+    func takingRhythm(of parent: Reminder) -> Reminder {
+        var r = self
+        r.repeatMinutes = parent.repeatMinutes
+        r.curve = parent.curve
+        r.alarm = parent.alarm
+        r.escalateAfter = parent.escalateAfter
+        r.snoozeMinutes = parent.snoozeMinutes
+        r.morningMinutes = parent.morningMinutes
+        return r
     }
 }
 

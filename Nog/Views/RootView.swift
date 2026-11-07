@@ -4,24 +4,68 @@ import SwiftUI
 /// The full overview (Nogs tab).
 struct NogsTab: View {
     @Environment(Router.self) private var router
+    @Environment(ItemStore.self) private var store
     @State private var search = ""
     @State private var showSettings = false
+    /// Select mode: tap rows to pick several, then act on them from the bottom bar.
+    @State private var editMode: EditMode = .inactive
+    @State private var selection: Set<UUID> = []
+
+    private var isSelecting: Bool { editMode.isEditing }
+
+    /// What "Select All" picks: everything listed except the finished pile.
+    private var selectable: Set<UUID> {
+        Set(store.items.values.filter { $0.status != .done }.map(\.id))
+    }
 
     var body: some View {
         @Bindable var router = router
         NavigationStack(path: $router.path) {
             // Re-render every 30s so "in 5 min" / "nogging now" stay current.
             TimelineView(.periodic(from: .now, by: 30)) { context in
-                ItemListView(now: context.date, search: search)
+                ItemListView(now: context.date, search: search, selection: $selection)
             }
             .background { NogBackground() }
-            .navigationTitle("NOG")
+            .navigationTitle(isSelecting ? (selection.isEmpty ? "Select nogs" : "\(selection.count) selected") : "NOG")
             .searchable(text: $search, placement: .navigationBarDrawer(displayMode: .automatic))
+            .environment(\.editMode, $editMode)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button { showSettings = true } label: { Image(systemName: "gearshape") }
+                if isSelecting {
+                    ToolbarItem(placement: .topBarLeading) {
+                        let all = selectable
+                        Button(selection.isSuperset(of: all) && !all.isEmpty ? "Deselect All" : "Select All") {
+                            selection = selection.isSuperset(of: all) ? [] : all
+                        }
+                    }
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button("Done") { stopSelecting() }
+                            .fontWeight(.semibold)
+                    }
+                } else {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button("Select") {
+                            withAnimation(.snappy) { editMode = .active }
+                        }
+                    }
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button { showSettings = true } label: { Image(systemName: "gearshape") }
+                    }
                 }
             }
+            // The tab bar makes way for the action bar while selecting, as in Mail and Photos.
+            .toolbar(isSelecting ? .hidden : .automatic, for: .tabBar)
+            .safeAreaInset(edge: .bottom) {
+                if isSelecting {
+                    BulkActionBar(selection: $selection)
+                        .padding(.horizontal, 18)
+                        .frame(height: 64)
+                        .glassEffect(.regular, in: .capsule)
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 6)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
+            .sensoryFeedback(.selection, trigger: selection.count)
             .navigationDestination(for: UUID.self) { id in
                 ItemDetailView(id: id)
             }
@@ -30,12 +74,21 @@ struct NogsTab: View {
             }
         }
     }
+
+    private func stopSelecting() {
+        withAnimation(.snappy) {
+            editMode = .inactive
+            selection = []
+        }
+    }
 }
 
 struct ItemListView: View {
     @Environment(ItemStore.self) private var store
     let now: Date
     let search: String
+    /// Rows picked in Select mode (the list only allows picking while editing).
+    @Binding var selection: Set<UUID>
 
     var body: some View {
         let all = Array(store.items.values)
@@ -50,7 +103,7 @@ struct ItemListView: View {
                 .filter { $0.title.lowercased().contains(query) || $0.body.lowercased().contains(query)
                     || $0.tags.contains { $0.lowercased().contains(query) } }
                 .sorted { $0.updated > $1.updated }
-            List {
+            List(selection: $selection) {
                 Section {
                     ForEach(results) { ItemRow(item: $0, now: now, stats: stats) }
                 } header: {
@@ -76,7 +129,7 @@ struct ItemListView: View {
             let done = all.filter { $0.status == .done }
                 .sorted { ($0.completed ?? $0.updated) > ($1.completed ?? $1.updated) }
 
-            List {
+            List(selection: $selection) {
                 if !doing.isEmpty {
                     Section {
                         ForEach(doing) { item in
@@ -143,6 +196,7 @@ struct ChildStats {
 
 struct ItemRow: View {
     @Environment(ItemStore.self) private var store
+    @Environment(\.editMode) private var editMode
     let item: Item
     let now: Date
     var stats: ChildStats? = nil
@@ -160,7 +214,8 @@ struct ItemRow: View {
                     }
                 }
             }
-            if item.status == .open || item.status == .someday {
+            // While selecting, the row is just something to pick.
+            if editMode?.wrappedValue.isEditing != true, item.status == .open || item.status == .someday {
                 StartButton(item: item, subItems: counts.total > 0 ? counts : nil)
             }
         }

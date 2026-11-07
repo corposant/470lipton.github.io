@@ -848,3 +848,87 @@ final class ItemTagTests: XCTestCase {
         XCTAssertEqual(ItemFile.decode(ItemFile.encode(item))?.tags, ["home"])
     }
 }
+
+@MainActor
+final class RhythmFlowTests: XCTestCase {
+    func makeStore() -> ItemStore {
+        ItemStore(folder: FileManager.default.temporaryDirectory.appending(path: UUID().uuidString),
+                  schedulesNotifications: false)
+    }
+
+    func testNewSubItemTakesItsParentsRhythm() throws {
+        let store = makeStore()
+        var parent = try XCTUnwrap(store.capture("Trip"))
+        parent.reminder = NogProfile.relentless.apply(to: try XCTUnwrap(parent.reminder))
+        parent.reminder?.snoozeMinutes = 30
+        store.update(parent)
+        let child = try XCTUnwrap(store.capture("Book flights", parent: parent.id))
+        XCTAssertEqual(child.reminder?.repeatMinutes, 7)
+        XCTAssertEqual(child.reminder?.snoozeMinutes, 30)
+        XCTAssertEqual(child.reminder?.followsParent, true)
+    }
+
+    func testTypedRhythmKeepsTheSubItemsOwn() throws {
+        let store = makeStore()
+        var parent = try XCTUnwrap(store.capture("Trip"))
+        parent.reminder = NogProfile.relentless.apply(to: try XCTUnwrap(parent.reminder))
+        store.update(parent)
+        let child = try XCTUnwrap(store.capture("Pack !whisper", parent: parent.id))
+        XCTAssertEqual(child.reminder?.repeatMinutes, NogProfile.whisper.repeatMinutes)
+        XCTAssertEqual(child.reminder?.followsParent, false)
+    }
+
+    func testParentChangesFlowToFollowersButNotToCustomisedOnes() throws {
+        let store = makeStore()
+        let parent = try XCTUnwrap(store.capture("Trip"))
+        let follower = try XCTUnwrap(store.capture("Book flights", parent: parent.id))
+        var custom = try XCTUnwrap(store.capture("Pack", parent: parent.id))
+        custom.reminder?.repeatMinutes = 45
+        custom.reminder?.followsParent = false
+        store.update(custom)
+        let grandchild = try XCTUnwrap(store.capture("Window seat", parent: follower.id))
+
+        var p = try XCTUnwrap(store.items[parent.id])
+        p.reminder?.repeatMinutes = 3
+        p.reminder?.alarm = true
+        store.update(p)
+
+        XCTAssertEqual(store.items[follower.id]?.reminder?.repeatMinutes, 3)
+        XCTAssertEqual(store.items[follower.id]?.reminder?.alarm, true)
+        XCTAssertEqual(store.items[grandchild.id]?.reminder?.repeatMinutes, 3, "flows all the way down")
+        XCTAssertEqual(store.items[custom.id]?.reminder?.repeatMinutes, 45)
+        // Starts stay their own.
+        XCTAssertEqual(store.items[follower.id]?.reminder?.start, follower.reminder?.start)
+    }
+
+    func testPassDownOffStopsTheFlow() throws {
+        let store = makeStore()
+        var parent = try XCTUnwrap(store.capture("Trip"))
+        let child = try XCTUnwrap(store.capture("Book flights", parent: parent.id))
+        parent.reminder?.passesDown = false
+        parent.reminder?.repeatMinutes = 3
+        store.update(parent)
+        XCTAssertNotEqual(store.items[child.id]?.reminder?.repeatMinutes, 3)
+    }
+
+    func testFollowSwitchesSurviveTheFile() {
+        var item = Item(title: "x")
+        item.created = Date(timeIntervalSince1970: 1_800_000_000)
+        item.updated = item.created
+        item.reminder = Reminder(start: item.created, repeatMinutes: 8, followsParent: false, passesDown: false)
+        XCTAssertEqual(ItemFile.decode(ItemFile.encode(item)), item)
+        item.reminder = Reminder(start: item.created, repeatMinutes: 8)
+        XCTAssertFalse(ItemFile.encode(item).contains("follows_parent"))
+    }
+
+    func testBatchAppliesEveryChange() throws {
+        let store = makeStore()
+        let a = try XCTUnwrap(store.capture("a")), b = try XCTUnwrap(store.capture("b"))
+        store.batch {
+            store.markDone(a.id)
+            store.markDone(b.id)
+        }
+        XCTAssertEqual(store.items[a.id]?.status, .done)
+        XCTAssertEqual(store.items[b.id]?.status, .done)
+    }
+}

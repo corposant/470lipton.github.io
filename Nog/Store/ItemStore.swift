@@ -207,10 +207,20 @@ final class ItemStore {
     /// Quick capture: parses the text, applies the default nog, saves.
     @discardableResult
     func capture(_ text: String, parent: UUID? = nil, now: Date = .now) -> Item? {
-        let parsed = CaptureParser.parse(text, defaults: NogSettings.captureDefaults, now: now)
+        let defaults = NogSettings.captureDefaults
+        let parsed = CaptureParser.parse(text, defaults: defaults, now: now)
         guard !parsed.title.isEmpty else { return nil }
+        var reminder = parsed.reminder
+        // A new sub-item nogs like its parent, unless you typed your own rhythm ("every 5m", "!relentless").
+        if var r = reminder, let parentID = parent, let parentReminder = items[parentID]?.reminder,
+           parentReminder.passesDown {
+            let typedOwnRhythm = r.repeatMinutes != defaults.repeatMinutes || r.curve != defaults.curve
+                || r.escalateAfter != defaults.escalateAfter
+            if typedOwnRhythm { r.followsParent = false } else { r = r.takingRhythm(of: parentReminder) }
+            reminder = r
+        }
         var item = Item(title: parsed.title, created: now, updated: now,
-                        parentID: parent, tags: parsed.tags, reminder: parsed.reminder)
+                        parentID: parent, tags: parsed.tags, reminder: reminder)
         item.estimateMinutes = parsed.estimateMinutes
         insert(item)
         return item
@@ -255,6 +265,12 @@ final class ItemStore {
         item.updated = now
         items[item.id] = item
         write(item)
+        if let r = item.reminder, r.passesDown,
+           old.reminder.map({ !$0.sameRhythm(as: r) || !$0.passesDown }) ?? true {
+            passRhythmDown(from: item)
+        }
+        // In a batch, notifications and Live Activities are refreshed once at the end.
+        if isBatching { return }
         if old.status != item.status || old.doingSince != item.doingSince
             || old.timeboxMinutes != item.timeboxMinutes {
             updateLiveActivities()
@@ -281,6 +297,34 @@ final class ItemStore {
         var item = item
         item.reminder = reminder
         return item
+    }
+
+    // MARK: - Rhythm flowing down
+
+    /// Open sub-items that follow this item get its rhythm (and pass it further down in turn).
+    private func passRhythmDown(from item: Item) {
+        guard let rhythm = item.reminder, rhythm.passesDown else { return }
+        for child in children(of: item.id) where child.status != .done && child.id != item.id {
+            guard let r = child.reminder, r.followsParent, !r.sameRhythm(as: rhythm) else { continue }
+            var updated = child
+            updated.reminder = r.takingRhythm(of: rhythm)
+            update(updated)
+        }
+    }
+
+    // MARK: - Batches
+
+    private var isBatching = false
+
+    /// Applies many changes, then reschedules notifications once (multi-select edits).
+    func batch(_ body: () -> Void) {
+        let wasBatching = isBatching
+        isBatching = true
+        body()
+        isBatching = wasBatching
+        guard !wasBatching else { return }
+        updateLiveActivities()
+        Task { await syncNow() }
     }
 
     // MARK: - Doing (▶︎)

@@ -21,6 +21,7 @@ private struct ItemEditor: View {
     let item: Item
 
     @State private var newChild = ""
+    @FocusState private var childFieldFocused: Bool
     @State private var newTag = ""
     @State private var isAddingTag = false
     @FocusState private var tagFieldFocused: Bool
@@ -289,12 +290,13 @@ private struct ItemEditor: View {
             }
             HStack(spacing: 10) {
                 Image(systemName: "plus").foregroundStyle(Theme.muted)
-                TextField("Add sub-item", text: $newChild)
-                    .submitLabel(.done)
-                    .onSubmit {
-                        store.capture(newChild, parent: item.id)
-                        newChild = ""
-                    }
+                // Multi-line field: Return arrives as a newline, which we turn into "add this one
+                // and keep typing". A single-line field would end editing and drop the keyboard.
+                TextField("Add sub-item", text: $newChild, axis: .vertical)
+                    .focused($childFieldFocused)
+                    .submitLabel(.next)
+                    .onChange(of: newChild) { addChildrenOnReturn() }
+                    .sensoryFeedback(.impact(weight: .light), trigger: children.count)
                 if ItemAssistant.isAvailable {
                     Button {
                         showBreakdown = true
@@ -320,6 +322,25 @@ private struct ItemEditor: View {
             }
         }
         .listRowBackground(Theme.glass)
+    }
+
+    /// Return adds what's typed as a sub-item and leaves the cursor ready for the next.
+    /// Return on an empty line puts the keyboard away. Pasted lines become one sub-item each.
+    private func addChildrenOnReturn() {
+        guard newChild.contains("\n") else { return }
+        let lines = newChild.split(separator: "\n", omittingEmptySubsequences: false)
+        let finished = lines.dropLast()
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        let rest = String(lines.last ?? "")
+        if finished.isEmpty && rest.trimmingCharacters(in: .whitespaces).isEmpty {
+            newChild = ""
+            childFieldFocused = false
+            return
+        }
+        for line in finished { store.capture(line, parent: item.id) }
+        newChild = rest
+        childFieldFocused = true
     }
 
     private var tagsSection: some View {

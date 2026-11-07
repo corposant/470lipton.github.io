@@ -12,14 +12,37 @@ struct NogSheet: View {
 
     private func edit(_ change: (inout Reminder) -> Void) {
         guard var current = store.items[id], var reminder = current.reminder else { return }
+        let before = reminder
         change(&reminder)
+        // Giving a sub-item its own rhythm means it stops following its parent's.
+        if current.parentID != nil, !reminder.sameRhythm(as: before) { reminder.followsParent = false }
         current.reminder = reminder
         store.update(current)
     }
 
     private func setOn(_ on: Bool) {
         guard var current = store.items[id] else { return }
-        current.reminder = on ? NogSettings.defaultReminderFromNow : nil
+        if on {
+            var reminder = NogSettings.defaultReminderFromNow
+            if let parent = parentReminder { reminder = reminder.takingRhythm(of: parent) }
+            current.reminder = reminder
+        } else {
+            current.reminder = nil
+        }
+        store.update(current)
+    }
+
+    /// The parent's reminder, when it passes its rhythm down.
+    private var parentReminder: Reminder? {
+        guard let item, let parent = store.parent(of: item), let r = parent.reminder, r.passesDown else { return nil }
+        return r
+    }
+
+    private func setFollowsParent(_ on: Bool) {
+        guard var current = store.items[id], var reminder = current.reminder else { return }
+        reminder.followsParent = on
+        if on, let parent = parentReminder { reminder = reminder.takingRhythm(of: parent) }
+        current.reminder = reminder
         store.update(current)
     }
 
@@ -37,6 +60,7 @@ struct NogSheet: View {
                     .listRowBackground(Theme.glass)
 
                     if let reminder = item.reminder {
+                        familySection(item, reminder)
                         profileSection(reminder)
                         whenSection(reminder)
                         rhythmSection(reminder)
@@ -56,6 +80,40 @@ struct NogSheet: View {
         }
         .tint(Theme.pink)
         .presentationDragIndicator(.visible)
+    }
+
+    // MARK: Parent and sub-items
+
+    /// A sub-item can follow its parent's rhythm; a parent can pass its rhythm down.
+    @ViewBuilder
+    private func familySection(_ item: Item, _ reminder: Reminder) -> some View {
+        let kids = store.children(of: item.id).filter { $0.status != .done && $0.reminder != nil }
+        let parent = store.parent(of: item)
+        if parentReminder != nil || !kids.isEmpty {
+            Section {
+                if let parent, parentReminder != nil {
+                    Toggle(isOn: Binding(get: { reminder.followsParent }, set: setFollowsParent)) {
+                        Label("Follow “\(parent.title)”", systemImage: "arrow.up.circle")
+                    }
+                }
+                if !kids.isEmpty {
+                    Toggle(isOn: Binding(
+                        get: { reminder.passesDown },
+                        set: { on in edit { $0.passesDown = on } })) {
+                        Label("Sub-items nog the same way", systemImage: "arrow.down.circle")
+                    }
+                }
+            } footer: {
+                let following = kids.filter { $0.reminder?.followsParent == true }.count
+                if !kids.isEmpty, reminder.passesDown {
+                    Text("\(following) of \(kids.count) sub-items follow this. Changing a sub-item's own rhythm stops it following; switch Follow back on to rejoin.")
+                } else if parentReminder != nil, reminder.followsParent {
+                    Text("Repeat, alarm and snooze come from the parent. Change any of them here and this item keeps its own.")
+                }
+            }
+            .listRowBackground(Theme.glass)
+            .tint(Theme.blue)
+        }
     }
 
     // MARK: How hard
