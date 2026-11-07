@@ -501,7 +501,7 @@ struct RootView: View {
             Tab("Agenda", systemImage: "calendar", value: AppTab.agenda) {
                 AgendaView()
             }
-            Tab("Nogs", systemImage: "bell", value: AppTab.nogs) {
+            Tab("Nogs", image: "TabCarton", value: AppTab.nogs) {
                 NogsTab()
             }
             Tab("Map", systemImage: "point.3.connected.trianglepath.dotted", value: AppTab.map) {

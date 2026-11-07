@@ -90,6 +90,13 @@ struct ItemListView: View {
     let search: String
     /// Rows picked in Select mode (the list only allows picking while editing).
     @Binding var selection: Set<UUID>
+    @Environment(\.editMode) private var editMode
+
+    /// Selection is only switched on in Select mode. A list that always has a selection
+    /// treats a tap as "select this row", so rows wouldn't open.
+    private var listSelection: Binding<Set<UUID>>? {
+        editMode?.wrappedValue.isEditing == true ? $selection : nil
+    }
 
     var body: some View {
         let all = Array(store.items.values)
@@ -104,7 +111,7 @@ struct ItemListView: View {
                 .filter { $0.title.lowercased().contains(query) || $0.body.lowercased().contains(query)
                     || $0.tags.contains { $0.lowercased().contains(query) } }
                 .sorted { $0.updated > $1.updated }
-            List(selection: $selection) {
+            List(selection: listSelection) {
                 Section {
                     ForEach(results) { ItemRow(item: $0, now: now, stats: stats) }
                 } header: {
@@ -138,7 +145,7 @@ struct ItemListView: View {
             let done = all.filter { $0.status == .done }
                 .sorted { ($0.completed ?? $0.updated) > ($1.completed ?? $1.updated) }
 
-            List(selection: $selection) {
+            List(selection: listSelection) {
                 if !doing.isEmpty {
                     Section {
                         ForEach(doing) { item in
