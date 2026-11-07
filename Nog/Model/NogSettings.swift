@@ -127,35 +127,37 @@ enum ThemeMode: String, CaseIterable, Identifiable {
     }
 }
 
+/// The nog carton: inked comix on cream (primary), or neon-hatched on charcoal.
 enum AppIconChoice: String, CaseIterable, Identifiable {
-    case synthwave, spectrum
+    case comix, neon
     var id: String { rawValue }
 
     var label: String {
         switch self {
-        case .synthwave: "Synthwave"
-        case .spectrum: "Spectrum"
+        case .comix: "Comix"
+        case .neon: "Neon"
         }
     }
 
     /// nil = the primary icon.
     var alternateIconName: String? {
         switch self {
-        case .synthwave: nil
-        case .spectrum: "AppIcon-Spectrum"
+        case .comix: nil
+        case .neon: "AppIcon-Neon"
         }
     }
 
     /// Preview image in the asset catalog.
     var previewImage: String {
         switch self {
-        case .synthwave: "IconPreviewSynthwave"
-        case .spectrum: "IconPreviewSpectrum"
+        case .comix: "IconPreviewComix"
+        case .neon: "IconPreviewNeon"
         }
     }
 
+    /// An icon name this version doesn't have (e.g. an old alternate) counts as the primary.
     static func current(alternateIconName: String?) -> AppIconChoice {
-        allCases.first { $0.alternateIconName == alternateIconName } ?? .synthwave
+        allCases.first { $0.alternateIconName == alternateIconName } ?? .comix
     }
 }
 
