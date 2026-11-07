@@ -46,6 +46,27 @@ struct NogPolicy: Equatable {
     var timesUpEvery = 5
     /// While doing open-ended: an hourly-ish "still on it?" (nil = off).
     var checkInEvery: Int? = 60
+    /// Silence (from the app icon or Settings): nothing nogs or rings before this.
+    /// `Date.distantFuture` = until turned back on. Nogs due meanwhile come once it ends.
+    var silencedUntil: Date? = nil
+
+    func isSilenced(at date: Date) -> Bool { silencedUntil.map { date < $0 } ?? false }
+
+    /// Silenced with no end (until turned back on), as of `now`.
+    func isSilencedIndefinitely(at now: Date) -> Bool {
+        silencedUntil.map { $0 == .distantFuture && now < $0 } ?? false
+    }
+
+    /// The first moment at or after `date` a nog may go out: after any silence, outside
+    /// quiet hours. nil while silenced with no end.
+    func nextAllowed(after date: Date, calendar: Calendar = .current) -> Date? {
+        var d = date
+        if let until = silencedUntil, d < until {
+            guard until != .distantFuture else { return nil }
+            d = until
+        }
+        return quiet.nextOpening(after: d, calendar: calendar)
+    }
 
     static let standard = NogPolicy()
 }
@@ -60,7 +81,7 @@ extension NogPolicy {
         var seen = Set<Date>()
         // A long quiet stretch folds many fire times into one, so look further ahead.
         for fire in reminder.fireDates(after: date, limit: limit + 400) {
-            let when = quiet.nextOpening(after: fire, calendar: calendar)
+            guard let when = nextAllowed(after: fire, calendar: calendar) else { return [] }
             if seen.insert(when).inserted { result.append(when) }
             if result.count == limit { break }
         }

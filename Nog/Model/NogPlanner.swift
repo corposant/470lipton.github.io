@@ -66,6 +66,8 @@ enum NogPlanner {
                      policy: NogPolicy = .standard,
                      alarmDates: [UUID: [Date]] = [:],
                      calendar: Calendar = .current) -> [PlannedNotification] {
+        // Silenced until turned back on: nothing at all.
+        if policy.isSilencedIndefinitely(at: now) { return [] }
         let candidates: [(Item, Reminder)] = items
             .compactMap { item -> (Item, Reminder)? in
                 guard let r = item.effectiveReminder(policy: policy) else { return nil }
@@ -97,14 +99,14 @@ enum NogPlanner {
             // Heads-up before a dated nog starts.
             if !doing, policy.headsUpMinutes > 0 {
                 let headsUp = r.start.addingTimeInterval(TimeInterval(-policy.headsUpMinutes * 60))
-                if headsUp > now, !policy.quiet.contains(headsUp, calendar: calendar) {
+                if headsUp > now, !policy.quiet.contains(headsUp, calendar: calendar), !policy.isSilenced(at: headsUp) {
                     followUps.append(oneShot(headsUp, body: "Coming up in \(IntervalFormat.amount(policy.headsUpMinutes))",
                                              kind: "heads"))
                 }
             }
 
             let ringing = Set(alarmDates[item.id] ?? [])
-            let needsExactTimes = policy.quiet.enabled || !ringing.isEmpty
+            let needsExactTimes = policy.quiet.enabled || !ringing.isEmpty || policy.isSilenced(at: now)
 
             if !needsExactTimes, let settled = r.settledPhase, settled.since <= now {
                 // Gap no longer changes: one trigger iOS repeats forever.
@@ -119,7 +121,7 @@ enum NogPlanner {
                 var seen = Set<Date>()
                 for date in r.fireDates(after: now, limit: 1 + max(0, maxFollowUpsPerItem) + ringing.count) {
                     guard !ringing.contains(date) else { continue }
-                    let when = policy.quiet.nextOpening(after: date, calendar: calendar)
+                    guard let when = policy.nextAllowed(after: date, calendar: calendar) else { break }
                     if seen.insert(when).inserted { dates.append(when) }
                     if dates.count > maxFollowUpsPerItem { break }
                 }

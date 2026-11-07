@@ -15,6 +15,7 @@ struct AgendaView: View {
                 AgendaList(now: context.date)
             }
             .background { NogBackground() }
+            .safeAreaInset(edge: .top) { SilenceBanner() }
             .navigationTitle("Agenda")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {

@@ -16,6 +16,8 @@ struct SettingsView: View {
     @State private var appIcon = AppIconChoice.current(alternateIconName: UIApplication.shared.alternateIconName)
     @State private var storageMode = StorageMode.current
     @State private var isSwitchingStorage = false
+    @State private var showSilence = false
+    @AppStorage(NogSettings.silencedUntilKey) private var silencedUntil: Double = 0
 
     var body: some View {
         NavigationStack {
@@ -133,6 +135,17 @@ struct SettingsView: View {
 
     private var behavior: some View {
         Section {
+            Button {
+                showSilence = true
+            } label: {
+                row("Silence", "bell.slash", Theme.pink,
+                    detail: silencedUntil == 0 || Date(timeIntervalSinceReferenceDate: silencedUntil) <= .now
+                        ? "off"
+                        : NogSettings.silenceLabel(Date(timeIntervalSinceReferenceDate: silencedUntil))
+                            .replacingOccurrences(of: "Silenced ", with: ""))
+            }
+            .foregroundStyle(.primary)
+            .sheet(isPresented: $showSilence) { SilenceSheet() }
             NavigationLink {
                 NogsAlertsPage()
             } label: {

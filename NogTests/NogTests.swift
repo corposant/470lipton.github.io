@@ -1004,3 +1004,47 @@ final class AgendaTests: XCTestCase {
         XCTAssertGreaterThan(groups[0].entries[0].when, now, "a nogging item shows its next nog")
     }
 }
+
+final class SilenceTests: XCTestCase {
+    let now = Date(timeIntervalSince1970: 1_900_000_000)
+
+    func nogging() -> Item {
+        Item(title: "call plumber", reminder: Reminder(start: now.addingTimeInterval(-600), repeatMinutes: 8))
+    }
+
+    func testSilencedForAWhileHoldsNogsUntilItEnds() {
+        var policy = NogPolicy.standard
+        let end = now.addingTimeInterval(2 * 3600)
+        policy.silencedUntil = end
+        let plan = NogPlanner.plan(items: [nogging()], now: now, policy: policy)
+        XCTAssertFalse(plan.isEmpty)
+        let dates = plan.compactMap(\.fireDate)
+        XCTAssertEqual(dates.min(), end, "the first nog comes as silence ends")
+        XCTAssertTrue(dates.allSatisfy { $0 >= end })
+    }
+
+    func testSilencedUntilTurnedBackOnPlansNothing() {
+        var policy = NogPolicy.standard
+        policy.silencedUntil = .distantFuture
+        XCTAssertTrue(NogPlanner.plan(items: [nogging()], now: now, policy: policy).isEmpty)
+        XCTAssertTrue(policy.deliveryDates(for: nogging().reminder!, after: now, limit: 3).isEmpty)
+    }
+
+    func testSilenceThatEndedChangesNothing() {
+        var policy = NogPolicy.standard
+        policy.silencedUntil = now.addingTimeInterval(-60)
+        XCTAssertEqual(NogPlanner.plan(items: [nogging()], now: now, policy: policy),
+                       NogPlanner.plan(items: [nogging()], now: now, policy: .standard))
+    }
+
+    func testAlarmsDontRingWhileSilenced() {
+        var item = nogging()
+        item.reminder?.alarm = true
+        var policy = NogPolicy.standard
+        let end = now.addingTimeInterval(3600)
+        policy.silencedUntil = end
+        let alarms = AlarmScheduler.alarmDates(for: item, policy: policy, now: now)
+        XCTAssertFalse(alarms.isEmpty)
+        XCTAssertTrue(alarms.allSatisfy { $0 >= end })
+    }
+}

@@ -26,6 +26,7 @@ struct NogsTab: View {
                 ItemListView(now: context.date, search: search, selection: $selection)
             }
             .background { NogBackground() }
+            .safeAreaInset(edge: .top) { SilenceBanner() }
             .navigationTitle(isSelecting ? (selection.isEmpty ? "Select nogs" : "\(selection.count) selected") : "NOG")
             .searchable(text: $search, placement: .navigationBarDrawer(displayMode: .automatic))
             .environment(\.editMode, $editMode)

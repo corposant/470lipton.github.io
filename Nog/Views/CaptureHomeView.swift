@@ -39,6 +39,7 @@ struct CaptureHomeView: View {
             }
             .scrollDismissesKeyboard(.interactively)
             .background { NogBackground() }
+            .safeAreaInset(edge: .top) { SilenceBanner() }
             .navigationTitle("Capture")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -508,5 +509,6 @@ struct RootView: View {
             }
         }
         .tabBarMinimizeBehavior(.onScrollDown)
+        .sheet(isPresented: $router.showSilenceSheet) { SilenceSheet() }
     }
 }

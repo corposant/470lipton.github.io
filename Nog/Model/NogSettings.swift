@@ -215,7 +215,39 @@ extension NogSettings {
             headsUpMinutes: int(Key.headsUp, 0),
             escalateAfter: int(Key.escalateAfter, 0),
             timesUpEvery: int(Key.timesUpEvery, 5),
-            checkInEvery: { let v = int(Key.checkInEvery, 60); return v > 0 ? v : nil }())
+            checkInEvery: { let v = int(Key.checkInEvery, 60); return v > 0 ? v : nil }(),
+            silencedUntil: silencedUntil)
+    }
+
+    // MARK: Silence
+
+    static let silencedUntilKey = "silencedUntil"
+
+    /// When silence ends (`.distantFuture` = until turned back on), or nil when not silenced.
+    /// Stored on this device only.
+    static var silencedUntil: Date? {
+        get {
+            let t = UserDefaults.standard.double(forKey: silencedUntilKey)
+            guard t != 0 else { return nil }
+            let date = Date(timeIntervalSinceReferenceDate: t)
+            return date > .now ? date : nil
+        }
+        set {
+            if let newValue {
+                UserDefaults.standard.set(newValue.timeIntervalSinceReferenceDate, forKey: silencedUntilKey)
+            } else {
+                UserDefaults.standard.removeObject(forKey: silencedUntilKey)
+            }
+        }
+    }
+
+    /// "Silenced until 5:30 PM", "Silenced until tomorrow 9:00 AM", "Silenced until you turn nogs back on".
+    static func silenceLabel(_ until: Date, now: Date = .now) -> String {
+        if until == .distantFuture { return "Silenced until you turn nogs back on" }
+        let time = until.formatted(date: .omitted, time: .shortened)
+        if Calendar.current.isDate(until, inSameDayAs: now) { return "Silenced until \(time)" }
+        let day = Calendar.current.isDateInTomorrow(until) ? "tomorrow" : until.formatted(.dateTime.weekday(.wide))
+        return "Silenced until \(day) \(time)"
     }
 
     static var snoozeMinutes: Int { int(Key.snoozeMinutes, 60) }

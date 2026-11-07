@@ -510,6 +510,8 @@ final class Router {
     var mapPath: [UUID] = []
     /// Bumped to ask the capture field to take focus.
     var captureFocusRequest = 0
+    /// Asks the app to show the Silence choices (from the app icon's "Silence for…").
+    var showSilenceSheet = false
 
     /// Opens an item on the current tab's stack.
     func push(_ id: UUID) {

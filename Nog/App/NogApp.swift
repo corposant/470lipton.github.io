@@ -43,7 +43,10 @@ struct NogApp: App {
                     await store.reloadFromDisk()
                     await store.syncNow()
                 }
+                QuickActions.update()
             case .background:
+                // Keep the app icon's menu current ("Resume nogs", or silence that has run out).
+                QuickActions.update()
                 BackgroundRefresh.schedule()
                 Task { await store.flush() }
             default:
@@ -59,7 +62,18 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         UNUserNotificationCenter.current().delegate = self
         NotificationScheduler.shared.registerCategories()
         BackgroundRefresh.register()
+        QuickActions.update()
         return true
+    }
+
+    /// Hooks up the scene delegate that receives app-icon quick actions, and runs one that
+    /// launched the app from cold.
+    func application(_ application: UIApplication, configurationForConnecting connectingSceneSession: UISceneSession,
+                     options: UIScene.ConnectionOptions) -> UISceneConfiguration {
+        if let shortcut = options.shortcutItem { QuickActions.handle(shortcut) }
+        let configuration = UISceneConfiguration(name: nil, sessionRole: connectingSceneSession.role)
+        configuration.delegateClass = SceneDelegate.self
+        return configuration
     }
 
     /// Show nogs even while the app is open.
