@@ -6,7 +6,7 @@ extension NogKind {
         switch self {
         case .note: Theme.muted
         case .nog: Theme.pink
-        case .alarm: Color(light: 0xC77800, dark: 0xFFB65C)
+        case .alarm: Color(light: 0x8F5500, dark: 0xFFB65C)
         }
     }
 }
@@ -20,7 +20,7 @@ struct KindBadge: View {
             .font(.caption2.weight(.semibold))
             .foregroundStyle(kind.tint)
             .padding(.horizontal, 7)
-            .frame(height: 22)
+            .frame(minHeight: 22)
             .overlay(Capsule().strokeBorder(kind.tint.opacity(0.55), lineWidth: 1))
             .accessibilityLabel(kind.label)
     }
@@ -39,7 +39,7 @@ struct KindPicker: View {
                     pick(kind)
                 } label: {
                     VStack(spacing: 5) {
-                        Image(systemName: kind.systemImage).font(.system(size: 18, weight: .medium))
+                        Image(systemName: kind.systemImage).nogFont(18, weight: .medium)
                         Text(kind.label).font(.nogTitle(14))
                     }
                     .foregroundStyle(isOn ? kind.tint : Color.primary.opacity(0.75))
@@ -82,7 +82,7 @@ struct NogKindSheet: View {
                         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                         .accessibilityHidden(true)
                         Text("9:00 · 9:08 · 9:16 · 9:24 … until you nog it")
-                            .font(.nogReadout(12))
+                            .nogReadout(12)
                             .foregroundStyle(NogKind.nog.tint)
                         bullets([
                             "A notification with a sound, like a message.",
@@ -92,13 +92,13 @@ struct NogKindSheet: View {
                     }
                     card(.alarm, note: "for things you can't miss") {
                         VStack(spacing: 6) {
-                            Text("9:00").font(.nogReadout(34)).foregroundStyle(Color(red: 1, green: 0.89, blue: 0.74))
+                            Text("9:00").nogReadout(34).foregroundStyle(Color(red: 1, green: 0.89, blue: 0.74))
                             Text("Call the plumber").font(.footnote)
                             HStack(spacing: 8) {
-                                Text("Stop").padding(.horizontal, 18).frame(height: 30)
+                                Text("Stop").padding(.horizontal, 18).frame(minHeight: 30)
                                     .background(.white.opacity(0.14), in: Capsule())
                                 Text("Nogged").fontWeight(.semibold).foregroundStyle(.black)
-                                    .padding(.horizontal, 18).frame(height: 30)
+                                    .padding(.horizontal, 18).frame(minHeight: 30)
                                     .background(ProgressRing.complete, in: Capsule())
                             }
                             .font(.footnote)

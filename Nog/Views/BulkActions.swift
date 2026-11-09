@@ -154,7 +154,7 @@ struct BulkActionBar: View {
 private struct StackedLabelStyle: LabelStyle {
     func makeBody(configuration: Configuration) -> some View {
         VStack(spacing: 3) {
-            configuration.icon.font(.system(size: 18, weight: .medium))
+            configuration.icon.nogFont(18, weight: .medium)
             configuration.title.font(.caption2.weight(.medium))
         }
         .frame(minWidth: 52, minHeight: 44)
