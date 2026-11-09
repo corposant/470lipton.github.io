@@ -72,6 +72,17 @@ Every nog has a play button. Tap it and the nog becomes **Doing**, the thing you
 - **Finishing keeps the item.** Done items stay with their notes, sub-items and the time you spent ("took 40 min"). That history makes future timeboxes smarter. **Stop** puts it back to Open and keeps the time.
 - **Siri:** *"Start write report in Nog."*
 
+### Nogitivity widgets
+
+Add **Nogitivity** to your Home Screen (small, medium or large) or Lock Screen (circle, rectangle or the line above the clock).
+
+- **Nothing on:** it lists nogs to start, each with a **▶︎** showing the timebox Nog would pick ("▶ 15m"). Tap ▶︎ and the timer starts without opening the app. The small size shows the top nog with one big **Start**; the large one adds **✓** to mark nogs done.
+- **While you're doing something:** it turns into the timer, with **✓ Nogged / +10 min / Stop**. The medium size adds a timebox bar, and the large one shows the item's sub-items and what's up next.
+- **Lock Screen:** a ring that fills as the timebox runs (or how many are nogging), the timer with "of 25", or the next nog. Titles hide when **Show titles on Lock Screen** is off.
+- **Press and hold › Edit Widget** to choose what it offers: one or more **Lists** (Nogging now, Today, Agenda, Loose nogs, Dream nogs), **Only #tag**, or **Pick nogs** one by one from everything outstanding. **Show the timer while I'm doing something** can be switched off for a pure list.
+
+The widgets read a small summary the app writes to a shared App Group whenever your nogs change, so open Nog once after installing.
+
 ## Nog profiles
 
 A nagging style in one tap. Pick your default in Control Panel → Nogs & alerts, switch any item on its page, or type the token when capturing.
@@ -142,6 +153,8 @@ Run the tests with **⌘U**.
 
 **Free developer account (current setup):** iCloud sync is switched off in `project.yml`, so items live on the phone (Files → On My iPhone → Nog). Everything else works: notifications, AlarmKit alarms, Live Activities, Siri, widgets, and on-device Apple Intelligence. Two limits of a free account: the app stops opening after **7 days** (just press ⌘R again; your data stays), and you can have at most 3 sideloaded apps. **When you go paid**, uncomment the `entitlements:` block in `project.yml` and run `xcodegen`. Nog moves your items into iCloud Drive on its next launch. If you change the bundle identifier, change the container ID to match (`iCloud.<your bundle id>`).
 
+**Widgets and the App Group:** the Nogitivity widgets share data with the app through an App Group (`group.<your bundle id>`), which `project.yml` adds to both targets. Xcode's automatic signing registers it on the first build with a paid account. If your team can't use App Groups, delete the two `com.apple.security.application-groups` entitlements in `project.yml` and re-run `xcodegen`: everything else still works, and the widgets just say "Open Nog once".
+
 **Free vs paid developer account:** with a free (personal team) account the app stops opening after **7 days** and you have to press ⌘R again. With the paid program ($99/yr) it lasts a year and you can use TestFlight. To check which you have, go to developer.apple.com/account. If you see a **Membership** section with a renewal date, you're on the paid program.
 
 ### Optional: Time Sensitive notifications
@@ -165,7 +178,7 @@ Nog/Store                   ItemStore (in-memory + Markdown files), Router
 Nog/Notifications           Sync between the plan and iOS's notification center
 Nog/Intents                 Siri / Shortcuts / Action Button capture
 Nog/Views                   SwiftUI screens
-NogWidgets                  Live Activity for ▶︎ Doing (widget extension)
+NogWidgets                  Live Activity for ▶︎ Doing and the Nogitivity widgets (widget extension)
 Shared                      Code compiled into both the app and NogWidgets
 NogTests                    Unit tests for the model and planner
 design/AppIcon.svg          Source for the app icon

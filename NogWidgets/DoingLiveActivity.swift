@@ -7,6 +7,7 @@ import WidgetKit
 struct NogWidgetsBundle: WidgetBundle {
     var body: some Widget {
         DoingLiveActivity()
+        NogitivityWidget()
     }
 }
 

@@ -26,6 +26,15 @@ struct NogApp: App {
                 .environment(router)
                 .tint(Theme.blue)
                 .preferredColorScheme(themeMode == .auto ? nil : (themeMode == .dark ? .dark : .light))
+                // Tapping a widget: nog://item/<id> opens that item, nog://capture the capture box.
+                .onOpenURL { url in
+                    guard url.scheme == "nog" else { return }
+                    if url.host() == "item", let id = UUID(uuidString: url.lastPathComponent) {
+                        router.open(id)
+                    } else if url.host() == "capture" {
+                        router.focusCapture()
+                    }
+                }
                 .task {
                     await NotificationScheduler.shared.requestAuthorization()
                     await store.connectToICloud()

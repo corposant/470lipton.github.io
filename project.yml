@@ -40,6 +40,12 @@ targets:
         UIBackgroundModes: [fetch]
         BGTaskSchedulerPermittedIdentifiers: [io.nogapp.nog.refresh]
         NSSupportsLiveActivities: true
+        # Widgets read a snapshot of your nogs from this shared container.
+        NogAppGroup: group.$(NOG_BUNDLE_ID)
+        # Widget taps open nog://item/<id>
+        CFBundleURLTypes:
+          - CFBundleURLName: $(NOG_BUNDLE_ID)
+            CFBundleURLSchemes: [nog]
         NSAlarmKitUsageDescription: Nog rings like an alarm for the items you mark as can't-miss.
         # Shows the app's iCloud folder as "Nog" in iCloud Drive (Files app, Finder)
         NSUbiquitousContainers:
@@ -47,12 +53,16 @@ targets:
             NSUbiquitousContainerIsDocumentScopePublic: true
             NSUbiquitousContainerName: Nog
             NSUbiquitousContainerSupportedFolderLevels: Any
+    # The App Group lets the widgets read your nogs (needs the paid Apple Developer Program;
+    # Xcode's automatic signing registers the group the first time you build).
+    entitlements:
+      path: Nog/Nog.entitlements
+      properties:
+        com.apple.security.application-groups: [group.$(NOG_BUNDLE_ID)]
     # iCloud Drive sync needs the paid Apple Developer Program, so it's off for now:
-    # items are stored on the phone. When you upgrade, uncomment these 6 lines and
+    # items are stored on the phone. When you upgrade, uncomment these 3 lines and
     # re-run xcodegen; Nog moves your items into iCloud Drive on its next launch.
-    # entitlements:
-    #   path: Nog/Nog.entitlements
-    #   properties:
+    # (they go under the entitlements properties above)
     #     com.apple.developer.icloud-container-identifiers: [iCloud.io.nogapp.nog]
     #     com.apple.developer.ubiquity-container-identifiers: [iCloud.io.nogapp.nog]
     #     com.apple.developer.icloud-services: [CloudDocuments]
@@ -68,7 +78,8 @@ targets:
     scheme:
       testTargets: [NogTests]
 
-  # Live Activity for ▶︎ Doing (Lock Screen, Dynamic Island, Watch, CarPlay)
+  # Live Activity for ▶︎ Doing (Lock Screen, Dynamic Island, Watch, CarPlay),
+  # plus the Nogitivity widgets (Home Screen and Lock Screen)
   NogWidgets:
     type: app-extension
     platform: iOS
@@ -77,8 +88,13 @@ targets:
       path: NogWidgets/Info.plist
       properties:
         CFBundleDisplayName: Nog
+        NogAppGroup: group.$(NOG_BUNDLE_ID)
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    entitlements:
+      path: NogWidgets/NogWidgets.entitlements
+      properties:
+        com.apple.security.application-groups: [group.$(NOG_BUNDLE_ID)]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(NOG_BUNDLE_ID).widgets
