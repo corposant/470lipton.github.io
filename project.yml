@@ -53,15 +53,16 @@ targets:
             NSUbiquitousContainerIsDocumentScopePublic: true
             NSUbiquitousContainerName: Nog
             NSUbiquitousContainerSupportedFolderLevels: Any
-    # Paid Apple Developer Program only, so these are off for now. When you upgrade,
-    # uncomment the block and re-run xcodegen.
-    #   • App Group: lets the widgets read your nogs (also uncomment it on NogWidgets below).
-    #   • iCloud Drive sync: items are stored on the phone until then; Nog moves them
-    #     into iCloud Drive on its next launch.
-    # entitlements:
-    #   path: Nog/Nog.entitlements
-    #   properties:
-    #     com.apple.security.application-groups: [group.$(NOG_BUNDLE_ID)]
+    # The App Group lets the widgets read your nogs (needs the paid Apple Developer Program;
+    # Xcode's automatic signing registers the group the first time you build).
+    entitlements:
+      path: Nog/Nog.entitlements
+      properties:
+        com.apple.security.application-groups: [group.$(NOG_BUNDLE_ID)]
+    # iCloud Drive sync needs the paid Apple Developer Program, so it's off for now:
+    # items are stored on the phone. When you upgrade, uncomment these 3 lines and
+    # re-run xcodegen; Nog moves your items into iCloud Drive on its next launch.
+    # (they go under the entitlements properties above)
     #     com.apple.developer.icloud-container-identifiers: [iCloud.io.nogapp.nog]
     #     com.apple.developer.ubiquity-container-identifiers: [iCloud.io.nogapp.nog]
     #     com.apple.developer.icloud-services: [CloudDocuments]
@@ -90,11 +91,10 @@ targets:
         NogAppGroup: group.$(NOG_BUNDLE_ID)
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
-    # App Group (paid account): uncomment together with the app's entitlements above.
-    # entitlements:
-    #   path: NogWidgets/NogWidgets.entitlements
-    #   properties:
-    #     com.apple.security.application-groups: [group.$(NOG_BUNDLE_ID)]
+    entitlements:
+      path: NogWidgets/NogWidgets.entitlements
+      properties:
+        com.apple.security.application-groups: [group.$(NOG_BUNDLE_ID)]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(NOG_BUNDLE_ID).widgets
