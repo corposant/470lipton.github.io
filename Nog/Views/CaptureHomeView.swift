@@ -19,7 +19,17 @@ struct CaptureHomeView: View {
     @FocusState private var focus: Field?
 
     private enum Field: Hashable { case title, subItem, tag }
-    enum TrayPanel: Hashable { case when, kind, tags }
+    enum TrayPanel: Hashable {
+        case when, kind, tags
+
+        var title: String {
+            switch self {
+            case .when: "When"
+            case .kind: "How it gets you"
+            case .tags: "Tags"
+            }
+        }
+    }
 
     private var defaults: CaptureDefaults { NogSettings.captureDefaults }
 
@@ -39,6 +49,16 @@ struct CaptureHomeView: View {
             }
             .scrollDismissesKeyboard(.interactively)
             .background { NogBackground() }
+            // Tapping anywhere above the tray closes an open panel, as you'd expect.
+            // VoiceOver users get Done and the escape gesture on the panel instead.
+            .overlay {
+                if panel != nil {
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .onTapGesture(perform: closePanel)
+                        .accessibilityHidden(true)
+                }
+            }
             .safeAreaInset(edge: .top) { SilenceBanner() }
             .navigationTitle("Capture")
             .toolbar {
@@ -248,12 +268,11 @@ struct CaptureHomeView: View {
                 completionRow
             }
             if let panel {
-                panelView(panel, result: result, kind: kind)
-                    .padding(14)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-                    .padding(.horizontal, 10)
-                    .transition(.nog(.move(edge: .bottom).combined(with: .opacity)))
+                TrayPanelCard(title: panel.title, close: closePanel) {
+                    panelView(panel, result: result, kind: kind)
+                }
+                .padding(.horizontal, 10)
+                .transition(.nog(.move(edge: .bottom).combined(with: .opacity)))
             }
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 6) {
@@ -316,8 +335,17 @@ struct CaptureHomeView: View {
     }
 
     private func toggle(_ p: TrayPanel) {
-        panel = panel == p ? nil : p
-        if p == .tags, panel == .tags { focus = .tag }
+        if panel == p { closePanel(); return }
+        panel = p
+        if p == .tags { focus = .tag }
+    }
+
+    /// Close whichever panel is open. The tag field's keyboard goes with it;
+    /// the title keeps its keyboard so you can carry on typing.
+    private func closePanel() {
+        if focus == .tag { focus = nil }
+        newTag = ""
+        panel = nil
     }
 
     private func chip(_ title: String, systemImage: String, tint: Color, isOn: Bool, isOpen: Bool,
@@ -468,6 +496,66 @@ struct CaptureHomeView: View {
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(isOn ? .isSelected : [])
+    }
+}
+
+/// The card an open tray panel sits in, with three ways out: the Done button
+/// (Escape on a hardware keyboard), a swipe down on its top edge, and the
+/// VoiceOver escape gesture (two-finger scrub). Tapping outside is handled by
+/// the Capture screen.
+private struct TrayPanelCard<Content: View>: View {
+    let title: String
+    let close: () -> Void
+    @ViewBuilder var content: Content
+    @GestureState private var dragDown: CGFloat = 0
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            header
+            content
+        }
+        .padding(.horizontal, 14)
+        .padding(.bottom, 14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .offset(y: dragDown)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("\(title) options")
+        .accessibilityAction(.escape, close)
+    }
+
+    /// Grabber, title and Done. The swipe lives here only, so it never fights
+    /// the date picker or the sideways-scrolling tag suggestions below.
+    private var header: some View {
+        VStack(spacing: 2) {
+            Capsule()
+                .fill(Color.secondary.opacity(0.5))
+                .frame(width: 36, height: 5)
+                .padding(.top, 6)
+                .accessibilityHidden(true)
+            HStack {
+                Text(title)
+                    .font(.headline)
+                    .accessibilityAddTraits(.isHeader)
+                Spacer()
+                Button("Done", action: close)
+                    .font(.body.weight(.semibold))
+                    .tint(Theme.violet)
+                    .buttonStyle(.borderless)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
+                    .keyboardShortcut(.cancelAction)
+                    .accessibilityHint("Closes the \(title.lowercased()) options")
+            }
+        }
+        .contentShape(Rectangle())
+        .gesture(
+            DragGesture(minimumDistance: 10)
+                .updating($dragDown) { value, state, _ in state = max(0, value.translation.height) }
+                .onEnded { value in
+                    if value.translation.height > 50 || value.predictedEndTranslation.height > 120 { close() }
+                }
+        )
     }
 }
 
