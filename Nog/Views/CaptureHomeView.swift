@@ -81,6 +81,12 @@ struct CaptureHomeView: View {
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
                     .strokeBorder(focus == .title ? Theme.violet.opacity(0.55) : .clear, lineWidth: 1)
             }
+            // Tab on a keyboard finishes a `!` word (`!unh` → `!unhinged`).
+            .onKeyPress(.tab) {
+                guard let first = completions.first else { return .ignored }
+                draft.text = CaptureCompletion.complete(draft.text, with: first)
+                return .handled
+            }
             .onChange(of: draft.text) {
                 // Return sends (a multi-line field otherwise inserts a newline).
                 if draft.text.hasSuffix("\n") {
@@ -238,6 +244,9 @@ struct CaptureHomeView: View {
         let result = draft.resolved(defaults: defaults, now: .now)
         let kind = draft.kind ?? NogKind.of(result.reminder)
         return VStack(spacing: 8) {
+            if focus == .title, !completions.isEmpty {
+                completionRow
+            }
             if let panel {
                 panelView(panel, result: result, kind: kind)
                     .padding(14)
@@ -284,6 +293,26 @@ struct CaptureHomeView: View {
             .background(.bar)
         }
         .animation(.snappy, value: panel)
+    }
+
+    /// `!` words matching what's being typed, offered above the tray.
+    private var completions: [String] { CaptureCompletion.suggestions(for: draft.text) }
+
+    private var completionRow: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ForEach(completions, id: \.self) { token in
+                    smallChip(token, isOn: false) {
+                        draft.text = CaptureCompletion.complete(draft.text, with: token)
+                    }
+                    .accessibilityHint("Finishes the word")
+                }
+            }
+            .padding(.horizontal, 12)
+        }
+        .padding(.vertical, 6)
+        .background(.bar)
+        .transition(.opacity)
     }
 
     private func toggle(_ p: TrayPanel) {

@@ -22,7 +22,7 @@ struct CaptureResult: Equatable {
 ///   `!log`              logarithmic: gaps double each time (8, 16, 32…), capped at daily
 ///   `!steady`           same gap every time
 ///   `!alarm`            ring like a real alarm (through Silent and Focus)
-///   `!whisper` `!easing` `!unhinged`   use a nog profile
+///   `!whisper` `!easing` `!unhinged`   use a nog profile (or just `!whi` `!eas` `!unh`)
 ///   `!off` / `!idea`    no reminder at all
 ///   `@30m` `@2h` `@1d`  start nogging in 30 minutes / 2 hours / 1 day
 ///   `@now`              start now

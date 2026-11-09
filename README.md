@@ -105,11 +105,13 @@ Type these anywhere in a capture line (all optional):
 | `!log` | logarithmic: the gap doubles after each nog |
 | `!steady` | same gap every time |
 | `!alarm` | ring like a real alarm |
-| `!whisper` `!easing` `!unhinged` | use a nog profile |
+| `!whisper` `!easing` `!unhinged` | use a nog profile; the first three letters are enough (`!unh`) |
 | `~30m` `~2h` | how long it'll take (the ▶︎ timebox) |
 | `!off` or `!idea` | no reminder |
 | `@30m` `@2h` `@1d` `@now` | when to start nogging |
 | `#tag` | add a tag |
+
+Start typing a `!` word and the tray offers to finish it: tap a suggestion, or press Tab on a keyboard.
 
 Example: `renew passport #admin !1h @2h`
 

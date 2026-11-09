@@ -1091,10 +1091,42 @@ final class NogBriefingTests: XCTestCase {
     }
 }
 
-final class UnhingedRenameTests: XCTestCase {
-    func testOldTokenStillWorks() {
-        XCTAssertEqual(NogProfile.token("!relentless"), .unhinged)
+final class ProfileTokenTests: XCTestCase {
+    func testFullAndShortTokens() {
         XCTAssertEqual(NogProfile.token("!unhinged"), .unhinged)
+        XCTAssertEqual(NogProfile.token("!unh"), .unhinged)
+        XCTAssertEqual(NogProfile.token("!UNHI"), .unhinged)
+        XCTAssertEqual(NogProfile.token("!whi"), .whisper)
+        XCTAssertEqual(NogProfile.token("!eas"), .easing)
+        XCTAssertEqual(NogProfile.token("!gentle"), .whisper)
         XCTAssertEqual(NogProfile.unhinged.label, "Unhinged")
+    }
+
+    func testOldNamesAndTooShortAreIgnored() {
+        XCTAssertNil(NogProfile.token("!relentless"))
+        XCTAssertNil(NogProfile.token("!hound"))
+        XCTAssertNil(NogProfile.token("!un"))
+        XCTAssertNil(NogProfile.token("!unhingedx"))
+        XCTAssertNil(NogProfile.token("unhinged"))
+        XCTAssertNil(NogProfile.token("!5m"))
+    }
+
+    func testCaptureUsesShortToken() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let defaults = CaptureDefaults(firstDelayMinutes: 60, repeatMinutes: 60)
+        let result = CaptureParser.parse("call back !unh", defaults: defaults, now: now)
+        XCTAssertEqual(result.title, "call back")
+        XCTAssertEqual(result.reminder?.repeatMinutes, NogProfile.unhinged.repeatMinutes)
+        XCTAssertEqual(result.reminder?.escalateAfter, NogProfile.unhinged.escalateAfter)
+    }
+
+    func testCompletionSuggestsForLastWord() {
+        XCTAssertEqual(CaptureCompletion.suggestions(for: "call back !un"), ["!unhinged"])
+        XCTAssertEqual(CaptureCompletion.suggestions(for: "call back !"), CaptureCompletion.tokens)
+        XCTAssertTrue(CaptureCompletion.suggestions(for: "call back !unhinged").isEmpty)
+        XCTAssertTrue(CaptureCompletion.suggestions(for: "call back !un ").isEmpty)
+        XCTAssertTrue(CaptureCompletion.suggestions(for: "call back").isEmpty)
+        XCTAssertEqual(CaptureCompletion.complete("call back !un", with: "!unhinged"), "call back !unhinged ")
+        XCTAssertEqual(CaptureCompletion.complete("!w", with: "!whisper"), "!whisper ")
     }
 }
