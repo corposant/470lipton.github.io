@@ -299,7 +299,7 @@ struct CaptureHomeView: View {
                 .lineLimit(1)
                 .foregroundStyle(isOn || isOpen ? tint : Color.primary.opacity(0.8))
                 .padding(.horizontal, 12)
-                .frame(height: 36)
+                .frame(minHeight: 36)
                 .background(isOpen ? tint.opacity(0.18) : (isOn ? tint.opacity(0.10) : .clear), in: Capsule())
                 .overlay(Capsule().strokeBorder(isOn || isOpen ? tint.opacity(0.7) : Theme.edgeStrong,
                                                 lineWidth: isOpen ? 1.5 : 1))
@@ -395,7 +395,7 @@ struct CaptureHomeView: View {
                             .font(.subheadline)
                             .foregroundStyle(TagPalette.tint(for: tag))
                             .padding(.horizontal, 10)
-                            .frame(height: 30)
+                            .frame(minHeight: 30)
                             .overlay(Capsule().strokeBorder(TagPalette.tint(for: tag).opacity(0.5), lineWidth: 1))
                     }
                     .buttonStyle(.plain)
@@ -408,7 +408,7 @@ struct CaptureHomeView: View {
                     .focused($focus, equals: .tag)
                     .submitLabel(.done)
                     .onSubmit { addTag(newTag) }
-                    .frame(width: 120, height: 30)
+                    .frame(width: 120).frame(minHeight: 30)
                     .padding(.horizontal, 10)
                     .overlay(Capsule().strokeBorder(Theme.edgeStrong, lineWidth: 1))
             }
@@ -432,7 +432,7 @@ struct CaptureHomeView: View {
                 .lineLimit(1)
                 .foregroundStyle(isOn ? Theme.blue : Color.primary.opacity(0.85))
                 .padding(.horizontal, 11)
-                .frame(height: 32)
+                .frame(minHeight: 32)
                 .background(isOn ? Theme.blue.opacity(0.14) : .clear, in: Capsule())
                 .overlay(Capsule().strokeBorder(isOn ? Theme.blue : Theme.edgeStrong, lineWidth: 1))
                 .contentShape(Capsule())

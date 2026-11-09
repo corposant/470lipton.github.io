@@ -15,7 +15,7 @@ struct CaptureBar: View {
                     .font(.nogMeta)
                     .tracking(0.4)
                     .foregroundStyle(Theme.blue)
-                    .lineLimit(1)
+                    .nogLineLimit()
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 6)
             } else if let confirmation {
@@ -36,9 +36,9 @@ struct CaptureBar: View {
                     .overlay(Capsule().strokeBorder(Theme.edgeStrong, lineWidth: 1))
                 Button(action: submit) {
                     Image(systemName: "arrow.up")
-                        .font(.system(size: 16, weight: .semibold))
+                        .nogFont(16, weight: .semibold)
                         .foregroundStyle(.primary)
-                        .frame(width: 40, height: 40)
+                        .nogFrame(width: 40, height: 40)
                         .overlay(Circle().strokeBorder(Theme.synth, lineWidth: 1.5))
                         .contentShape(Circle())
                 }

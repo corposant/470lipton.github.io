@@ -152,7 +152,7 @@ private struct TunerFace: View, Animatable {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
-        .background(RecessedWell(cornerRadius: 9))
+        .recessedWell(cornerRadius: 9)
     }
 
     /// [time, day?]: e.g. ["9:30 PM", "Tomorrow"].
@@ -223,7 +223,7 @@ private struct TunerFace: View, Animatable {
         }
         .frame(height: 58)
         .padding(.horizontal, 6)
-        .background(RecessedWell(cornerRadius: 10))
+        .recessedWell(cornerRadius: 10)
         .drawingGroup()
     }
 
@@ -256,6 +256,15 @@ struct RecessedWell: View {
     }
 }
 
+extension View {
+    /// Sits on a dark recessed well. The well is always dark, so its contents use
+    /// dark-mode colours (light-mode text colours would be unreadable on it).
+    func recessedWell(cornerRadius: CGFloat = 9) -> some View {
+        background(RecessedWell(cornerRadius: cornerRadius))
+            .environment(\.colorScheme, .dark)
+    }
+}
+
 /// A settings row that shows its time glowing and opens a tuner when tapped.
 struct TimeTunerRow: View {
     let title: String
@@ -271,12 +280,12 @@ struct TimeTunerRow: View {
                     Text(title).foregroundStyle(.primary)
                     Spacer()
                     Text(TunerFace.timeString(minutes))
-                        .font(.nogReadout(15))
-                        .foregroundStyle(Color(red: 0.75, green: 0.89, blue: 1.0))
+                        .nogReadout(15)
+                        .foregroundStyle(Theme.lcd)
                         .shadow(color: Theme.blue.opacity(0.5), radius: 4)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 5)
-                        .background(RecessedWell(cornerRadius: 7))
+                        .recessedWell(cornerRadius: 7)
                 }
                 .contentShape(Rectangle())
             }

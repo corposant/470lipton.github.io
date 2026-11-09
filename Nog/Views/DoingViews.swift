@@ -48,7 +48,7 @@ struct StartButton: View {
     private func label(_ suggestion: TimeboxSuggestion) -> some View {
         if prominent {
             HStack(spacing: 10) {
-                Image(systemName: "play.fill").font(.system(size: 12, weight: .bold))
+                Image(systemName: "play.fill").nogFont(12, weight: .bold)
                 Text(suggestion.minutes.map { "START · \(IntervalFormat.amount($0).uppercased())" } ?? "START")
                     .font(.nogTitle(13))
                     .tracking(2)
@@ -69,6 +69,7 @@ struct StartButton: View {
 /// Aperture-style floating panel: translucent black, thin light edge, small title bar,
 /// the suggestion highlighted in pro-app blue.
 struct TimeboxPanel: View {
+    @Environment(\.dynamicTypeSize) private var typeSize
     let suggestion: TimeboxSuggestion
     let choose: (Int?) -> Void
     let close: () -> Void
@@ -80,14 +81,17 @@ struct TimeboxPanel: View {
                 Text("TIMEBOX")
                     .font(.nogLabel)
                     .tracking(2.2)
-                    .foregroundStyle(Color(white: 0.72))
+                    .foregroundStyle(Color(white: 0.78))
                 HStack {
                     Button(action: close) {
                         Image(systemName: "xmark")
-                            .font(.system(size: 7, weight: .heavy))
+                            .nogFont(8, weight: .heavy)
                             .foregroundStyle(Color(white: 0.15))
-                            .frame(width: 13, height: 13)
+                            .nogFrame(width: 15, height: 15)
                             .background(Color(white: 0.62), in: Circle())
+                            // The dot stays small, but the tap area is a comfortable 44 pt.
+                            .frame(minWidth: 44, minHeight: 44, alignment: .leading)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Close")
@@ -95,7 +99,7 @@ struct TimeboxPanel: View {
                 }
             }
             .padding(.horizontal, 10)
-            .frame(height: 30)
+            .frame(minHeight: 30)
             .background(LinearGradient(colors: [.white.opacity(0.07), .clear], startPoint: .top, endPoint: .bottom))
             .overlay(alignment: .bottom) { Rectangle().fill(.white.opacity(0.1)).frame(height: 1) }
 
@@ -113,7 +117,8 @@ struct TimeboxPanel: View {
             row("No timer", detail: "count up") { choose(nil) }
                 .padding(.bottom, 4)
         }
-        .frame(width: 290)
+        // Fixed width normally; at the accessibility text sizes it takes the room it needs.
+        .frame(width: typeSize.isAccessibilitySize ? nil : 290)
         .background(Color(red: 0.055, green: 0.06, blue: 0.07).opacity(0.86))
         .background(.ultraThinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
@@ -125,7 +130,7 @@ struct TimeboxPanel: View {
         Text(title.uppercased())
             .font(.nogMicroLabel)
             .tracking(2)
-            .foregroundStyle(Color(white: 0.45))
+            .foregroundStyle(Color(white: 0.62))
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 14)
             .padding(.top, 9)
@@ -142,8 +147,8 @@ struct TimeboxPanel: View {
                 Text(title).font(.subheadline)
                 Spacer(minLength: 10)
                 if let detail {
-                    Text(detail).font(.nogMeta).lineLimit(1)
-                        .foregroundStyle(isSelected ? Color(white: 0.88) : Color(white: 0.5))
+                    Text(detail).font(.nogMeta).nogLineLimit()
+                        .foregroundStyle(isSelected ? Color(white: 0.92) : Color(white: 0.66))
                 }
             }
             .foregroundStyle(isSelected ? .white : Color(white: 0.88))
@@ -178,17 +183,17 @@ struct RecessedTimer: View {
             }
             .font(.nogMicroLabel)
             .tracking(1.8)
-            .foregroundStyle(Color(red: 0.36, green: 0.42, blue: 0.5))
+            .foregroundStyle(Theme.panelLabel)
 
             ZStack(alignment: .leading) {
                 Text(ghost)
                     .foregroundStyle(Theme.blue.opacity(0.07))
                 Text(display)
-                    .foregroundStyle(isOver ? Theme.pink : Color(red: 0.75, green: 0.89, blue: 1.0))
+                    .foregroundStyle(isOver ? Theme.pink : Theme.lcd)
                     .shadow(color: (isOver ? Theme.pink : Theme.blue).opacity(0.55), radius: 8)
                     .shadow(color: (isOver ? Theme.pink : Theme.blue).opacity(0.9), radius: 1)
             }
-            .font(.nogReadout(44))
+            .nogReadout(44)
             .monospacedDigit()
 
             if let fraction {

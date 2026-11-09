@@ -101,6 +101,7 @@ private struct AgendaList: View {
 /// One timed thing: glowing time, title, a detail line, and whether it's a Nog or an Alarm.
 private struct AgendaRow: View {
     @Environment(ItemStore.self) private var store
+    @Environment(\.dynamicTypeSize) private var typeSize
     let entry: Agenda.Entry
     let now: Date
     let subItems: (done: Int, total: Int)
@@ -108,20 +109,23 @@ private struct AgendaRow: View {
     var body: some View {
         let item = entry.item
         let kind = NogKind.of(item.reminder)
+        // At the accessibility text sizes the time sits above the title instead of in a column.
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4)) : AnyLayout(HStackLayout(spacing: 12))
         NavigationLink(value: item.id) {
-            HStack(spacing: 12) {
+            layout {
                 Text(timeText)
-                    .font(.nogReadout(13))
-                    .foregroundStyle(entry.isNogging ? Theme.pink : (isToday ? Color(red: 0.75, green: 0.89, blue: 1.0) : Theme.muted))
+                    .nogReadout(13)
+                    .foregroundStyle(entry.isNogging ? Theme.pink : (isToday ? Theme.lcd : Theme.muted))
                     .shadow(color: isToday && !entry.isNogging ? Theme.blue.opacity(0.5) : .clear, radius: 4)
-                    .frame(width: 66, alignment: .leading)
+                    .frame(width: typeSize.isAccessibilitySize ? nil : 66, alignment: .leading)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(item.title.isEmpty ? "Untitled" : item.title)
-                        .lineLimit(1)
+                        .nogLineLimit()
                     Text(detail)
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                        .nogLineLimit()
                 }
                 Spacer(minLength: 6)
                 KindBadge(kind: kind)

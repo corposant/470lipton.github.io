@@ -25,7 +25,7 @@ struct TagSuggestionStrip: View {
                                 .font(.subheadline)
                                 .foregroundStyle(color)
                                 .padding(.horizontal, 12)
-                                .frame(height: 32)
+                                .frame(minHeight: 32)
                                 .background(color.opacity(0.10), in: Capsule())
                                 .overlay(Capsule().strokeBorder(color.opacity(0.45), lineWidth: 1))
                                 .contentShape(Capsule())

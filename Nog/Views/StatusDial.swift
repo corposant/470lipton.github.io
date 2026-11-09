@@ -132,7 +132,7 @@ struct StatusDial: View {
         case .open: Theme.pink
         case .doing: Theme.blue
         case .someday: Theme.violet
-        case .done: Color(light: 0x1E9E62, dark: 0x6FE3A8)
+        case .done: Color(light: 0x137046, dark: 0x6FE3A8)
         }
     }
 

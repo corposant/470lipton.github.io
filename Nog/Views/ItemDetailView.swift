@@ -18,6 +18,7 @@ private struct ItemEditor: View {
     @Environment(ItemStore.self) private var store
     @Environment(Router.self) private var router
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var typeSize
     let item: Item
 
     @State private var newChild = ""
@@ -104,7 +105,7 @@ private struct ItemEditor: View {
                         Label(parent.title.uppercased(), systemImage: "arrow.up")
                             .font(.nogLabel)
                             .tracking(1.6)
-                            .lineLimit(1)
+                            .nogLineLimit()
                             .foregroundStyle(Theme.violet)
                     }
                     .buttonStyle(.plain)
@@ -118,7 +119,7 @@ private struct ItemEditor: View {
                     Text(metaLine)
                         .font(.nogMeta)
                         .foregroundStyle(Theme.muted)
-                        .lineLimit(1)
+                        .nogLineLimit()
                 }
             }
             .padding(.vertical, 2)
@@ -134,7 +135,7 @@ private struct ItemEditor: View {
         } label: {
             HStack(spacing: 7) {
                 if item.status == .done {
-                    Image(systemName: "checkmark").font(.system(size: 10, weight: .heavy))
+                    Image(systemName: "checkmark").nogFont(10, weight: .heavy)
                 } else {
                     Circle().fill(tint).frame(width: 7, height: 7).shadow(color: tint, radius: 3)
                 }
@@ -144,7 +145,7 @@ private struct ItemEditor: View {
             }
             .foregroundStyle(tint)
             .padding(.horizontal, 12)
-            .frame(height: 30)
+            .frame(minHeight: 30)
             .background(tint.opacity(0.12), in: Capsule())
             .overlay(Capsule().strokeBorder(tint.opacity(0.55), lineWidth: 1))
             .contentShape(Capsule())
@@ -222,18 +223,21 @@ private struct ItemEditor: View {
     /// ▶︎ Start and ✓ Nogged, side by side. Finishing is its own clearly-labelled
     /// action, never a "save" button: edits on this page are saved as you make them.
     private var actions: some View {
-        HStack(spacing: 10) {
+        // Stacked at the accessibility text sizes, so neither button truncates.
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(spacing: 10)) : AnyLayout(HStackLayout(spacing: 10))
+        return layout {
             StartButton(item: item, prominent: true)
             Button {
                 store.markDone(item.id)
             } label: {
                 HStack(spacing: 8) {
-                    Image(systemName: "checkmark").font(.system(size: 12, weight: .bold))
+                    Image(systemName: "checkmark").nogFont(12, weight: .bold)
                     Text("NOGGED").font(.nogTitle(13)).tracking(2)
                 }
                 .foregroundStyle(StatusDial.tint(.done))
                 .padding(.vertical, 15)
-                .frame(width: 124)
+                .frame(minWidth: 124, maxWidth: typeSize.isAccessibilitySize ? .infinity : nil)
                 .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous)
                     .strokeBorder(StatusDial.tint(.done).opacity(0.75), lineWidth: 1.5))
                 .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
@@ -305,7 +309,7 @@ private struct ItemEditor: View {
                             .font(.subheadline)
                             .foregroundStyle(Theme.violet)
                             .padding(.horizontal, 10)
-                            .frame(height: 30)
+                            .frame(minHeight: 30)
                             .overlay(Capsule().strokeBorder(Theme.violet.opacity(0.45), lineWidth: 1))
                     }
                     .buttonStyle(.borderless)
@@ -356,7 +360,7 @@ private struct ItemEditor: View {
                         .focused($tagFieldFocused)
                         .submitLabel(.done)
                         .onSubmit(addTag)
-                        .frame(width: 110, height: 32)
+                        .frame(width: 110).frame(minHeight: 32)
                         .padding(.horizontal, 12)
                         .overlay(Capsule().strokeBorder(Theme.edgeStrong, lineWidth: 1))
                         .onAppear { tagFieldFocused = true }
@@ -375,7 +379,7 @@ private struct ItemEditor: View {
                             .font(.subheadline)
                             .foregroundStyle(Theme.muted)
                             .padding(.horizontal, 12)
-                            .frame(height: 32)
+                            .frame(minHeight: 32)
                             .overlay(Capsule().strokeBorder(Theme.edgeStrong, style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
                     }
                     .buttonStyle(.borderless)
@@ -546,7 +550,7 @@ private struct NextNogCard: View {
                     }
                     Spacer()
                     Text(Self.countdown(to: next, now: now))
-                        .font(.nogReadout(14))
+                        .nogReadout(14)
                         .foregroundStyle(Theme.blue)
                 }
                 rhythmRow(reminder.repeatSummary.map { "then \($0)" } ?? "once, no repeat", reminder: reminder)
@@ -569,13 +573,13 @@ private struct NextNogCard: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
-        .background(RecessedWell(cornerRadius: 14))
+        .recessedWell(cornerRadius: 14)
     }
 
     private func rhythmRow(_ text: String, reminder: Reminder) -> some View {
         Button(action: edit) {
             HStack(spacing: 4) {
-                Text(text).foregroundStyle(Color(white: 0.8))
+                Text(text).foregroundStyle(Color(white: 0.85))
                 // A one-off has no rhythm, so no profile to name.
                 if reminder.repeatMinutes != nil {
                     Text("· \(NogProfile.matching(reminder)?.label ?? "Custom")").foregroundStyle(Theme.violet)
@@ -589,7 +593,7 @@ private struct NextNogCard: View {
                     .foregroundStyle(Theme.muted)
             }
             .font(.subheadline)
-            .lineLimit(1)
+            .nogLineLimit(1, accessibilityLines: 2)
             .frame(minHeight: 30)
             .contentShape(Rectangle())
         }
@@ -624,7 +628,7 @@ private struct DreamCard: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
-        .background(RecessedWell(cornerRadius: 14))
+        .recessedWell(cornerRadius: 14)
     }
 }
 
@@ -654,7 +658,7 @@ private struct NoggedCard: View {
             .buttonStyle(OutlineButtonStyle(tint: Theme.violet, expands: false))
         }
         .padding(16)
-        .background(RecessedWell(cornerRadius: 14))
+        .recessedWell(cornerRadius: 14)
     }
 }
 
@@ -662,7 +666,7 @@ private struct NoggedCard: View {
 struct GlowReadout: View {
     let text: String
     var size: CGFloat = 36
-    var color = Color(red: 0.75, green: 0.89, blue: 1.0)
+    var color = Theme.lcd
     var glow = Theme.blue
 
     var body: some View {
@@ -673,8 +677,11 @@ struct GlowReadout: View {
                 .shadow(color: glow.opacity(0.55), radius: 8)
                 .shadow(color: glow.opacity(0.9), radius: 1)
         }
-        .font(.nogReadout(size))
+        .nogReadout(size)
         .monospacedDigit()
+        // The unlit "8"s are decoration: VoiceOver reads only the time.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(text)
     }
 }
 
@@ -692,15 +699,15 @@ private struct TagChip: View {
             // A visible ✕ on every chip: tap it to take the tag off.
             Button(action: remove) {
                 Image(systemName: "xmark")
-                    .font(.system(size: 9, weight: .bold))
-                    .frame(width: 30, height: 32)
+                    .nogFont(11, weight: .bold)
+                    .frame(minWidth: 30, minHeight: 32)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.borderless)
             .accessibilityLabel("Remove tag \(tag)")
         }
         .foregroundStyle(color)
-        .frame(height: 32)
+        .frame(minHeight: 32)
         .background(color.opacity(0.10), in: Capsule())
         .overlay(Capsule().strokeBorder(color.opacity(0.45), lineWidth: 1))
         .contextMenu {

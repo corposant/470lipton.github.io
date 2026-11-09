@@ -357,9 +357,9 @@ struct ProfileCard: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: profile.systemImage)
-                .font(.system(size: 16, weight: .semibold))
+                .nogFont(16, weight: .semibold)
                 .foregroundStyle(tint)
-                .frame(width: 34, height: 34)
+                .nogFrame(width: 34, height: 34)
                 .overlay(Circle().strokeBorder(tint.opacity(0.6), lineWidth: 1))
             VStack(alignment: .leading, spacing: 2) {
                 Text(profile.label).font(.headline)
@@ -530,7 +530,7 @@ private struct CaptureCheatSheet: View {
 
     private func line(_ syntax: String, _ meaning: String) -> some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text(syntax).font(.nogReadout(15))
+            Text(syntax).nogReadout(15)
             Text(meaning).font(.caption).foregroundStyle(.secondary)
         }
     }

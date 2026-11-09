@@ -5,6 +5,7 @@ import SwiftUI
 struct NogSheet: View {
     @Environment(ItemStore.self) private var store
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var typeSize
     let id: UUID
     @State private var showCalendar = false
     @State private var showKindHelp = false
@@ -146,8 +147,10 @@ struct NogSheet: View {
 
     private func profileSection(_ reminder: Reminder) -> some View {
         let current = NogProfile.matching(reminder)
+        // Four across normally; two by two at the accessibility text sizes so names fit.
+        let columns = Array(repeating: GridItem(.flexible(), spacing: 6), count: typeSize.isAccessibilitySize ? 2 : 4)
         return Section {
-            HStack(spacing: 6) {
+            LazyVGrid(columns: columns, spacing: 6) {
                 ForEach(NogProfile.allCases) { profile in
                     let isOn = profile == current
                     let tint = profile == .unhinged ? Theme.pink : Theme.violet
@@ -156,11 +159,11 @@ struct NogSheet: View {
                     } label: {
                         VStack(spacing: 5) {
                             Image(systemName: profile.systemImage)
-                                .font(.system(size: 15, weight: .semibold))
+                                .nogFont(15, weight: .semibold)
                             Text(profile.label)
                                 .font(.nogTitle(12))
                                 .lineLimit(1)
-                                .minimumScaleFactor(0.75)
+                                .minimumScaleFactor(0.85)
                         }
                         .foregroundStyle(isOn ? tint : Color.primary.opacity(0.75))
                         .frame(maxWidth: .infinity, minHeight: 58)
@@ -243,7 +246,7 @@ struct NogSheet: View {
                 .lineLimit(1)
                 .foregroundStyle(isOn ? Theme.blue : Color.primary.opacity(0.8))
                 .padding(.horizontal, 11)
-                .frame(height: 32)
+                .frame(minHeight: 32)
                 .background(isOn ? Theme.blue.opacity(0.14) : .clear, in: Capsule())
                 .overlay(Capsule().strokeBorder(isOn ? Theme.blue : Theme.edgeStrong, lineWidth: 1))
                 .contentShape(Capsule())
