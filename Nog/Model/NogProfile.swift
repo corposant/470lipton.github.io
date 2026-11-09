@@ -91,13 +91,21 @@ enum NogProfile: String, CaseIterable, Identifiable {
         }
     }
 
-    /// Capture tokens: `!whisper`, `!unhinged`, …
+    /// Capture tokens: `!whisper`, `!easing`, `!unhinged`, or the first few letters
+    /// of one (`!unh`, `!whi`, `!eas`). `!gentle` still means Whisper.
     static func token(_ word: String) -> NogProfile? {
-        switch word {
-        case "!whisper", "!gentle": .whisper
-        case "!unhinged", "!relentless", "!hound": .unhinged
-        case "!easing": .easing
-        default: nil
-        }
+        let word = word.lowercased()
+        guard word.hasPrefix("!") else { return nil }
+        let name = word.dropFirst()
+        if name == "gentle" { return .whisper }
+        guard name.count >= minimumPrefix, name.allSatisfy(\.isLetter) else { return nil }
+        let matches = tokenProfiles.filter { $0.rawValue.hasPrefix(name) }
+        return matches.count == 1 ? matches[0] : nil
     }
+
+    /// Profiles you can type in a capture (Steady is the default, so it has none).
+    static let tokenProfiles: [NogProfile] = [.whisper, .easing, .unhinged]
+
+    /// Shortest abbreviation `token` accepts, so `!u` or `!e` don't switch profile by accident.
+    static let minimumPrefix = 3
 }
