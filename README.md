@@ -81,7 +81,7 @@ Add **Nogitivity** to your Home Screen (small, medium or large) or Lock Screen (
 - **Lock Screen:** a ring that fills as the timebox runs (or how many are nogging), the timer with "of 25", or the next nog. Titles hide when **Show titles on Lock Screen** is off.
 - **Press and hold › Edit Widget** to choose what it offers: one or more **Lists** (Nogging now, Today, Agenda, Loose nogs, Dream nogs), **Only #tag**, or **Pick nogs** one by one from everything outstanding. **Show the timer while I'm doing something** can be switched off for a pure list.
 
-The widgets read a small summary the app writes to a shared App Group whenever your nogs change, so open Nog once after installing.
+The widgets read a small summary the app writes to a shared App Group whenever your nogs change, so open Nog once after installing. The App Group needs a paid developer account (see *Running it on your iPhone*).
 
 ## Nog profiles
 
@@ -149,9 +149,9 @@ Run the tests with **⌘U**.
 
 **Getting updates:** run `./update.sh` in the Nog folder. It pulls the latest code and re-runs `xcodegen`, which you need whenever new files are added. If Xcode asks, choose **Read From Disk**.
 
-**Free developer account (current setup):** iCloud sync is switched off in `project.yml`, so items live on the phone (Files → On My iPhone → Nog). Everything else works: notifications, AlarmKit alarms, Live Activities, Siri, widgets, and on-device Apple Intelligence. Two limits of a free account: the app stops opening after **7 days** (just press ⌘R again; your data stays), and you can have at most 3 sideloaded apps. **When you go paid**, uncomment the `entitlements:` block in `project.yml` and run `xcodegen`. Nog moves your items into iCloud Drive on its next launch. If you change the bundle identifier, change the container ID to match (`iCloud.<your bundle id>`).
+**Free developer account (current setup):** iCloud sync is switched off in `project.yml`, so items live on the phone (Files → On My iPhone → Nog). Everything else works: notifications, AlarmKit alarms, Live Activities, Siri, and on-device Apple Intelligence. Two limits of a free account: the app stops opening after **7 days** (just press ⌘R again; your data stays), and you can have at most 3 sideloaded apps. **When you go paid**, uncomment the `entitlements:` blocks in `project.yml` and run `xcodegen`. Nog moves your items into iCloud Drive on its next launch. If you change the bundle identifier, change the container ID to match (`iCloud.<your bundle id>`).
 
-**Widgets and the App Group:** the Nogitivity widgets share data with the app through an App Group (`group.<your bundle id>`), which `project.yml` adds to both targets. Xcode's automatic signing registers it on the first build with a paid account. If your team can't use App Groups, delete the two `com.apple.security.application-groups` entitlements in `project.yml` and re-run `xcodegen`: everything else still works, and the widgets just say "Open Nog once".
+**Widgets and the App Group:** the Nogitivity widgets get your nogs from the app through an App Group (`group.<your bundle id>`), which needs the paid program, so it's commented out in `project.yml` for now. Until then the widgets install but just say "Open Nog once". When you go paid, uncomment the app's `entitlements:` block and the one on `NogWidgets`, then run `./update.sh`.
 
 **Free vs paid developer account:** with a free (personal team) account the app stops opening after **7 days** and you have to press ⌘R again. With the paid program ($99/yr) it lasts a year and you can use TestFlight. To check which you have, go to developer.apple.com/account. If you see a **Membership** section with a renewal date, you're on the paid program.
 
