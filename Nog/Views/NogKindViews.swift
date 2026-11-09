@@ -54,7 +54,7 @@ struct KindPicker: View {
                 .accessibilityAddTraits(isOn ? .isSelected : [])
             }
         }
-        .sensoryFeedback(.selection, trigger: selected)
+        .nogFeedback(.selection, trigger: selected)
     }
 }
 

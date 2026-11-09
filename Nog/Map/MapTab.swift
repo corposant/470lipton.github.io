@@ -151,7 +151,7 @@ struct MindMapView: View {
             .overlay(alignment: .bottomTrailing) {
                 controls(items, edges: edges, size: geo.size)
                     .padding(.bottom, Self.controlsLift(geo))
-                    .animation(.smooth, value: Self.controlsLift(geo))
+                    .nogAnimation(.smooth, value: Self.controlsLift(geo))
             }
             .overlay {
                 if items.isEmpty {
@@ -439,9 +439,9 @@ struct MindMapView: View {
                 if !isScribbling {
                     mapButton(locked ? "lock.fill" : "lock.open", tint: locked ? Theme.pink : Theme.muted,
                               label: locked ? "Unlock editing" : "Lock editing", id: "lock", active: locked) {
-                        withAnimation(.snappy) { locked.toggle() }
+                        withNogAnimation(.snappy) { locked.toggle() }
                     }
-                    .sensoryFeedback(.impact(weight: .light), trigger: locked)
+                    .nogFeedback(.impact(weight: .light), trigger: locked)
                 }
                 if isScribbling {
                     mapButton("arrow.uturn.backward", tint: Theme.blue, label: "Undo", id: "undo") { scribble.undo() }
@@ -457,12 +457,12 @@ struct MindMapView: View {
                 if !locked {
                     mapButton(isScribbling ? "hand.point.up.left" : "pencil.tip", tint: isScribbling ? Theme.pink : Theme.violet,
                               label: isScribbling ? "Done scribbling" : "Scribble", id: "pencil", active: isScribbling) {
-                        withAnimation(.smooth(duration: 0.35)) { isScribbling.toggle() }
+                        withNogAnimation(.smooth(duration: 0.35)) { isScribbling.toggle() }
                     }
                 }
                 if !isScribbling && !locked {
                     mapButton("wand.and.stars", tint: Theme.violet, label: "Arrange", id: "arrange") {
-                        withAnimation(.snappy) {
+                        withNogAnimation(.snappy) {
                             doc.tidy(items, edges: edges)
                             fit(items, in: size)
                         }
@@ -470,13 +470,13 @@ struct MindMapView: View {
                 }
                 if !isScribbling {
                     mapButton("viewfinder", tint: Theme.blue, label: "Fit to screen", id: "fit") {
-                        withAnimation(.snappy) { fit(items, in: size) }
+                        withNogAnimation(.snappy) { fit(items, in: size) }
                     }
                 }
             }
         }
-        .animation(.smooth(duration: 0.35), value: isScribbling)
-        .animation(.smooth(duration: 0.35), value: locked)
+        .nogAnimation(.smooth(duration: 0.35), value: isScribbling)
+        .nogAnimation(.smooth(duration: 0.35), value: locked)
         .padding(16)
     }
 
@@ -574,9 +574,9 @@ private struct MapNode: View {
         .nogPanel(cornerRadius: 12)
         .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
             .strokeBorder(isDropTarget ? Theme.blue : tint.opacity(0.55), lineWidth: isDropTarget ? 2.5 : 1))
-        .shadow(color: isDropTarget ? Theme.blue.opacity(0.6) : .clear, radius: 12)
+        .nogGlow(color: isDropTarget ? Theme.blue.opacity(0.6) : .clear, radius: 12)
         .scaleEffect(isDropTarget ? 1.08 : 1)
-        .animation(.snappy, value: isDropTarget)
+        .nogAnimation(.snappy, value: isDropTarget)
     }
 
     private var tint: Color {
@@ -843,7 +843,7 @@ struct MapPageStrip: View {
         }
         .background(.ultraThinMaterial)
         .overlay(alignment: .bottom) { Rectangle().fill(Theme.edge).frame(height: 1) }
-        .sensoryFeedback(.selection, trigger: selected)
+        .nogFeedback(.selection, trigger: selected)
     }
 
     private func chip(title: String, count: Int?, color: Color, isSelected: Bool,

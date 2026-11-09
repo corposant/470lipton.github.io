@@ -24,7 +24,7 @@ struct StartButton: View {
             didHold = true
             showPanel = true
         })
-            .sensoryFeedback(.impact(weight: .medium), trigger: showPanel) { _, isShowing in isShowing }
+            .nogFeedback(.impact(weight: .medium), trigger: showPanel) { _, isShowing in isShowing }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Start \(item.title)")
             .accessibilityHint("Starts with \(suggestion.label.lowercased()). Hold to choose a timebox.")
@@ -57,7 +57,7 @@ struct StartButton: View {
             .padding(.vertical, 15)
             .frame(maxWidth: .infinity)
             .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(Theme.synth, lineWidth: 1.5))
-            .shadow(color: Theme.violet.opacity(0.18), radius: 14)
+            .nogGlow(color: Theme.violet.opacity(0.18), radius: 14)
             .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         } else {
             CircleOutlineIcon(systemName: "play.fill", size: 32,
@@ -190,8 +190,8 @@ struct RecessedTimer: View {
                     .foregroundStyle(Theme.blue.opacity(0.07))
                 Text(display)
                     .foregroundStyle(isOver ? Theme.pink : Theme.lcd)
-                    .shadow(color: (isOver ? Theme.pink : Theme.blue).opacity(0.55), radius: 8)
-                    .shadow(color: (isOver ? Theme.pink : Theme.blue).opacity(0.9), radius: 1)
+                    .nogGlow(color: (isOver ? Theme.pink : Theme.blue).opacity(0.55), radius: 8)
+                    .nogGlow(color: (isOver ? Theme.pink : Theme.blue).opacity(0.9), radius: 1)
             }
             .nogReadout(44)
             .monospacedDigit()

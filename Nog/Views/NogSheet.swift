@@ -187,7 +187,7 @@ struct NogSheet: View {
         .listRowBackground(Color.clear)
         // Room from the row's rounded corners, which would otherwise clip the outer cards.
         .listRowInsets(EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12))
-        .sensoryFeedback(.selection, trigger: current)
+        .nogFeedback(.selection, trigger: current)
     }
 
     // MARK: When
@@ -216,7 +216,7 @@ struct NogSheet: View {
                     edit { $0.start = Self.moving($0.start, toDay: tomorrow) }
                 }
                 dayChip("Pick…", isOn: showCalendar || (!isToday && !isTonight && !isTomorrow)) {
-                    withAnimation(.snappy) { showCalendar.toggle() }
+                    withNogAnimation(.snappy) { showCalendar.toggle() }
                 }
             }
             if showCalendar {

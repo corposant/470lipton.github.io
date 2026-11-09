@@ -254,7 +254,7 @@ struct GradientOutlineButtonStyle: ButtonStyle {
             .background(Theme.violet.opacity(configuration.isPressed ? 0.12 : 0.0),
                         in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Theme.synth, lineWidth: 1.5))
-            .shadow(color: Theme.violet.opacity(0.18), radius: 14)
+            .nogGlow(color: Theme.violet.opacity(0.18), radius: 14)
             .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 }
@@ -302,10 +302,10 @@ struct ProgressRing: View {
                 .trim(from: 0, to: f)
                 .stroke(color, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
                 .rotationEffect(.degrees(-90))
-                .shadow(color: color.opacity(0.5), radius: 2)
+                .nogGlow(color: color.opacity(0.5), radius: 2)
         }
         .padding(lineWidth / 2)
-        .animation(.snappy, value: f)
+        .nogAnimation(.snappy, value: f)
     }
 }
 
@@ -332,9 +332,10 @@ struct NogBackground: View {
     @Environment(\.colorScheme) private var scheme
     @Environment(\.colorSchemeContrast) private var contrast
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @AppStorage(Calm.lowStimulationKey) private var lowStimulation = false
 
-    /// Increase Contrast or Reduce Transparency: a plain base, no haze or grid behind text.
-    private var isPlain: Bool { contrast == .increased || reduceTransparency }
+    /// Increase Contrast, Reduce Transparency or Low stimulation: a plain base, no haze or grid.
+    private var isPlain: Bool { contrast == .increased || reduceTransparency || lowStimulation }
 
     var body: some View {
         ZStack {

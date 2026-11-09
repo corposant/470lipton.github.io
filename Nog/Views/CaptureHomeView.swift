@@ -83,7 +83,7 @@ struct CaptureHomeView: View {
             .sheet(isPresented: $showParentPicker) { CaptureParentPicker(selection: $draft.parentID) }
             // The keyboard opens only when you tap the box (or ask for Quick Capture).
             .onChange(of: router.captureFocusRequest) { focus = .title }
-            .sensoryFeedback(.success, trigger: confirmation?.id)
+            .nogFeedback(.success, trigger: confirmation?.id)
         }
     }
 
@@ -249,12 +249,12 @@ struct CaptureHomeView: View {
         showSubItems = false
         panel = nil
         focus = .title // keep the keyboard up for the next thought
-        withAnimation {
+        withNogAnimation {
             confirmation = ("✓ Caught · " + Self.summary(result, subItems: subItems.count, parent: nil).uppercased(), item.id)
         }
         Task {
             try? await Task.sleep(for: .seconds(5))
-            withAnimation { if confirmation?.id == item.id { confirmation = nil } }
+            withNogAnimation { if confirmation?.id == item.id { confirmation = nil } }
         }
     }
 
@@ -272,7 +272,7 @@ struct CaptureHomeView: View {
                     panelView(panel, result: result, kind: kind)
                 }
                 .padding(.horizontal, 10)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                .transition(.nog(.move(edge: .bottom).combined(with: .opacity)))
             }
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 6) {
@@ -311,7 +311,7 @@ struct CaptureHomeView: View {
             .padding(.vertical, 8)
             .background(.bar)
         }
-        .animation(.snappy, value: panel)
+        .nogAnimation(.snappy, value: panel)
     }
 
     /// `!` words matching what's being typed, offered above the tray.

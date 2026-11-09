@@ -18,11 +18,14 @@ struct SettingsView: View {
     @State private var isSwitchingStorage = false
     @State private var showSilence = false
     @AppStorage(NogSettings.silencedUntilKey) private var silencedUntil: Double = 0
+    @AppStorage(Calm.lowStimulationKey) private var lowStimulation = false
+    @AppStorage(Calm.hapticsKey) private var haptics = true
 
     var body: some View {
         NavigationStack {
             List {
                 appearance
+                calm
                 storage
                 behavior
                 system
@@ -79,6 +82,28 @@ struct SettingsView: View {
         } footer: {
             Text("Auto follows your iPhone's Light/Dark setting.")
         }
+    }
+
+    // MARK: Calm
+
+    private var calm: some View {
+        Section {
+            Toggle(isOn: $lowStimulation) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Low stimulation")
+                    Text("No glow, background haze, motion or vibration.")
+                        .font(.caption)
+                        .foregroundStyle(Theme.muted)
+                }
+            }
+            Toggle("Vibration", isOn: $haptics)
+                .disabled(lowStimulation)
+        } header: {
+            SectionLabel(title: "Calm")
+        } footer: {
+            Text("Nog also follows Reduce Motion, Reduce Transparency and Increase Contrast in Settings → Accessibility.")
+        }
+        .listRowBackground(Theme.glass)
     }
 
     private func setIcon(_ choice: AppIconChoice) async {

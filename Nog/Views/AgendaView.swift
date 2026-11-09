@@ -117,7 +117,7 @@ private struct AgendaRow: View {
                 Text(timeText)
                     .nogReadout(13)
                     .foregroundStyle(entry.isNogging ? Theme.pink : (isToday ? Theme.lcd : Theme.muted))
-                    .shadow(color: isToday && !entry.isNogging ? Theme.blue.opacity(0.5) : .clear, radius: 4)
+                    .nogGlow(color: isToday && !entry.isNogging ? Theme.blue.opacity(0.5) : .clear, radius: 4)
                     .frame(width: typeSize.isAccessibilitySize ? nil : 66, alignment: .leading)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(item.title.isEmpty ? "Untitled" : item.title)
