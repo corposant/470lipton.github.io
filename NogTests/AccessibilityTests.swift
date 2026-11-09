@@ -67,3 +67,34 @@ final class TextSizeTests: XCTestCase {
         XCTAssertEqual(Font.TextStyle.nearest(to: 44), .largeTitle)
     }
 }
+
+final class CalmTests: XCTestCase {
+    private let defaults = UserDefaults.standard
+
+    override func tearDown() {
+        defaults.removeObject(forKey: Calm.lowStimulationKey)
+        defaults.removeObject(forKey: Calm.hapticsKey)
+    }
+
+    func testHapticsOnByDefault() {
+        defaults.removeObject(forKey: Calm.lowStimulationKey)
+        defaults.removeObject(forKey: Calm.hapticsKey)
+        XCTAssertTrue(Calm.hapticsOn)
+        XCTAssertFalse(Calm.lowStimulation)
+    }
+
+    func testHapticsSwitchTurnsThemOff() {
+        defaults.set(false, forKey: Calm.hapticsKey)
+        XCTAssertFalse(Calm.hapticsOn)
+    }
+
+    func testLowStimulationSilencesHapticsAndMotion() {
+        defaults.set(true, forKey: Calm.hapticsKey)
+        defaults.set(true, forKey: Calm.lowStimulationKey)
+        XCTAssertFalse(Calm.hapticsOn)
+        MainActor.assumeIsolated {
+            XCTAssertTrue(Calm.reducesMotion)
+            XCTAssertNil(Calm.animation(.snappy))
+        }
+    }
+}

@@ -58,8 +58,8 @@ struct TimeTuner: View {
         TunerFace(value: shown, title: title, step: step, spacing: spacing, reference: reference)
             .contentShape(Rectangle())
             .gesture(drag)
-            .sensoryFeedback(.selection, trigger: Self.snapped(shown, step: step))
-            .sensoryFeedback(.impact(weight: .light), trigger: isAtLowerStop)
+            .nogFeedback(.selection, trigger: Self.snapped(shown, step: step))
+            .nogFeedback(.impact(weight: .light), trigger: isAtLowerStop)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(title.isEmpty ? "Time" : title)
             .accessibilityValue(TunerFace.readout(for: shown, step: step, reference: reference).joined(separator: ", "))
@@ -101,7 +101,7 @@ struct TimeTuner: View {
                 let projected = start - Double(gesture.predictedEndTranslation.width / spacing) * Double(step)
                 let target = clamped((projected / Double(step)).rounded() * Double(step))
                 dragStart = nil
-                withAnimation(.spring(response: 0.55, dampingFraction: 0.86)) {
+                withNogAnimation(.spring(response: 0.55, dampingFraction: 0.86)) {
                     live = target
                 } completion: {
                     commit(target)
@@ -217,7 +217,7 @@ private struct TunerFace: View, Animatable {
             pointer.addLine(to: CGPoint(x: mid + 4, y: 0))
             pointer.addLine(to: CGPoint(x: mid, y: 6))
             pointer.closeSubpath()
-            context.addFilter(.shadow(color: Theme.pink.opacity(0.9), radius: 5))
+            if !Calm.lowStimulation { context.addFilter(.shadow(color: Theme.pink.opacity(0.9), radius: 5)) }
             context.stroke(needle, with: .color(Theme.pink), lineWidth: 2)
             context.fill(pointer, with: .color(Theme.pink))
         }
@@ -274,7 +274,7 @@ struct TimeTunerRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Button {
-                withAnimation(.snappy) { isOpen.toggle() }
+                withNogAnimation(.snappy) { isOpen.toggle() }
             } label: {
                 HStack {
                     Text(title).foregroundStyle(.primary)
@@ -282,7 +282,7 @@ struct TimeTunerRow: View {
                     Text(TunerFace.timeString(minutes))
                         .nogReadout(15)
                         .foregroundStyle(Theme.lcd)
-                        .shadow(color: Theme.blue.opacity(0.5), radius: 4)
+                        .nogGlow(color: Theme.blue.opacity(0.5), radius: 4)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 5)
                         .recessedWell(cornerRadius: 7)
@@ -292,7 +292,7 @@ struct TimeTunerRow: View {
             .buttonStyle(.plain)
             if isOpen {
                 TimeTuner(minutes: $minutes)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
+                    .transition(.nog(.opacity.combined(with: .move(edge: .top))))
             }
         }
     }

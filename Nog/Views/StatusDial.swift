@@ -42,8 +42,8 @@ struct StatusDial: View {
                 .position(center)
         }
         .frame(width: size.width, height: size.height)
-        .sensoryFeedback(.selection, trigger: lit)
-        .animation(.spring(response: 0.35, dampingFraction: 0.7), value: status)
+        .nogFeedback(.selection, trigger: lit)
+        .nogAnimation(.spring(response: 0.35, dampingFraction: 0.7), value: status)
         .accessibilityRepresentation {
             Picker("Status", selection: Binding(get: { status }, set: onSelect)) {
                 ForEach(ItemStatus.allCases, id: \.self) { Text($0.label).tag($0) }
@@ -78,7 +78,7 @@ struct StatusDial: View {
             .font(.nogLabel)
             .tracking(1.4)
             .foregroundStyle(isLit ? tint : Theme.muted.opacity(0.75))
-            .shadow(color: isLit ? tint.opacity(0.8) : .clear, radius: 6)
+            .nogGlow(color: isLit ? tint.opacity(0.8) : .clear, radius: 6)
             .fixedSize()
             .position(x: center.x + sin(a) * labelRadius(degrees), y: center.y - cos(a) * labelRadius(degrees))
             .allowsHitTesting(false)
@@ -113,7 +113,7 @@ struct StatusDial: View {
                     if chosen != status { onSelect(chosen) }
                 }
                 lastTouchAngle = nil
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.65)) { dragAngle = nil }
+                withNogAnimation(.spring(response: 0.35, dampingFraction: 0.65)) { dragAngle = nil }
             }
     }
 
@@ -203,8 +203,8 @@ private struct Knob: View {
                 Capsule()
                     .fill(tint)
                     .frame(width: d * 0.045, height: d * 0.17)
-                    .shadow(color: tint, radius: 3)
-                    .shadow(color: tint.opacity(0.6), radius: 8)
+                    .nogGlow(color: tint, radius: 3)
+                    .nogGlow(color: tint.opacity(0.6), radius: 8)
                     .offset(y: -d * 0.27)
                     .rotationEffect(.degrees(angle))
             }

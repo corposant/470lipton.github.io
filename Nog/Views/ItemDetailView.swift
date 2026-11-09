@@ -87,8 +87,8 @@ private struct ItemEditor: View {
         .sheet(isPresented: $showNogSheet) {
             NogSheet(id: item.id)
         }
-        .sensoryFeedback(.success, trigger: item.status) { _, new in new == .done }
-        .animation(.snappy, value: item.status)
+        .nogFeedback(.success, trigger: item.status) { _, new in new == .done }
+        .nogAnimation(.snappy, value: item.status)
         // iOS 27 on-screen awareness: "Siri, snooze this", "mark this done".
         .appEntityIdentifier(EntityIdentifier(for: ReminderEntity.self, identifier: item.id))
     }
@@ -137,7 +137,7 @@ private struct ItemEditor: View {
                 if item.status == .done {
                     Image(systemName: "checkmark").nogFont(10, weight: .heavy)
                 } else {
-                    Circle().fill(tint).frame(width: 7, height: 7).shadow(color: tint, radius: 3)
+                    Circle().fill(tint).frame(width: 7, height: 7).nogGlow(color: tint, radius: 3)
                 }
                 Text(item.status.label.uppercased())
                     .font(.nogLabel)
@@ -300,7 +300,7 @@ private struct ItemEditor: View {
                     .focused($childFieldFocused)
                     .submitLabel(.next)
                     .onChange(of: newChild) { addChildrenOnReturn() }
-                    .sensoryFeedback(.impact(weight: .light), trigger: children.count)
+                    .nogFeedback(.impact(weight: .light), trigger: children.count)
                 if ItemAssistant.isAvailable {
                     Button {
                         showBreakdown = true
@@ -368,12 +368,12 @@ private struct ItemEditor: View {
                         // (and its suggestions) so a tap on a suggestion still lands.
                         .onChange(of: tagFieldFocused) { _, focused in
                             if !focused, newTag.trimmingCharacters(in: .whitespaces).isEmpty {
-                                withAnimation(.snappy) { isAddingTag = false }
+                                withNogAnimation(.snappy) { isAddingTag = false }
                             }
                         }
                 } else {
                     Button {
-                        withAnimation(.snappy) { isAddingTag = true }
+                        withNogAnimation(.snappy) { isAddingTag = true }
                     } label: {
                         Text("+ tag")
                             .font(.subheadline)
@@ -404,7 +404,7 @@ private struct ItemEditor: View {
     private func addTag() {
         add(newTag)
         newTag = ""
-        withAnimation(.snappy) { isAddingTag = false }
+        withNogAnimation(.snappy) { isAddingTag = false }
     }
 
     /// Adds a tag (cleaned up, no duplicates), to the latest copy of the item so quick
@@ -416,7 +416,7 @@ private struct ItemEditor: View {
 
     private func removeTag(_ tag: String) {
         guard var current = store.items[item.id] else { return }
-        withAnimation(.snappy) {
+        withNogAnimation(.snappy) {
             if current.removeTag(tag) { store.update(current) }
         }
     }
@@ -674,8 +674,8 @@ struct GlowReadout: View {
             Text(String(text.map { $0.isNumber ? "8" : $0 })).foregroundStyle(glow.opacity(0.07))
             Text(text)
                 .foregroundStyle(color)
-                .shadow(color: glow.opacity(0.55), radius: 8)
-                .shadow(color: glow.opacity(0.9), radius: 1)
+                .nogGlow(color: glow.opacity(0.55), radius: 8)
+                .nogGlow(color: glow.opacity(0.9), radius: 1)
         }
         .nogReadout(size)
         .monospacedDigit()

@@ -45,7 +45,7 @@ struct NogsTab: View {
                 } else {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button("Select") {
-                            withAnimation(.snappy) { editMode = .active }
+                            withNogAnimation(.snappy) { editMode = .active }
                         }
                     }
                     ToolbarItem(placement: .topBarTrailing) {
@@ -63,10 +63,10 @@ struct NogsTab: View {
                         .glassEffect(.regular, in: .capsule)
                         .padding(.horizontal, 16)
                         .padding(.bottom, 6)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                        .transition(.nog(.move(edge: .bottom).combined(with: .opacity)))
                 }
             }
-            .sensoryFeedback(.selection, trigger: selection.count)
+            .nogFeedback(.selection, trigger: selection.count)
             .navigationDestination(for: UUID.self) { id in
                 ItemDetailView(id: id)
             }
@@ -77,7 +77,7 @@ struct NogsTab: View {
     }
 
     private func stopSelecting() {
-        withAnimation(.snappy) {
+        withNogAnimation(.snappy) {
             editMode = .inactive
             selection = []
         }

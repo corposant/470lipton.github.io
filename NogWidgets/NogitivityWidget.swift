@@ -180,7 +180,7 @@ private struct GlowingTimer: View {
         DoingTimer(item: item, date: date)
             .font(.nogReadout(size))
             .foregroundStyle(W.readout)
-            .shadow(color: Theme.blue.opacity(0.6), radius: 6)
+            .nogGlow(color: Theme.blue.opacity(0.6), radius: 6)
             .multilineTextAlignment(alignment)
             .lineLimit(1)
             .minimumScaleFactor(0.5)

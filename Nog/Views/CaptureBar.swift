@@ -86,10 +86,10 @@ struct CaptureBar: View {
         text = ""
         focused = true // keep the keyboard up for the next thought
         let message = Self.describe(item.reminder)
-        withAnimation { confirmation = "✓ \(item.title) — \(message)" }
+        withNogAnimation { confirmation = "✓ \(item.title) — \(message)" }
         Task {
             try? await Task.sleep(for: .seconds(3))
-            withAnimation { if confirmation?.contains(item.title) == true { confirmation = nil } }
+            withNogAnimation { if confirmation?.contains(item.title) == true { confirmation = nil } }
         }
     }
 }
