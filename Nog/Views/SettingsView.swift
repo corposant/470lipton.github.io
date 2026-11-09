@@ -281,7 +281,7 @@ private struct NogsAlertsPage: View {
             } header: {
                 SectionLabel(title: "Default profile")
             } footer: {
-                Text("New captures use this profile unless you type one: !whisper, !easing, !relentless. Each item can switch profile on its own page.")
+                Text("New captures use this profile unless you type one: !whisper, !easing, !unhinged. Each item can switch profile on its own page.")
             }
             .listRowBackground(Theme.glass)
 
@@ -377,7 +377,7 @@ struct ProfileCard: View {
         switch profile {
         case .whisper: Theme.blue
         case .steady, .easing: Theme.violet
-        case .relentless: Theme.pink
+        case .unhinged: Theme.pink
         }
     }
 }
@@ -515,7 +515,7 @@ private struct CaptureCheatSheet: View {
                 line("!off", "no reminder (just an idea)")
                 line("!log  !steady", "gaps double each time, or stay the same")
                 line("!alarm", "ring like a real alarm")
-                line("!whisper  !easing  !relentless", "use a nog profile")
+                line("!whisper  !easing  !unhinged", "use a nog profile")
                 line("@30m  @2h  @now", "when to start nogging")
                 line("~30m  ~2h", "how long it'll take (▶︎ timebox)")
                 line("#tag", "add a tag")

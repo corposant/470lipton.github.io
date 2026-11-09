@@ -209,7 +209,7 @@ final class ItemStore {
     func capture(_ text: String, parent: UUID? = nil, now: Date = .now) -> Item? {
         let defaults = NogSettings.captureDefaults
         let parsed = CaptureParser.parse(text, defaults: defaults, now: now)
-        // Typed your own rhythm ("every 5m", "!relentless")? Then a parent's doesn't replace it.
+        // Typed your own rhythm ("every 5m", "!unhinged")? Then a parent's doesn't replace it.
         return add(parsed, parent: parent, ownRhythm: CaptureDefaults.differs(parsed.reminder, from: defaults), now: now)
     }
 

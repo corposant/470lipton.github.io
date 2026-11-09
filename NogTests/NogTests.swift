@@ -481,17 +481,17 @@ final class PolicyTests: XCTestCase {
 final class ProfileTests: XCTestCase {
     let now = Date(timeIntervalSince1970: 1_800_000_000)
 
-    func testRelentlessToken() throws {
+    func testUnhingedToken() throws {
         let defaults = CaptureDefaults(firstDelayMinutes: 15, repeatMinutes: 8)
-        let r = try XCTUnwrap(CaptureParser.parse("file taxes !relentless", defaults: defaults, now: now).reminder)
+        let r = try XCTUnwrap(CaptureParser.parse("file taxes !unhinged", defaults: defaults, now: now).reminder)
         XCTAssertEqual(r.start, now.addingTimeInterval(120))
         XCTAssertEqual(r.repeatMinutes, 7)
         XCTAssertEqual(r.escalateAfter, 3)
-        XCTAssertEqual(NogProfile.matching(r), .relentless)
+        XCTAssertEqual(NogProfile.matching(r), .unhinged)
     }
 
-    func testRelentlessRingsAfterThreeIgnoredNogsEvenWhenGlobalEscalationIsOff() {
-        let reminder = NogProfile.relentless.apply(to: Reminder(start: now.addingTimeInterval(-60)))
+    func testUnhingedRingsAfterThreeIgnoredNogsEvenWhenGlobalEscalationIsOff() {
+        let reminder = NogProfile.unhinged.apply(to: Reminder(start: now.addingTimeInterval(-60)))
         let item = Item(title: "taxes", reminder: reminder)
         let alarms = AlarmScheduler.alarmDates(for: item, policy: .standard, now: now, limit: 1)
         XCTAssertEqual(alarms, [now.addingTimeInterval(-60 + 3 * 7 * 60)])
@@ -515,7 +515,7 @@ final class ProfileTests: XCTestCase {
     }
 
     func testProfileSurvivesTheFile() throws {
-        var item = Item(title: "x", reminder: NogProfile.relentless.reminder(from: now))
+        var item = Item(title: "x", reminder: NogProfile.unhinged.reminder(from: now))
         item.created = now
         item.updated = now
         XCTAssertEqual(ItemFile.decode(ItemFile.encode(item)), item)
@@ -859,7 +859,7 @@ final class RhythmFlowTests: XCTestCase {
     func testNewSubItemTakesItsParentsRhythm() throws {
         let store = makeStore()
         var parent = try XCTUnwrap(store.capture("Trip"))
-        parent.reminder = NogProfile.relentless.apply(to: try XCTUnwrap(parent.reminder))
+        parent.reminder = NogProfile.unhinged.apply(to: try XCTUnwrap(parent.reminder))
         parent.reminder?.snoozeMinutes = 30
         store.update(parent)
         let child = try XCTUnwrap(store.capture("Book flights", parent: parent.id))
@@ -871,7 +871,7 @@ final class RhythmFlowTests: XCTestCase {
     func testTypedRhythmKeepsTheSubItemsOwn() throws {
         let store = makeStore()
         var parent = try XCTUnwrap(store.capture("Trip"))
-        parent.reminder = NogProfile.relentless.apply(to: try XCTUnwrap(parent.reminder))
+        parent.reminder = NogProfile.unhinged.apply(to: try XCTUnwrap(parent.reminder))
         store.update(parent)
         let child = try XCTUnwrap(store.capture("Pack !whisper", parent: parent.id))
         XCTAssertEqual(child.reminder?.repeatMinutes, NogProfile.whisper.repeatMinutes)
@@ -952,12 +952,12 @@ final class CaptureDraftTests: XCTestCase {
         var draft = CaptureDraft(text: "paint samples !off #home")
         draft.kind = .alarm
         draft.when = when
-        draft.profile = .relentless
+        draft.profile = .unhinged
         draft.extraTags = ["Kitchen", "HOME"]
         let r = draft.resolved(defaults: defaults, now: now)
         XCTAssertEqual(r.reminder?.start, when)
         XCTAssertEqual(r.reminder?.alarm, true)
-        XCTAssertEqual(r.reminder?.repeatMinutes, NogProfile.relentless.repeatMinutes)
+        XCTAssertEqual(r.reminder?.repeatMinutes, NogProfile.unhinged.repeatMinutes)
         XCTAssertEqual(r.tags, ["home", "Kitchen"], "no duplicate #home")
         XCTAssertTrue(draft.choseOwnRhythm(defaults: defaults, now: now))
     }
@@ -1088,5 +1088,13 @@ final class NogBriefingTests: XCTestCase {
         doing.doingSince = now.addingTimeInterval(-5 * 60)
         doing.timeboxMinutes = 25
         XCTAssertEqual(NogBriefing.text(for: .doing, items: [doing], now: now), "You're on Write budget, 20 minutes left.")
+    }
+}
+
+final class UnhingedRenameTests: XCTestCase {
+    func testOldTokenStillWorks() {
+        XCTAssertEqual(NogProfile.token("!relentless"), .unhinged)
+        XCTAssertEqual(NogProfile.token("!unhinged"), .unhinged)
+        XCTAssertEqual(NogProfile.unhinged.label, "Unhinged")
     }
 }

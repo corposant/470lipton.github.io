@@ -150,7 +150,7 @@ struct NogSheet: View {
             HStack(spacing: 6) {
                 ForEach(NogProfile.allCases) { profile in
                     let isOn = profile == current
-                    let tint = profile == .relentless ? Theme.pink : Theme.violet
+                    let tint = profile == .unhinged ? Theme.pink : Theme.violet
                     Button {
                         edit { $0 = profile.apply(to: $0) }
                     } label: {

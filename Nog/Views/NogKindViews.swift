@@ -115,7 +115,7 @@ struct NogKindSheet: View {
                             "Stop quiets this ring; it rings again on schedule. Nogged ends it.",
                         ])
                     }
-                    Label("Ignoring a Nog? It can turn into an Alarm: Relentless does after 3 unanswered nogs, or set it for everything in Settings → Nogs & alerts.",
+                    Label("Ignoring a Nog? It can turn into an Alarm: Unhinged does after 3 unanswered nogs, or set it for everything in Settings → Nogs & alerts.",
                           systemImage: "chart.line.uptrend.xyaxis")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)

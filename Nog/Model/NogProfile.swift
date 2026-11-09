@@ -3,7 +3,7 @@ import Foundation
 /// A nagging style in one tap: how soon, how often, steady or easing,
 /// alarm or not, and when ignored nogs escalate to alarms.
 enum NogProfile: String, CaseIterable, Identifiable {
-    case whisper, steady, easing, relentless
+    case whisper, steady, easing, unhinged
     var id: String { rawValue }
 
     var label: String {
@@ -11,7 +11,7 @@ enum NogProfile: String, CaseIterable, Identifiable {
         case .whisper: "Whisper"
         case .steady: "Steady"
         case .easing: "Easing"
-        case .relentless: "Relentless"
+        case .unhinged: "Unhinged"
         }
     }
 
@@ -20,7 +20,7 @@ enum NogProfile: String, CaseIterable, Identifiable {
         case .whisper: "After an hour, then hourly, easing off to daily. Never rings."
         case .steady: "After 15 min, then every 8 min until done."
         case .easing: "After 8 min, then 16, 32, 64… easing off to daily."
-        case .relentless: "After 2 min, then every 7 min, no let-up. Rings as an alarm after 3 ignored nogs."
+        case .unhinged: "After 2 min, then every 7 min, no let-up. Rings as an alarm after 3 ignored nogs."
         }
     }
 
@@ -29,7 +29,7 @@ enum NogProfile: String, CaseIterable, Identifiable {
         case .whisper: "wind"
         case .steady: "metronome"
         case .easing: "chart.line.downtrend.xyaxis"
-        case .relentless: "bolt.fill"
+        case .unhinged: "bolt.fill"
         }
     }
 
@@ -39,7 +39,7 @@ enum NogProfile: String, CaseIterable, Identifiable {
         case .whisper: 60
         case .steady: 15
         case .easing: 8
-        case .relentless: 2
+        case .unhinged: 2
         }
     }
 
@@ -48,14 +48,14 @@ enum NogProfile: String, CaseIterable, Identifiable {
         case .whisper: 60
         case .steady: 8
         case .easing: 8
-        case .relentless: 7
+        case .unhinged: 7
         }
     }
 
     var curve: RepeatCurve {
         switch self {
         case .whisper, .easing: .logarithmic
-        case .steady, .relentless: .steady
+        case .steady, .unhinged: .steady
         }
     }
 
@@ -64,7 +64,7 @@ enum NogProfile: String, CaseIterable, Identifiable {
         switch self {
         case .whisper: 0
         case .steady, .easing: nil
-        case .relentless: 3
+        case .unhinged: 3
         }
     }
 
@@ -91,11 +91,11 @@ enum NogProfile: String, CaseIterable, Identifiable {
         }
     }
 
-    /// Capture tokens: `!whisper`, `!relentless`, …
+    /// Capture tokens: `!whisper`, `!unhinged`, …
     static func token(_ word: String) -> NogProfile? {
         switch word {
         case "!whisper", "!gentle": .whisper
-        case "!relentless", "!hound": .relentless
+        case "!unhinged", "!relentless", "!hound": .unhinged
         case "!easing": .easing
         default: nil
         }
