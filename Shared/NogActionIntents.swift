@@ -93,6 +93,26 @@ struct StopDoingIntent: LiveActivityIntent {
     }
 }
 
+/// ▶︎ on a widget: start doing an item with Nog's suggested timebox, which starts its Live Activity.
+struct StartDoingIntent: LiveActivityIntent {
+    static var title: LocalizedStringResource = "Start Nog Item"
+    static var isDiscoverable = false
+    static var openAppWhenRun = false
+
+    @Parameter(title: "Item ID")
+    var itemID: String
+
+    init() {}
+    init(itemID: String) { self.itemID = itemID }
+
+    func perform() async throws -> some IntentResult {
+        #if !WIDGET_EXTENSION
+        await NogActions.run(itemID) { store, id in store.start(id) }
+        #endif
+        return .result()
+    }
+}
+
 #if !WIDGET_EXTENSION
 enum NogActions {
     @MainActor

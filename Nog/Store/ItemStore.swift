@@ -379,6 +379,7 @@ final class ItemStore {
     private func updateLiveActivities() {
         guard schedulesNotifications else { return }
         DoingActivities.shared.reconcile(Array(items.values))
+        WidgetSync.publish(Array(items.values))
     }
 
     func markDone(_ id: UUID) {
@@ -473,6 +474,7 @@ final class ItemStore {
         syncDebounce = Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(400))
             guard !Task.isCancelled, let self else { return }
+            WidgetSync.publish(Array(self.items.values))
             await NotificationScheduler.shared.sync(items: Array(self.items.values))
             await SpotlightIndexer.update(self)
             // Siri learns current item titles for "Start …" / "Mark … done".
@@ -485,6 +487,7 @@ final class ItemStore {
         guard schedulesNotifications else { return }
         syncDebounce?.cancel()
         DoingActivities.shared.reconcile(Array(items.values))
+        WidgetSync.publish(Array(items.values))
         await NotificationScheduler.shared.sync(items: Array(items.values))
         await SpotlightIndexer.update(self)
         NogShortcuts.updateAppShortcutParameters()
