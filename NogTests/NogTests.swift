@@ -1048,3 +1048,45 @@ final class SilenceTests: XCTestCase {
         XCTAssertTrue(alarms.allSatisfy { $0 >= end })
     }
 }
+
+final class NogBriefingTests: XCTestCase {
+    let calendar = Calendar.current
+    lazy var now = calendar.date(from: DateComponents(year: 2030, month: 3, day: 5, hour: 10))!
+
+    func item(_ title: String, start: Date?, status: ItemStatus = .open) -> Item {
+        var i = Item(title: title)
+        i.status = status
+        i.reminder = start.map { Reminder(start: $0, repeatMinutes: 8) }
+        return i
+    }
+
+    func testNoggingNow() {
+        let items = [item("Call plumber", start: now.addingTimeInterval(-600)),
+                     item("Reply to Ana", start: now.addingTimeInterval(-60)),
+                     item("Later thing", start: now.addingTimeInterval(3 * 3600))]
+        XCTAssertEqual(NogBriefing.text(for: .now, items: items, now: now, calendar: calendar),
+                       "2 things are nogging: Call plumber and Reply to Ana.")
+        XCTAssertEqual(NogBriefing.text(for: .now, items: [], now: now), "Nothing's nogging you right now.")
+    }
+
+    func testTodayMentionsTimes() {
+        let items = [item("Pay bill", start: now.addingTimeInterval(2 * 3600))]
+        let text = NogBriefing.text(for: .today, items: items, now: now, calendar: calendar)
+        XCTAssertTrue(text.hasPrefix("Later today: Pay bill at "))
+    }
+
+    func testLooseAndLongListsAreShortened() {
+        let items = (1...7).map { item("Idea \($0)", start: nil) }
+        let text = NogBriefing.text(for: .loose, items: items, now: now, limit: 3)
+        XCTAssertTrue(text.hasPrefix("7 loose nogs: "))
+        XCTAssertTrue(text.hasSuffix("and 4 more."))
+    }
+
+    func testDoingSaysTimeLeft() {
+        var doing = Item(title: "Write budget")
+        doing.status = .doing
+        doing.doingSince = now.addingTimeInterval(-5 * 60)
+        doing.timeboxMinutes = 25
+        XCTAssertEqual(NogBriefing.text(for: .doing, items: [doing], now: now), "You're on Write budget, 20 minutes left.")
+    }
+}

@@ -475,6 +475,8 @@ final class ItemStore {
             guard !Task.isCancelled, let self else { return }
             await NotificationScheduler.shared.sync(items: Array(self.items.values))
             await SpotlightIndexer.update(self)
+            // Siri learns current item titles for "Start …" / "Mark … done".
+            NogShortcuts.updateAppShortcutParameters()
         }
     }
 
@@ -485,6 +487,7 @@ final class ItemStore {
         DoingActivities.shared.reconcile(Array(items.values))
         await NotificationScheduler.shared.sync(items: Array(items.values))
         await SpotlightIndexer.update(self)
+        NogShortcuts.updateAppShortcutParameters()
     }
 
     private func clearDelivered(_ id: UUID) {

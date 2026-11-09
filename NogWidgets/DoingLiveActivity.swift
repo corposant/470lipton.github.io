@@ -59,12 +59,24 @@ private struct DoingActivityView: View {
 
     var body: some View {
         if activityFamily == .small {
-            VStack(alignment: .leading, spacing: 4) {
-                Label(context.attributes.title, systemImage: "play.fill")
-                    .font(.caption.weight(.semibold))
-                    .lineLimit(1)
-                DoingTimer(context: context)
-                    .font(.nogReadout(22))
+            // Apple Watch and the CarPlay dashboard: title, big timer, one tap to finish.
+            HStack(alignment: .center, spacing: 8) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Label(context.attributes.title, systemImage: "play.fill")
+                        .font(.caption.weight(.semibold))
+                        .lineLimit(1)
+                    DoingTimer(context: context)
+                        .font(.nogReadout(22))
+                }
+                Spacer(minLength: 4)
+                Button(intent: CompleteItemIntent(itemID: context.attributes.itemID.uuidString)) {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 16, weight: .bold))
+                        .frame(width: 40, height: 40)
+                }
+                .buttonStyle(.plain)
+                .background(Theme.blue.opacity(0.25), in: Circle())
+                .accessibilityLabel("Nogged")
             }
             .padding(10)
         } else {
