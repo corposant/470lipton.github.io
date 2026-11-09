@@ -633,7 +633,9 @@ private struct LockRectangular: View {
         if let end = item.timeboxEnd {
             if end <= entry.date { return Text("TIME'S UP") }
             let timer = Text(timerInterval: min(item.doingSince ?? entry.date, end)...end, countsDown: true)
-            return item.timeboxMinutes.map { timer + Text(" of \($0)").font(.system(size: 11)) } ?? timer
+            guard let minutes = item.timeboxMinutes else { return timer }
+            let total = Text(" of \(minutes)").font(.system(size: 11))
+            return Text("\(timer)\(total)")
         }
         return Text(item.doingSince ?? entry.date, style: .timer)
     }
@@ -654,7 +656,7 @@ private struct LockInline: View {
         if let item = entry.doing {
             if let end = item.timeboxEnd, end > entry.date {
                 Label {
-                    Text("\(entry.lockTitle(item)) · ") + Text(timerInterval: min(item.doingSince ?? entry.date, end)...end, countsDown: true)
+                    Text("\(entry.lockTitle(item)) · \(Text(timerInterval: min(item.doingSince ?? entry.date, end)...end, countsDown: true))")
                 } icon: {
                     Image(systemName: "play.fill")
                 }
