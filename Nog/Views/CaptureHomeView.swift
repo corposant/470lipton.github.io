@@ -194,10 +194,58 @@ struct CaptureHomeView: View {
         }
     }
 
+    /// Usage help shown on an empty Fresh Nog: real examples of what the field understands.
+    /// Every example here must parse as described (see `CaptureParser`, `NaturalDateParser`).
     private var hint: some View {
-        Text("Type anything: a to-do, an idea, \"lunch next tues\", \"call mum tomorrow 9am #family\". Use the tray below for when, how it gets you, tags and sub-items.")
-            .font(.callout)
-            .foregroundStyle(Theme.muted)
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Type anything: a to-do, an idea, a plan. Add any of these, anywhere in the line, or use the tray below.")
+            hintGroup("Tags", [
+                ("call mum #family", "adds the tag family"),
+                ("taxes #money #admin", "as many tags as you like"),
+            ])
+            hintGroup("When", [
+                ("lunch next tues", "Tuesday at 12:00"),
+                ("call mom tomorrow at 3", "tomorrow, 3 PM"),
+                ("dentist nov 12 at 2:30pm", "a date and time"),
+                ("standup tomorrow morning", "tomorrow, 9 AM"),
+                ("report by eod", "end of today"),
+                ("stretch in 20 min", "20 minutes from now"),
+                ("@30m  @2h  @1d  @now", "start nogging after 30 min, 2 h, a day, or now"),
+            ])
+            hintGroup("How often", [
+                ("pills every 4 hours", "nogs every 4 hours"),
+                ("water plants hourly", "every hour (or daily, weekly)"),
+                ("!8m  !2h  !1d", "repeat every 8 min, 2 h, a day"),
+                ("!once", "remind once, no repeat"),
+                ("!log", "gaps double each time: 8, 16, 32 min…"),
+                ("!steady", "same gap every time"),
+                ("!off", "no reminder, just keep the idea"),
+            ])
+            hintGroup("How it gets you", [
+                ("!whi  !eas  !unh", "Whisper, Easing or Unhinged profile (full names work too)"),
+                ("!alarm", "rings like a real alarm"),
+            ])
+            hintGroup("Other", [
+                ("~30m  ~2h", "how long it'll take, for the ▶︎ timebox"),
+            ])
+            Text("Mix them: \"pay rent fri 9am !1d #money ~10m\"")
+        }
+        .font(.callout)
+        .foregroundStyle(Theme.muted)
+    }
+
+    private func hintGroup(_ title: String, _ examples: [(String, String)]) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title).font(.footnote.weight(.semibold)).textCase(.uppercase)
+                .accessibilityAddTraits(.isHeader)
+            ForEach(examples, id: \.0) { syntax, meaning in
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(syntax).nogReadout(14).foregroundStyle(.primary)
+                    Text(meaning).font(.caption)
+                }
+                .accessibilityElement(children: .combine)
+            }
+        }
     }
 
     static func summary(_ result: CaptureResult, subItems: Int, parent: String?) -> String {
