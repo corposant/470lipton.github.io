@@ -1,31 +1,9 @@
 import AppIntents
 import SwiftUI
 
-/// The Agenda tab: only what has a time, from now through the coming week.
-/// Untimed and just-caught things live on the List tab.
-struct AgendaView: View {
-    @Environment(Router.self) private var router
-    @Environment(ItemStore.self) private var store
-
-    var body: some View {
-        @Bindable var router = router
-        NavigationStack(path: $router.agendaPath) {
-            // Re-render each minute and as nogs start, so times and "nogging now" stay current.
-            TimelineView(MinuteSchedule.forItems(store.items.values)) { context in
-                AgendaList(now: context.date)
-            }
-            .background { NogBackground() }
-            .safeAreaInset(edge: .top) { SilenceBanner() }
-            .nogTabTitle(.agenda)
-            .toolbar { SettingsToolbarItem() }
-            .navigationDestination(for: UUID.self) { id in
-                ItemDetailView(id: id)
-            }
-        }
-    }
-}
-
-private struct AgendaList: View {
+/// The week ahead, on the List tab (Week): only what has a time, from now through the
+/// coming week. It used to be its own Agenda tab.
+struct AgendaList: View {
     @Environment(ItemStore.self) private var store
     let now: Date
 
@@ -48,7 +26,7 @@ private struct AgendaList: View {
                             .listRowInsets(EdgeInsets(top: 4, leading: 4, bottom: 4, trailing: 4))
                     }
                 } header: {
-                    SectionLabel(title: "Nogitivity", tint: Theme.blue)
+                    SectionLabel(title: "Doing", tint: Theme.blue)
                 }
             }
             ForEach(groups) { group in

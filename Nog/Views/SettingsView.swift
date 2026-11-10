@@ -5,10 +5,183 @@ import SwiftUI
 import UIKit
 import UserNotifications
 
-/// The control panel.
+/// Settings: the few things most people change, on one page. Everything else is
+/// under Advanced.
 struct SettingsView: View {
     @Environment(ItemStore.self) private var store
     @Environment(\.dismiss) private var dismiss
+    // Default style for new things
+    @AppStorage(NogSettings.firstDelayKey) private var firstDelay = NogSettings.defaultFirstDelay
+    @AppStorage(NogSettings.repeatKey) private var repeatMinutes = NogSettings.defaultRepeat
+    @AppStorage(NogSettings.curveKey) private var curve: RepeatCurve = .steady
+    @AppStorage(NogSettings.escalateKey) private var profileEscalate = -1
+    @AppStorage(NogSettings.silentKey) private var profileSilent = false
+    @State private var showMoreStyles = false
+    // Quiet hours
+    @AppStorage(NogSettings.Key.quietEnabled) private var quietEnabled = false
+    @AppStorage(NogSettings.Key.quietStart) private var quietStart = 22 * 60
+    @AppStorage(NogSettings.Key.quietEnd) private var quietEnd = 7 * 60
+    @AppStorage(NogSettings.Key.quietWeekends) private var quietWeekends = false
+    // Silence
+    @State private var showSilence = false
+    @AppStorage(NogSettings.silencedUntilKey) private var silencedUntil: Double = 0
+    // Calm
+    @AppStorage(Calm.lowStimulationKey) private var lowStimulation = false
+    @AppStorage(Calm.hapticsKey) private var haptics = true
+
+    private var currentProfile: NogProfile? {
+        NogProfile.allCases.first {
+            $0.firstDelayMinutes == firstDelay && $0.repeatMinutes == repeatMinutes
+                && $0.curve == curve && ($0.escalateAfter ?? -1) == profileEscalate
+                && $0.silent == profileSilent
+        }
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                style
+                quiet
+                calm
+                Section {
+                    NavigationLink {
+                        PlacesView()
+                    } label: {
+                        Label("Places", systemImage: "location")
+                    }
+                    NavigationLink {
+                        HowToNogView()
+                    } label: {
+                        Label("How to use Nog", systemImage: "questionmark.circle")
+                    }
+                    NavigationLink {
+                        AdvancedSettingsPage()
+                    } label: {
+                        Label("Advanced", systemImage: "slider.horizontal.3")
+                    }
+                }
+                .listRowBackground(Theme.glass)
+                about
+            }
+            .nogListStyle()
+            .tint(Theme.pink)
+            .navigationTitle("Settings")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+            }
+            .onDisappear { Task { await store.syncNow() } }
+        }
+    }
+
+    // MARK: How firm
+
+    private var style: some View {
+        let current = currentProfile
+        // The main four, plus the current one if it's one of the others.
+        let shown = showMoreStyles ? NogProfile.allCases
+            : NogProfile.mainCases + (current.map { NogProfile.mainCases.contains($0) ? [] : [$0] } ?? [])
+        return Section {
+            ForEach(shown) { profile in
+                Button {
+                    firstDelay = profile.firstDelayMinutes
+                    repeatMinutes = profile.repeatMinutes
+                    curve = profile.curve
+                    profileEscalate = profile.escalateAfter ?? -1
+                    profileSilent = profile.silent
+                } label: {
+                    ProfileCard(profile: profile, isSelected: current == profile)
+                }
+                .buttonStyle(.plain)
+            }
+            Button(showMoreStyles ? "Fewer styles" : "More styles") {
+                withNogAnimation(.snappy) { showMoreStyles.toggle() }
+            }
+            .font(.subheadline)
+        } header: {
+            SectionLabel(title: "How firm")
+        } footer: {
+            Text(current == nil
+                 ? "You've set a custom rhythm under Advanced › Timing & alerts. Pick a style to go back."
+                 : "New things you add start like this. Each item can change on its own page.")
+        }
+        .listRowBackground(Theme.glass)
+    }
+
+    // MARK: Quiet
+
+    private var quiet: some View {
+        Section {
+            Toggle("Quiet hours", isOn: $quietEnabled)
+            if quietEnabled {
+                TimeTunerRow(title: "From", minutes: $quietStart)
+                TimeTunerRow(title: "Until", minutes: $quietEnd)
+                Toggle("All weekend", isOn: $quietWeekends)
+            }
+            Button {
+                showSilence = true
+            } label: {
+                HStack {
+                    Label("Silence everything", systemImage: "bell.slash")
+                    Spacer()
+                    Text(silencedUntil == 0 || Date(timeIntervalSinceReferenceDate: silencedUntil) <= .now
+                         ? "off"
+                         : NogSettings.silenceLabel(Date(timeIntervalSinceReferenceDate: silencedUntil))
+                            .replacingOccurrences(of: "Silenced ", with: ""))
+                        .font(.nogMeta)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .foregroundStyle(.primary)
+            .sheet(isPresented: $showSilence) { SilenceSheet() }
+        } header: {
+            SectionLabel(title: "Quiet")
+        } footer: {
+            Text("Nothing reminds you or rings during quiet hours. Anything due waits until they end.")
+        }
+        .listRowBackground(Theme.glass)
+    }
+
+    // MARK: Calm
+
+    private var calm: some View {
+        Section {
+            Toggle(isOn: $lowStimulation) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Low stimulation")
+                    Text("No glow, background haze, motion or vibration.")
+                        .font(.caption)
+                        .foregroundStyle(Theme.muted)
+                }
+            }
+            Toggle("Vibration", isOn: $haptics)
+                .disabled(lowStimulation)
+        } header: {
+            SectionLabel(title: "Calm")
+        } footer: {
+            Text("Nog also follows Reduce Motion, Reduce Transparency and Increase Contrast in Settings → Accessibility.")
+        }
+        .listRowBackground(Theme.glass)
+        .tint(Theme.blue)
+    }
+
+    // MARK: About
+
+    private var about: some View {
+        Section {
+            LabeledContent("Version",
+                           value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—")
+                .font(.nogMeta)
+        } footer: {
+            Text("Nog reminds you until it's done.")
+        }
+        .listRowBackground(Theme.glass)
+    }
+}
+
+/// Settings › Advanced: everything most people never need to touch.
+struct AdvancedSettingsPage: View {
+    @Environment(ItemStore.self) private var store
     @AppStorage(ThemeMode.key) private var themeMode: ThemeMode = .auto
     @AppStorage(NogSettings.firstDelayKey) private var firstDelay = NogSettings.defaultFirstDelay
     @AppStorage(NogSettings.repeatKey) private var repeatMinutes = NogSettings.defaultRepeat
@@ -22,26 +195,34 @@ struct SettingsView: View {
     @AppStorage(Calm.lowStimulationKey) private var lowStimulation = false
     @AppStorage(Calm.hapticsKey) private var haptics = true
 
+    @AppStorage(AppTab.mapTabKey) private var showMapTab = false
+
     var body: some View {
-        NavigationStack {
-            List {
-                appearance
-                calm
-                storage
-                behavior
-                system
-                about
-                #if DEBUG
-                developer
-                #endif
+        List {
+            behavior
+            Section {
+                Toggle(isOn: $showMapTab) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Map tab")
+                        Text("See everything as a mind map you can arrange.")
+                            .font(.caption)
+                            .foregroundStyle(Theme.muted)
+                    }
+                }
+                .tint(Theme.teal)
+            } header: {
+                SectionLabel(title: "Tabs")
             }
-            .nogListStyle()
-            .navigationTitle("Control Panel")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
-            }
+            .listRowBackground(Theme.glass)
+            appearance
+            storage
+            system
+            #if DEBUG
+            developer
+            #endif
         }
+        .nogListStyle()
+        .navigationTitle("Advanced")
     }
 
     // MARK: Appearance
@@ -86,28 +267,6 @@ struct SettingsView: View {
         } footer: {
             Text("Auto follows your iPhone's Light/Dark setting.")
         }
-    }
-
-    // MARK: Calm
-
-    private var calm: some View {
-        Section {
-            Toggle(isOn: $lowStimulation) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Low stimulation")
-                    Text("No glow, background haze, motion or vibration.")
-                        .font(.caption)
-                        .foregroundStyle(Theme.muted)
-                }
-            }
-            Toggle("Vibration", isOn: $haptics)
-                .disabled(lowStimulation)
-        } header: {
-            SectionLabel(title: "Calm")
-        } footer: {
-            Text("Nog also follows Reduce Motion, Reduce Transparency and Increase Contrast in Settings → Accessibility.")
-        }
-        .listRowBackground(Theme.glass)
     }
 
     private func setIcon(_ choice: AppIconChoice) async {
@@ -164,36 +323,19 @@ struct SettingsView: View {
 
     private var behavior: some View {
         Section {
-            Button {
-                showSilence = true
-            } label: {
-                row("Silence", "bell.slash", Theme.pink,
-                    detail: silencedUntil == 0 || Date(timeIntervalSinceReferenceDate: silencedUntil) <= .now
-                        ? "off"
-                        : NogSettings.silenceLabel(Date(timeIntervalSinceReferenceDate: silencedUntil))
-                            .replacingOccurrences(of: "Silenced ", with: ""))
-            }
-            .foregroundStyle(.primary)
-            .sheet(isPresented: $showSilence) { SilenceSheet() }
             NavigationLink {
                 NogsAlertsPage()
             } label: {
-                row("Nogs & alerts", "bell.badge", Theme.pink,
-                    detail: NogSettings.defaultProfile?.label.lowercased() ?? "custom")
+                row("Timing & alerts", "bell.badge", Theme.pink, detail: nil)
             }
             NavigationLink {
                 DoingPage()
             } label: {
-                row("Nogitivity", "play.circle", Theme.blue,
+                row("Doing (the ▶︎ timer)", "play.circle", Theme.blue,
                     detail: timebox > 0 ? "\(IntervalFormat.amount(timebox)) box" : "open-ended")
             }
-            NavigationLink {
-                HowToNogView()
-            } label: {
-                row("How to Nog", "questionmark.circle", Theme.violet, detail: nil)
-            }
         } header: {
-            SectionLabel(title: "Behavior")
+            SectionLabel(title: "Reminders")
         }
         .listRowBackground(Theme.glass)
     }
@@ -233,21 +375,6 @@ struct SettingsView: View {
         .listRowBackground(Theme.glass)
     }
     #endif
-
-    // MARK: About
-
-    private var about: some View {
-        Section {
-            LabeledContent("Version",
-                           value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—")
-                .font(.nogMeta)
-        } header: {
-            SectionLabel(title: "About")
-        } footer: {
-            Text("Nog. Capture it, it nogs you until it's done.")
-        }
-        .listRowBackground(Theme.glass)
-    }
 
     private func row(_ title: String, _ icon: String, _ tint: Color, detail: String?) -> some View {
         HStack {
@@ -295,56 +422,26 @@ private struct NogsAlertsPage: View {
     var body: some View {
         List {
             Section {
-                ForEach(NogProfile.allCases) { profile in
-                    Button {
-                        firstDelay = profile.firstDelayMinutes
-                        repeatMinutes = profile.repeatMinutes
-                        curve = profile.curve
-                        profileEscalate = profile.escalateAfter ?? -1
-                        profileSilent = profile.silent
-                    } label: {
-                        ProfileCard(profile: profile, isSelected: currentProfile == profile)
-                    }
-                    .buttonStyle(.plain)
+                // Daily starts a day out, so the range stretches to fit.
+                Stepper(value: $firstDelay, in: 0...max(240, firstDelay), step: 1) {
+                    LabeledContent("First reminder", value: firstDelay == 0 ? "Right away" : "after \(IntervalFormat.amount(firstDelay))")
                 }
-                DisclosureGroup(isExpanded: $showFineTune) {
-                    // Daily starts a day out, so the range stretches to fit.
-                    Stepper(value: $firstDelay, in: 0...max(240, firstDelay), step: 1) {
-                        LabeledContent("First nog", value: firstDelay == 0 ? "Right away" : "after \(IntervalFormat.amount(firstDelay))")
+                Picker("Then", selection: $repeatMinutes) {
+                    ForEach(Array(Set(NogSettings.repeatChoices + [repeatMinutes])).sorted(), id: \.self) {
+                        Text(NogSettings.repeatLabel($0)).tag($0)
                     }
-                    Picker("Then", selection: $repeatMinutes) {
-                        ForEach(Array(Set(NogSettings.repeatChoices + [repeatMinutes])).sorted(), id: \.self) {
-                            Text(NogSettings.repeatLabel($0)).tag($0)
-                        }
-                    }
-                    if repeatMinutes > 0 {
-                        Picker("Style", selection: $curve) {
-                            ForEach(RepeatCurve.allCases, id: \.self) { Text($0.label).tag($0) }
-                        }
-                        .pickerStyle(.segmented)
-                    }
-                    Toggle("Silent (no sound, not Time Sensitive)", isOn: $profileSilent)
-                } label: {
-                    Text(currentProfile == nil ? "Fine-tune · Custom" : "Fine-tune")
                 }
+                if repeatMinutes > 0 {
+                    Picker("Style", selection: $curve) {
+                        ForEach(RepeatCurve.allCases, id: \.self) { Text($0.label).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                }
+                Toggle("Silent (no sound, not Time Sensitive)", isOn: $profileSilent)
             } header: {
-                SectionLabel(title: "Default profile")
+                SectionLabel(title: currentProfile == nil ? "Default rhythm · Custom" : "Default rhythm · \(currentProfile!.label)")
             } footer: {
-                Text("New captures use this profile unless you type one, like !hush, !building or !unhinged (the first three letters are enough). Each item can switch profile on its own page.")
-            }
-            .listRowBackground(Theme.glass)
-
-            Section {
-                Toggle("Quiet hours", isOn: $quietEnabled)
-                if quietEnabled {
-                    TimeTunerRow(title: "From", minutes: $quietStart)
-                    TimeTunerRow(title: "Until", minutes: $quietEnd)
-                    Toggle("All weekend", isOn: $quietWeekends)
-                }
-            } header: {
-                SectionLabel(title: "Quiet hours")
-            } footer: {
-                Text("Nothing nogs or rings during quiet hours. Anything due waits until they end.")
+                Text("Changing these makes your default a custom rhythm. Pick a style on the main Settings page to go back.")
             }
             .listRowBackground(Theme.glass)
 
@@ -381,7 +478,7 @@ private struct NogsAlertsPage: View {
         }
         .nogListStyle()
         .tint(Theme.pink)
-        .navigationTitle("Nogs & alerts")
+        .navigationTitle("Timing & alerts")
         .onDisappear {
             NotificationScheduler.shared.registerCategories()
             Task { await store.syncNow() }
@@ -448,7 +545,7 @@ private struct DoingPage: View {
                     ForEach(NogSettings.timeboxChoices, id: \.self) { Text(IntervalFormat.amount($0)).tag($0) }
                 }
             } header: {
-                SectionLabel(title: "▶︎ Nogitivity")
+                SectionLabel(title: "▶︎ Doing")
             } footer: {
                 Text("Nog suggests, in order: the item's estimate, how long similar items took you (same #tag or project), a short box if it's urgent or overdue, then this default.")
             }
@@ -471,7 +568,7 @@ private struct DoingPage: View {
             .tint(Theme.blue)
         }
         .nogListStyle()
-        .navigationTitle("Nogitivity")
+        .navigationTitle("Doing")
         .onDisappear { Task { await store.syncNow() } }
     }
 }

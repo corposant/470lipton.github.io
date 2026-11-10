@@ -1,11 +1,11 @@
 import AppIntents
 import SwiftUI
 
-/// The List tab (carton icon): everything, sorted by time, or as an outline of what's
-/// inside what.
+/// The List tab (carton icon): everything, sorted by time; the week ahead, as a calendar
+/// would show it; or an outline of what's inside what.
 struct NogsTab: View {
     enum Mode: String, CaseIterable {
-        case byTime = "By time", outline = "Outline"
+        case byTime = "By time", week = "Week", outline = "Outline"
     }
 
     @Environment(Router.self) private var router
@@ -34,6 +34,10 @@ struct NogsTab: View {
                 // A search always lists matching items, whichever view you're on.
                 if mode == .outline && search.isEmpty {
                     OutlineView(showNogged: outlineShowsDone)
+                } else if mode == .week && search.isEmpty {
+                    TimelineView(MinuteSchedule.forItems(store.items.values)) { context in
+                        AgendaList(now: context.date)
+                    }
                 } else {
                     TimelineView(MinuteSchedule.forItems(store.items.values)) { context in
                         ItemListView(now: context.date, search: search, selection: $selection)
@@ -79,7 +83,7 @@ struct NogsTab: View {
                             }
                             .accessibilityLabel(outlineShowsDone ? "Hide done items" : "Show done items")
                         }
-                    } else {
+                    } else if mode == .byTime {
                         ToolbarItem(placement: .topBarTrailing) {
                             Button("Select") {
                                 withNogAnimation(.snappy) { editMode = .active }

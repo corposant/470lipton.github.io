@@ -682,11 +682,12 @@ private struct CaptureParentPicker: View {
     }
 }
 
-/// New Nog · Agenda · List · Map. Each tab has its own accent colour (see TabTheme.swift).
+/// New Nog · List, plus Map when it's switched on. Each tab has its own accent colour (see TabTheme.swift).
 struct RootView: View {
     @Environment(Router.self) private var router
     @Environment(ItemStore.self) private var store
     @AppStorage(OnboardingView.doneKey) private var onboardingDone = false
+    @AppStorage(AppTab.mapTabKey) private var showMapTab = false
     /// First-run setup waits until we know this isn't an existing install.
     @State private var checkedFirstRun = false
 
@@ -696,15 +697,18 @@ struct RootView: View {
             Tab(AppTab.capture.title, systemImage: "plus.circle", value: AppTab.capture) {
                 CaptureHomeView().nogTabTheme(.capture)
             }
-            Tab(AppTab.agenda.title, systemImage: "calendar", value: AppTab.agenda) {
-                AgendaView().nogTabTheme(.agenda)
-            }
             Tab(AppTab.nogs.title, image: "TabCarton", value: AppTab.nogs) {
                 NogsTab().nogTabTheme(.nogs)
             }
-            Tab(AppTab.map.title, systemImage: "point.3.connected.trianglepath.dotted", value: AppTab.map) {
-                MapTab().nogTabTheme(.map)
+            // The mind map is for people who want it: Settings › Advanced › Map tab.
+            if showMapTab {
+                Tab(AppTab.map.title, systemImage: "point.3.connected.trianglepath.dotted", value: AppTab.map) {
+                    MapTab().nogTabTheme(.map)
+                }
             }
+        }
+        .onChange(of: showMapTab) { _, on in
+            if !on && router.tab == .map { router.tab = .nogs }
         }
         // The selected tab lights up in that tab's colour.
         .tint(router.tab.accent)
@@ -721,7 +725,11 @@ struct RootView: View {
             if !onboardingDone {
                 await store.refresh()
                 let status = await NotificationScheduler.shared.authorizationStatus()
-                if !store.items.isEmpty || status != .notDetermined { onboardingDone = true }
+                if !store.items.isEmpty || status != .notDetermined {
+                    onboardingDone = true
+                    // Existing installs keep the Map tab they had.
+                    if UserDefaults.standard.object(forKey: AppTab.mapTabKey) == nil { showMapTab = true }
+                }
             }
             checkedFirstRun = true
         }
