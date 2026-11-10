@@ -187,3 +187,115 @@ final class MapPlacementTests: XCTestCase {
         XCTAssertFalse(doc.unsettled.contains(b.id))
     }
 }
+
+final class MapWandTests: XCTestCase {
+    private func sampleItems() -> [Item] {
+        let base = Date(timeIntervalSince1970: 1_800_000_000)
+        var items: [Item] = []
+        var trip = Item(title: "Trip"); trip.tags = ["travel"]; trip.created = base
+        items.append(trip)
+        for i in 0..<5 {
+            var s = Item(title: "Step \(i)"); s.parentID = trip.id; s.created = base.addingTimeInterval(Double(i + 1))
+            items.append(s)
+        }
+        var bank = Item(title: "Bank"); bank.tags = ["admin"]; bank.created = base.addingTimeInterval(10)
+        items.append(bank)
+        for i in 0..<4 {
+            var n = Item(title: "Note \(i)"); n.created = base.addingTimeInterval(Double(20 + i))
+            if i == 0 { n.body = "see [[Trip]]" }
+            items.append(n)
+        }
+        return items
+    }
+
+    func testEveryStylePlacesEverythingWithoutOverlapAndIsDeterministic() {
+        let items = sampleItems()
+        for style in MapLayout.Style.allCases {
+            let p = MapLayout.layOut(style, items: items)
+            XCTAssertEqual(p.count, items.count, "\(style)")
+            XCTAssertFalse(MapLayout.hasOverlap(p), "\(style) overlaps")
+            XCTAssertEqual(p, MapLayout.layOut(style, items: items), "\(style) not deterministic")
+            XCTAssertTrue(p.values.allSatisfy { $0.x.isFinite && $0.y.isFinite }, "\(style)")
+        }
+    }
+
+    func testMindMapPutsTheOnlyProjectInTheMiddleWithBranchesOnBothSides() {
+        let items = sampleItems().filter { $0.title == "Trip" || $0.title.hasPrefix("Step") }
+        let p = MapLayout.mindMap(items)
+        let trip = items.first { $0.title == "Trip" }!
+        XCTAssertEqual(p[trip.id], .zero)
+        let xs = items.filter { $0.id != trip.id }.compactMap { p[$0.id]?.x }
+        XCTAssertTrue(xs.contains { $0 > 0 } && xs.contains { $0 < 0 })
+    }
+
+    func testTidyUpLeavesPinnedChipsAndFixesOverlaps() {
+        let items = sampleItems()
+        var positions: [UUID: CGPoint] = [:]
+        // Everything piled up in one spot, a step far from its folder.
+        for item in items { positions[item.id] = CGPoint(x: 0, y: 0) }
+        let trip = items[0], stray = items[1], pinnedNote = items.last!
+        positions[stray.id] = CGPoint(x: 3000, y: 0)
+        positions[pinnedNote.id] = CGPoint(x: 5, y: 5)
+
+        let out = MapLayout.cleanup(items, positions: positions, pinned: [pinnedNote.id])
+        XCTAssertEqual(out[pinnedNote.id], CGPoint(x: 5, y: 5))
+        XCTAssertFalse(MapLayout.hasOverlap(out))
+        let t = out[trip.id]!, s = out[stray.id]!
+        XCTAssertLessThan(hypot(s.x - t.x, s.y - t.y), 1000) // came back near its folder
+    }
+
+    func testTidyUpOnATidyMapMovesNothing() {
+        let items = sampleItems()
+        let tidy = MapLayout.cleanup(items, positions: MapLayout.arrange(items), pinned: [])
+        XCTAssertEqual(MapLayout.cleanup(items, positions: tidy, pinned: []), tidy)
+    }
+
+    func testZonesThatShareNothingArePulledApart() {
+        let a = (0..<3).map { _ in UUID() }, b = (0..<3).map { _ in UUID() }
+        var p: [UUID: CGPoint] = [:]
+        for (i, id) in a.enumerated() { p[id] = CGPoint(x: CGFloat(i) * 230, y: 0) }
+        for (i, id) in b.enumerated() { p[id] = CGPoint(x: CGFloat(i) * 230 + 100, y: 90) }
+        let out = MapLayout.separateZones(p, zones: [Set(a), Set(b)])
+        func box(_ ids: [UUID]) -> CGRect {
+            ids.reduce(CGRect.null) { r, id in
+                let q = out[id]!
+                return r.union(CGRect(x: q.x - 98, y: q.y - 29, width: 196, height: 58))
+            }
+        }
+        XCTAssertFalse(box(a).insetBy(dx: -30, dy: -30).intersects(box(b).insetBy(dx: -30, dy: -30)))
+    }
+}
+
+final class MapFlockTests: XCTestCase {
+    func testFlightLandsExactlyOnTheTargets() {
+        let a = UUID(), b = UUID(), still = UUID()
+        let start = [a: CGPoint(x: 0, y: 0), b: CGPoint(x: 10, y: 0), still: CGPoint(x: 500, y: 500)]
+        let targets = [a: CGPoint(x: 800, y: 300), b: CGPoint(x: -600, y: 200), still: CGPoint(x: 500, y: 500)]
+        var flock = MapFlock(from: start, to: targets, groups: [a: 0, b: 0])
+        XCTAssertNil(flock.positions[still]) // not moving, not flying
+        var steps = 0
+        flock.step(1.0 / 60)
+        XCTAssertNotEqual(flock.positions[a], start[a])
+        while !flock.isFinished && steps < 1000 {
+            flock.step(1.0 / 60)
+            steps += 1
+        }
+        XCTAssertTrue(flock.isFinished)
+        XCTAssertEqual(flock.positions[a]!.x, 800, accuracy: 0.001)
+        XCTAssertEqual(flock.positions[a]!.y, 300, accuracy: 0.001)
+        XCTAssertEqual(flock.positions[b]!.x, -600, accuracy: 0.001)
+        XCTAssertEqual(flock.positions[b]!.y, 200, accuracy: 0.001)
+    }
+
+    func testSameStepsSameFlight() {
+        let ids = (0..<8).map { _ in UUID() }
+        var start: [UUID: CGPoint] = [:], targets: [UUID: CGPoint] = [:]
+        for (i, id) in ids.enumerated() {
+            start[id] = CGPoint(x: CGFloat(i) * 5, y: 0)
+            targets[id] = CGPoint(x: CGFloat(i) * 220, y: 300)
+        }
+        var one = MapFlock(from: start, to: targets), two = MapFlock(from: start, to: targets)
+        for _ in 0..<20 { one.step(1.0 / 60); two.step(1.0 / 60) }
+        XCTAssertEqual(one.positions, two.positions)
+    }
+}

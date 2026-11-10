@@ -107,10 +107,17 @@ struct MapChange {
         let parent: UUID?
     }
 
+    /// A chip you placed by hand is pinned: Tidy up leaves it where it is.
+    struct Pin {
+        let id: UUID
+        let pinned: Bool
+    }
+
     var spots: [Spot] = []
     var filings: [Filing] = []
+    var pins: [Pin] = []
 
-    var isEmpty: Bool { spots.isEmpty && filings.isEmpty }
+    var isEmpty: Bool { spots.isEmpty && filings.isEmpty && pins.isEmpty }
 }
 
 /// Each chip's size as drawn (unzoomed), so layouts can use real sizes: long titles
