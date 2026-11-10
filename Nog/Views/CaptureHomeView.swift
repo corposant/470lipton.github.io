@@ -198,7 +198,7 @@ struct CaptureHomeView: View {
 
     private var hint: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Type anything, like \"call mum tomorrow 9am #family !2h\". Dates, #tags and !shortcuts work anywhere in the line, or use the tray below.")
+            Text("Type anything, like \"call mom tomorrow 9am #family !2h\". Dates, #tags and !shortcuts work anywhere in the line, or use the tray below.")
                 .font(.callout)
                 .foregroundStyle(Theme.muted)
             Button { showHowTo = true } label: {

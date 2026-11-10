@@ -31,13 +31,13 @@ struct HowToNogView: View {
                 ("!alarm", "rings like a real alarm"),
             ])
             section("Tags", [
-                ("call mum #family", "adds the tag family"),
+                ("call mom #family", "adds the tag family"),
                 ("taxes #money #admin", "as many tags as you like"),
             ])
             section("Timebox", [
                 ("~30m  ~2h", "how long it'll take, for the ▶︎ timebox"),
             ])
-            section("Mix them", footer: "Anything Nog understands is taken out of the title.", [
+            section("Mix them", [
                 ("pay rent fri 9am !1d #money ~10m", "“pay rent”, Friday 9 AM, daily, #money, 10 min"),
             ])
         }
