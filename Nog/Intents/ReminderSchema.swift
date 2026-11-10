@@ -88,7 +88,8 @@ extension ReminderEntity {
         dueDate = item.reminder.map {
             Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: $0.start)
         }
-        recurrence = item.reminder?.repeatMinutes.map(Calendar.RecurrenceRule.nog(minutes:))
+        recurrence = item.recurrence.map(Calendar.RecurrenceRule.nog(_:))
+            ?? item.reminder?.repeatMinutes.map(Calendar.RecurrenceRule.nog(minutes:))
         isCompleted = item.status == .done
         isFlagged = item.reminder?.alarm
         creationDate = item.created
@@ -245,7 +246,11 @@ struct CreateReminderIntent {
             reminder.start = date
             item.reminder = reminder
         }
-        if let minutes = recurrence?.nogMinutes {
+        if let comesBack = recurrence?.nogRecurrence(from: item.reminder?.start ?? .now) {
+            // Daily, weekly, monthly, yearly: a to-do that comes back after it's done.
+            if item.reminder == nil { item.reminder = NogSettings.defaultReminderFromNow }
+            item.recurrence = comesBack
+        } else if let minutes = recurrence?.nogMinutes {
             var reminder = item.reminder ?? NogSettings.defaultReminderFromNow
             reminder.repeatMinutes = minutes
             item.reminder = reminder
@@ -290,7 +295,11 @@ struct UpdateReminderIntent {
             item.reminder = reminder
             if item.status == .done { item.status = .open }
         }
-        if let minutes = recurrence?.nogMinutes {
+        if let comesBack = recurrence?.nogRecurrence(from: item.reminder?.start ?? .now) {
+            // Daily, weekly, monthly, yearly: a to-do that comes back after it's done.
+            if item.reminder == nil { item.reminder = NogSettings.defaultReminderFromNow }
+            item.recurrence = comesBack
+        } else if let minutes = recurrence?.nogMinutes {
             var reminder = item.reminder ?? NogSettings.defaultReminderFromNow
             reminder.repeatMinutes = minutes
             item.reminder = reminder
@@ -387,6 +396,29 @@ extension Calendar.RecurrenceRule {
         if minutes % 1440 == 0 { return .init(calendar: .current, frequency: .daily, interval: minutes / 1440) }
         if minutes % 60 == 0 { return .init(calendar: .current, frequency: .hourly, interval: minutes / 60) }
         return .init(calendar: .current, frequency: .minutely, interval: minutes)
+    }
+
+    /// A Recurrence for Nog's own rules.
+    static func nog(_ recurrence: Recurrence) -> Calendar.RecurrenceRule {
+        switch recurrence.rule {
+        case .days(let n): .init(calendar: .current, frequency: .daily, interval: n)
+        case .weeks(let n): .init(calendar: .current, frequency: .weekly, interval: n)
+        case .weekdays: .init(calendar: .current, frequency: .weekly, interval: 1)
+        case .monthly: .init(calendar: .current, frequency: .monthly, interval: 1)
+        case .yearly: .init(calendar: .current, frequency: .yearly, interval: 1)
+        }
+    }
+
+    /// Day-or-longer rules become a Nog that comes back after it's done.
+    func nogRecurrence(from start: Date) -> Recurrence? {
+        let c = Calendar.current.dateComponents([.month, .day], from: start)
+        switch frequency {
+        case .daily: return Recurrence(.days(max(1, interval)))
+        case .weekly: return Recurrence(.weeks(max(1, interval)))
+        case .monthly: return Recurrence(.monthly(day: c.day ?? 1))
+        case .yearly: return Recurrence(.yearly(month: c.month ?? 1, day: c.day ?? 1))
+        default: return nil
+        }
     }
 
     var nogMinutes: Int? {

@@ -271,6 +271,7 @@ final class ItemStore {
         var item = Item(title: parsed.title, created: now, updated: now,
                         parentID: parent, tags: parsed.tags, reminder: reminder)
         item.estimateMinutes = parsed.estimateMinutes
+        item.recurrence = reminder == nil ? nil : parsed.recurrence
         insert(item)
         return item
     }
@@ -295,6 +296,16 @@ final class ItemStore {
         guard old != newValue else { return }
         var item = newValue
         let now = Date.now
+        // A recurring item isn't finished by Done: it moves on to its next time.
+        var rolledTo: Date?
+        if old.status != .done && item.status == .done, let next = nextOccurrence(of: item, now: now) {
+            item.reminder?.start = next
+            item.status = .open
+            item.lastDone = now
+            item.timesDone += 1
+            clearDelivered(item.id)
+            rolledTo = next
+        }
         if old.status != .done && item.status == .done {
             item.completed = now
             clearDelivered(item.id)
@@ -314,6 +325,7 @@ final class ItemStore {
         item.updated = now
         items[item.id] = item
         write(item)
+        if let rolledTo { resetSubItems(of: item.id, for: rolledTo) }
         if let r = item.reminder, r.passesDown,
            old.reminder.map({ !$0.sameRhythm(as: r) || !$0.passesDown }) ?? true {
             passRhythmDown(from: item)
@@ -349,6 +361,37 @@ final class ItemStore {
         var item = item
         item.reminder = reminder
         return item
+    }
+
+    // MARK: - Recurring items
+
+    /// Where a recurring item goes when it's done (nil for a one-off, or one with no reminder).
+    private func nextOccurrence(of item: Item, now: Date) -> Date? {
+        guard let recurrence = item.recurrence, let start = item.reminder?.start else { return nil }
+        return recurrence.next(after: now, from: start)
+    }
+
+    /// Skips this time of a recurring item without counting it as done.
+    func skipOccurrence(_ id: UUID) {
+        guard var item = items[id], let next = nextOccurrence(of: item, now: .now) else { return }
+        if item.isDoing { item.status = .open }
+        item.reminder?.start = next
+        clearDelivered(id)
+        update(item)
+        resetSubItems(of: id, for: next)
+    }
+
+    /// A routine's steps (sub-nogs) come back with it: finished ones reopen for next time.
+    private func resetSubItems(of id: UUID, for next: Date) {
+        for child in children(of: id) where child.status == .done {
+            var reopened = child
+            reopened.status = .open
+            if var r = reopened.reminder, r.start < next {
+                r.start = next
+                reopened.reminder = r
+            }
+            update(reopened)
+        }
     }
 
     // MARK: - Rhythm flowing down

@@ -14,6 +14,8 @@ struct CaptureResult: Equatable {
     var reminder: Reminder?
     var tags: [String]
     var estimateMinutes: Int? = nil
+    /// Comes back after it's done ("every morning", "every Tuesday").
+    var recurrence: Recurrence? = nil
 }
 
 /// Turns a quick-capture line into an item. Everything gets the default nog
@@ -33,7 +35,8 @@ struct CaptureResult: Equatable {
 ///   `~30m` `~2h`        how long it'll take (the ▶︎ timebox)
 ///
 /// …and plain English, via `NaturalDateParser`: "lunch next Tues",
-/// "call mom tomorrow at 3", "pills every 4 hours", "stretch in 20 min".
+/// "call mom tomorrow at 3", "pills every 4 hours", "stretch in 20 min",
+/// and things that come back after they're done: "meds every morning", "bins every tue".
 enum CaptureParser {
     static func parse(_ text: String, defaults: CaptureDefaults, now: Date,
                       calendar: Calendar = .current) -> CaptureResult {
@@ -113,7 +116,8 @@ enum CaptureParser {
         let reminder = Reminder(start: start, repeatMinutes: repeatMinutes,
                                 curve: curveOverride ?? effective.curve, alarm: alarm, silent: effective.silent,
                                 escalateAfter: effective.escalateAfter)
-        return CaptureResult(title: title, reminder: reminder, tags: tags, estimateMinutes: estimate)
+        return CaptureResult(title: title, reminder: reminder, tags: tags, estimateMinutes: estimate,
+                             recurrence: natural.recurrence)
     }
 
     /// "8m" → 8, "2h" → 120, "1d" → 1440, "15" → 15. Anything else → nil.

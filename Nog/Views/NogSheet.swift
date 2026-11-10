@@ -89,6 +89,7 @@ struct NogSheet: View {
                         familySection(item, reminder)
                         profileSection(reminder)
                         whenSection(reminder)
+                        comesBackSection(item, reminder)
                         rhythmSection(reminder)
                         snoozeSection(item, reminder)
                         previewSection(item, reminder)
@@ -266,6 +267,37 @@ struct NogSheet: View {
     nonisolated static func nextMark(after now: Date) -> Date {
         let step: TimeInterval = 300
         return Date(timeIntervalSinceReferenceDate: (now.timeIntervalSinceReferenceDate / step).rounded(.up) * step)
+    }
+
+    // MARK: Comes back
+
+    /// A to-do that returns after it's done: meds every morning, bins every Tuesday.
+    private func comesBackSection(_ item: Item, _ reminder: Reminder) -> some View {
+        let choices = Recurrence.choices(for: reminder.start)
+        let all = item.recurrence.map { current in choices.contains(current) ? choices : [current] + choices } ?? choices
+        return Section {
+            Picker("Comes back", selection: Binding<Recurrence?>(
+                get: { item.recurrence },
+                set: { new in
+                    guard var current = store.items[id] else { return }
+                    current.recurrence = new
+                    if let new, var r = current.reminder {
+                        r.start = new.aligned(r.start)
+                        current.reminder = r
+                    }
+                    store.update(current)
+                })) {
+                Text("Never (a one-off)").tag(Recurrence?.none)
+                ForEach(all, id: \.self) { Text($0.summary.prefix(1).uppercased() + $0.summary.dropFirst()).tag(Recurrence?.some($0)) }
+            }
+        } header: {
+            SectionLabel(title: "Comes back")
+        } footer: {
+            Text(item.recurrence == nil
+                 ? "For things you do again and again, like meds or bins. Done moves it to its next time instead of finishing it."
+                 : "Done moves it to its next time, and its sub-nogs reopen for then.")
+        }
+        .listRowBackground(Theme.glass)
     }
 
     // MARK: Rhythm

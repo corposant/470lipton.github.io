@@ -342,6 +342,7 @@ struct ItemRow: View {
         let childCount = counts.total
         var parts: [String] = []
         if let text = reminderText { parts.append(text) }
+        if let recurrence = item.recurrence, item.status != .done { parts.append("comes back \(recurrence.summary)") }
         if item.isDoing, let end = item.timeboxEnd {
             parts.append(end > now ? "Doing · \(end.formatted(.relative(presentation: .named))) left" : "Doing · time's up")
         } else if item.isDoing {

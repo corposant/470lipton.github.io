@@ -13,6 +13,11 @@ struct Item: Identifiable, Hashable {
     var parentID: UUID?
     var tags: [String] = []
     var reminder: Reminder?
+    /// Comes back after it's done: every day, every Tuesday, monthly… (nil = a one-off).
+    var recurrence: Recurrence?
+    /// A recurring item: when it was last done, and how many times.
+    var lastDone: Date?
+    var timesDone: Int = 0
 
     // Doing (the ▶︎ button)
     /// When the current working session started (status == .doing).
@@ -73,6 +78,7 @@ extension Item {
     /// estimates and time spent don't change any nog.
     func changesNogs(from other: Item) -> Bool {
         title != other.title || status != other.status || reminder != other.reminder
+            || recurrence != other.recurrence
             || doingSince != other.doingSince || timeboxMinutes != other.timeboxMinutes
     }
 }
@@ -113,7 +119,7 @@ enum ItemStatus: String, CaseIterable, Hashable {
         switch self {
         case .open: "Open"
         case .doing: "Doing"
-        case .someday: "Dream"
+        case .someday: "Someday"
         case .done: "Done"
         }
     }
@@ -123,7 +129,7 @@ enum ItemStatus: String, CaseIterable, Hashable {
         switch self {
         case .open: "Nogging"
         case .doing: "Paused while you're doing it"
-        case .someday: "Paused while it's a dream"
+        case .someday: "Paused while it's parked in Someday"
         case .done: "Paused, it's done"
         }
     }

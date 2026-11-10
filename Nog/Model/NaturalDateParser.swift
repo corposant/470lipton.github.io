@@ -4,8 +4,11 @@ import Foundation
 struct ParsedWhen: Equatable {
     /// When to start nogging, if the text said so.
     var start: Date?
-    /// From "every 10 min", "every 2 hours", "hourly", "daily"…
+    /// How often to nog until done, from "every 10 min", "every 2 hours", "hourly"…
     var repeatMinutes: Int?
+    /// A to-do that comes back after it's done, from "every day", "every Tuesday",
+    /// "every weekday", "every 2 weeks", "monthly", "daily"…
+    var recurrence: Recurrence? = nil
     /// The text with the date/time words taken out.
     var title: String
 }
@@ -15,6 +18,7 @@ struct ParsedWhen: Equatable {
 ///   lunch next Tues · call mom tomorrow at 3 · pay rent friday
 ///   dentist nov 12 at 2:30pm · stretch in 20 min · report by eod
 ///   pills every 4 hours · standup tomorrow morning · dinner with Sam on sat
+///   meds every morning · bins every tue · rent every month on the 1st · gym every mon and thu
 ///
 /// Meal words (breakfast, lunch, dinner…) stay in the title but set the time
 /// when a day is given: "lunch next Tues" → "Lunch", Tuesday 12:00.
@@ -39,6 +43,10 @@ private struct Parser {
     var defaultTime: (h: Int, m: Int)? // tonight, eod, weekend…
     var relative: TimeInterval?
     var repeatMinutes: Int?
+    var rule: Recurrence.Rule?
+    /// "every month" with no day: the day comes from the start (0 = not set yet).
+    var monthlyFromStart = false
+    var yearlyFromStart = false
     var pmContext = false
 
     init(text: String, now: Date, calendar: Calendar) {
@@ -94,13 +102,32 @@ private struct Parser {
             start = date
         }
 
+        // A recurring item starts on its first matching day, at the time given (9 AM by default).
+        var recurrence: Recurrence?
+        if var rule {
+            var first = start ?? {
+                let nine = calendar.date(bySettingHour: 9, minute: 0, second: 0, of: now) ?? now
+                return nine > now ? nine : calendar.date(byAdding: .day, value: 1, to: nine) ?? nine
+            }()
+            if monthlyFromStart { rule = .monthly(day: calendar.component(.day, from: first)) }
+            if yearlyFromStart {
+                let c = calendar.dateComponents([.month, .day], from: first)
+                rule = .yearly(month: c.month ?? 1, day: c.day ?? 1)
+            }
+            let r = Recurrence(rule)
+            first = r.aligned(first, calendar: calendar)
+            if first <= now { first = r.next(after: now, from: first, calendar: calendar) }
+            start = first
+            recurrence = r
+        }
+
         let titleWords = raw.indices.filter { !consumed[$0] }.map { raw[$0] }
         var title = titleWords.joined(separator: " ")
             .trimmingCharacters(in: CharacterSet(charactersIn: " ,;-–—"))
         if let first = title.first, first.isLowercase {
             title = first.uppercased() + title.dropFirst()
         }
-        return ParsedWhen(start: start, repeatMinutes: repeatMinutes, title: title)
+        return ParsedWhen(start: start, repeatMinutes: repeatMinutes, recurrence: recurrence, title: title)
     }
 
     // MARK: - Matching
@@ -112,7 +139,15 @@ private struct Parser {
 
         // Repeats
         if w == "every" || w == "each" { return matchEvery(at: i) }
-        if let m = ["hourly": 60, "daily": 1440, "weekly": 10080][w] { repeatMinutes = m; return 1 }
+        if w == "hourly" { repeatMinutes = 60; return 1 }
+        switch w {
+        case "daily", "everyday", "nightly": rule = .days(1); if w == "nightly" { partOfDay = (20, 0); pmContext = true }; return 1
+        case "weekly": rule = .weeks(1); return 1
+        case "fortnightly", "biweekly": rule = .weeks(2); return 1
+        case "monthly": rule = .monthly(day: 0); monthlyFromStart = true; return 1 + monthDay(at: i + 1)
+        case "yearly", "annually": rule = .yearly(month: 0, day: 0); yearlyFromStart = true; return 1
+        default: break
+        }
 
         // Relative: in 20 min, in an hour, in half an hour, in 2h, in the morning
         if w == "in" { return matchIn(at: i) }
@@ -159,18 +194,71 @@ private struct Parser {
 
     mutating func matchEvery(at i: Int) -> Int? {
         guard let next = word(i + 1) else { return nil }
+        // Things that come back: every morning, every weekday, every tue and thu, every month…
+        if let pod = Parser.partOfDay(next) {
+            rule = .days(1); partOfDay = pod; if pod.h >= 12 { pmContext = true }; return 2
+        }
+        switch next {
+        case "weekday", "weekdays": rule = .weekdays(Recurrence.weekdaysOnly); return 2
+        case "weekend", "weekends": rule = .weekdays(Recurrence.weekendOnly); defaultTime = (10, 0); return 2
+        case "month": rule = .monthly(day: 0); monthlyFromStart = true; return 2 + monthDay(at: i + 2)
+        case "year": rule = .yearly(month: 0, day: 0); yearlyFromStart = true; return 2
+        default: break
+        }
+        if Parser.weekday(next) != nil {
+            // "every mon", "every tue and thu", "every mon, wed, fri"
+            var days = Set<Int>()
+            var k = i + 1
+            var length = 1
+            while let w = word(k) {
+                if let wd = Parser.weekday(w) {
+                    days.insert(wd); k += 1; length = k - i
+                } else if w == "and" || w == "&" || w.isEmpty, word(k + 1).flatMap(Parser.weekday) != nil {
+                    k += 1
+                } else {
+                    break
+                }
+            }
+            rule = .weekdays(days); return length
+        }
         if next == "other", let unit = word(i + 2).flatMap(Parser.unitMinutes) {
-            repeatMinutes = unit * 2; return 3
+            setEvery(minutes: unit * 2); return 3
         }
         if next == "half", word(i + 2) == "hour" || word(i + 2) == "an" && word(i + 3) == "hour" {
             repeatMinutes = 30; return word(i + 2) == "an" ? 4 : 3
         }
-        if let compact = Parser.compactDuration(next) { repeatMinutes = compact; return 2 }
-        if let unit = Parser.unitMinutes(next) { repeatMinutes = unit; return 2 }
+        if let compact = Parser.compactDuration(next) { setEvery(minutes: compact); return 2 }
+        if let unit = Parser.unitMinutes(next) { setEvery(minutes: unit); return 2 }
         if let n = Parser.number(next), let unit = word(i + 2).flatMap(Parser.unitMinutes) {
-            repeatMinutes = n * unit; return 3
+            setEvery(minutes: n * unit); return 3
+        }
+        if let n = Parser.number(next), ["months", "month"].contains(word(i + 2) ?? ""), n == 1 {
+            rule = .monthly(day: 0); monthlyFromStart = true; return 3
         }
         return nil
+    }
+
+    /// Under a day is how often to nog ("every 4 hours"); whole days or weeks mean
+    /// the item comes back ("every 2 days", "every week").
+    mutating func setEvery(minutes: Int) {
+        if minutes >= 10_080, minutes % 10_080 == 0 {
+            rule = .weeks(minutes / 10_080)
+        } else if minutes >= 1440, minutes % 1440 == 0 {
+            rule = .days(minutes / 1440)
+        } else {
+            repeatMinutes = minutes
+        }
+    }
+
+    /// "… on the 1st" / "on the 15th" after "every month": sets the day, returns words used.
+    mutating func monthDay(at i: Int) -> Int {
+        var k = i
+        if word(k) == "on" { k += 1 }
+        if word(k) == "the" { k += 1 }
+        guard let w = word(k), w.count <= 4,
+              w.contains(where: \.isLetter), let d = Parser.dayOfMonth(w) else { return 0 }
+        rule = .monthly(day: d); monthlyFromStart = false
+        return k - i + 1
     }
 
     mutating func matchIn(at i: Int) -> Int? {

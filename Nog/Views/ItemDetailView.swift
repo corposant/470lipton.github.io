@@ -556,6 +556,7 @@ private struct NextNogCard: View {
                         .foregroundStyle(Theme.blue)
                 }
                 rhythmRow(reminder.repeatSummary.map { "then \($0)" } ?? "once, no repeat", reminder: reminder)
+                if let recurrence = item.recurrence { recurrenceRow(recurrence, start: reminder.start) }
             } else if let reminder = item.reminder {
                 // A one-off that has already gone off.
                 PanelLabel(text: "Nogged you at \(reminder.start.formatted(date: .omitted, time: .shortened))")
@@ -601,6 +602,25 @@ private struct NextNogCard: View {
         }
         .buttonStyle(.plain)
         .accessibilityHint("Change how this nogs you")
+    }
+
+    /// "Comes back every day at 8:00 AM · done 12 times", and a way to skip this time.
+    private func recurrenceRow(_ recurrence: Recurrence, start: Date) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Image(systemName: "repeat").foregroundStyle(Theme.violet)
+                .accessibilityHidden(true)
+            Text("Comes back \(recurrence.summary(at: start))"
+                 + (item.timesDone > 0 ? " · done \(item.timesDone) time\(item.timesDone == 1 ? "" : "s")" : ""))
+                .foregroundStyle(Color(white: 0.85))
+            Spacer()
+            Button("Skip this time") { store.skipOccurrence(item.id) }
+                .font(.subheadline)
+                .buttonStyle(.borderless)
+                .tint(Theme.violet)
+                .accessibilityHint("Moves it to its next time without counting it as done")
+        }
+        .font(.subheadline)
+        .nogLineLimit(2, accessibilityLines: 4)
     }
 
     /// "in 12 min", "in 3h 5m", "now"

@@ -277,6 +277,7 @@ struct CaptureHomeView: View {
         var parts = [result.title.isEmpty ? "Untitled" : result.title]
         if let r = result.reminder {
             parts.append(Self.whenText(r.start, now: .now))
+            if let rec = result.recurrence { parts.append("repeats \(rec.summary)") }
             parts.append(r.alarm ? "alarm" : "nog")
             if let every = r.repeatSummary { parts.append(every) }
         } else {
