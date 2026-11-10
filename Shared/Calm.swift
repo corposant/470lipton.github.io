@@ -37,6 +37,22 @@ func withNogAnimation<Result>(_ animation: Animation? = .default, _ body: () thr
     try withAnimation(Calm.animation(animation), body)
 }
 
+/// `withAnimation(_:completionCriteria:_:completion:)` that respects Reduce Motion and
+/// Low stimulation. With motion reduced the change happens at once and `completion`
+/// runs straight after it.
+@MainActor @discardableResult
+func withNogAnimation<Result>(_ animation: Animation? = .default,
+                              completionCriteria: AnimationCompletionCriteria = .logicallyComplete,
+                              _ body: () throws -> Result,
+                              completion: @escaping () -> Void) rethrows -> Result {
+    guard let animation = Calm.animation(animation) else {
+        let result = try body()
+        completion()
+        return result
+    }
+    return try withAnimation(animation, completionCriteria: completionCriteria, body, completion: completion)
+}
+
 extension AnyTransition {
     /// `transition`, or a plain fade when motion should be reduced.
     @MainActor static func nog(_ transition: AnyTransition) -> AnyTransition {
