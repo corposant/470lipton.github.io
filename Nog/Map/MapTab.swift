@@ -893,6 +893,10 @@ struct MindMapView: View {
                 }
                 if !isScribbling && !locked {
                     wandButton(graph, size: size)
+                    mapButton(MapLayout.Style.grid.icon, tint: Theme.violet, label: "Grid", id: "grid") {
+                        rearrange(graph, style: .grid, in: size)
+                    }
+                    .accessibilityHint("Puts every nog in even rows and columns. Undo puts them back.")
                 }
                 if !isScribbling {
                     mapButton("viewfinder", tint: Theme.blue, label: "Fit to screen", id: "fit") {
@@ -918,7 +922,7 @@ struct MindMapView: View {
                 Text("Fixes overlaps, keeps your layout")
             }
             Section("Lay out as") {
-                ForEach(MapLayout.Style.allCases) { style in
+                ForEach(MapLayout.Style.wand) { style in
                     Button {
                         rearrange(graph, style: style, in: size)
                     } label: {
@@ -942,7 +946,7 @@ struct MindMapView: View {
         .accessibilityLabel("Tidy up")
         .accessibilityHint("Fixes overlaps and keeps your layout. More layouts in the actions.")
         .accessibilityActions {
-            ForEach(MapLayout.Style.allCases) { style in
+            ForEach(MapLayout.Style.wand) { style in
                 Button("Lay out as \(style.title)") { rearrange(graph, style: style, in: size) }
             }
         }
@@ -1075,7 +1079,7 @@ struct MindMapView: View {
         guard #available(iOS 27.1, *) else { return 0 }
         let regions = (geo.reservedRegions(kind: .division) + geo.reservedRegions(kind: .occlusion)).filter(\.isActive)
         guard !regions.isEmpty else { return 0 }
-        let stackHeight: CGFloat = 4 * 46 + 3 * 10 + 32
+        let stackHeight: CGFloat = 5 * 46 + 4 * 10 + 32
         let w = geo.size.width, h = geo.size.height
         var lift: CGFloat = 0
         for region in regions {

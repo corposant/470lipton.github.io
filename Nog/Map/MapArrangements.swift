@@ -11,6 +11,9 @@ extension MapLayout {
 
         var id: String { rawValue }
 
+        /// The layouts in the wand's menu. Grid has its own button.
+        static let wand: [Style] = [.stars, .mindMap, .byTag, .web]
+
         var title: String {
             switch self {
             case .stars: "Stars"
