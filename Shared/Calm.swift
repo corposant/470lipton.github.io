@@ -76,8 +76,11 @@ private struct CalmGlow: ViewModifier {
     let color: Color
     let radius: CGFloat
 
+    /// Each glow is a blurred offscreen pass, so they're left off in Low Power Mode too.
+    private var isOff: Bool { lowStimulation || ProcessInfo.processInfo.isLowPowerModeEnabled }
+
     func body(content: Content) -> some View {
-        content.shadow(color: lowStimulation ? .clear : color, radius: radius)
+        content.shadow(color: isOff ? .clear : color, radius: isOff ? 0 : radius)
     }
 }
 
