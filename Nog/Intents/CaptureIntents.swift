@@ -1,6 +1,6 @@
 import AppIntents
 
-/// "Hey Siri, Nog me" (or "Capture in Nog") → Siri asks what → item saved with the default nog.
+/// "Hey Siri, take a Nog" (or "Capture in Nog") → Siri asks what → item saved with the default nog.
 /// Also usable from Shortcuts and the Action Button without opening the app.
 struct CaptureIntent: AppIntent {
     static var title: LocalizedStringResource = "Capture"
@@ -64,7 +64,8 @@ struct StartItemIntent: LiveActivityIntent {
 struct NogShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
         AppShortcut(intent: CaptureIntent(),
-                    phrases: ["Capture in \(.applicationName)", "\(.applicationName) me", "\(.applicationName) this",
+                    phrases: ["Take a \(.applicationName)", "Take a new \(.applicationName)",
+                              "Capture in \(.applicationName)", "\(.applicationName) me", "\(.applicationName) this",
                               "Add to \(.applicationName)", "New \(.applicationName)"],
                     shortTitle: "Capture",
                     systemImageName: "plus.circle")
