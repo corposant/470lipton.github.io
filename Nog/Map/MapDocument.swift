@@ -38,7 +38,10 @@ final class MapDocument {
     }
 
     var positions: [UUID: CGPoint] = [:]
-    var drawing = PKDrawing()
+    private(set) var drawing = PKDrawing()
+    /// Goes up whenever `drawing` changes, so views can tell cheaply (comparing
+    /// two drawings means comparing every stroke).
+    private(set) var drawingVersion = 0
 
     @ObservationIgnored private weak var store: ItemStore?
     @ObservationIgnored private var saveTask: Task<Void, Never>?
@@ -64,6 +67,7 @@ final class MapDocument {
         positions = loaded
         if let drawingData = stored.drawing, let decoded = try? PKDrawing(data: drawingData) {
             drawing = decoded
+            drawingVersion += 1
         }
     }
 
@@ -111,6 +115,31 @@ final class MapDocument {
         save()
     }
 
+    /// Applies an undoable change and returns the change that undoes it.
+    @discardableResult
+    func apply(_ change: MapChange, store: ItemStore) -> MapChange {
+        var inverse = MapChange()
+        for spot in change.spots {
+            inverse.spots.append(.init(id: spot.id, position: positions[spot.id]))
+            positions[spot.id] = spot.position
+        }
+        if !change.filings.isEmpty {
+            store.batch {
+                for filing in change.filings {
+                    guard var item = store.items[filing.id] else { continue }
+                    inverse.filings.append(.init(id: filing.id, parent: item.parentID))
+                    item.parentID = filing.parent
+                    store.update(item)
+                }
+            }
+        }
+        if !change.spots.isEmpty { save() }
+        // Undo in the reverse order, in case one change touched the same item twice.
+        inverse.spots.reverse()
+        inverse.filings.reverse()
+        return inverse
+    }
+
     func move(_ id: UUID, to point: CGPoint) {
         positions[id] = point
         save()
@@ -119,6 +148,7 @@ final class MapDocument {
     func setDrawing(_ newDrawing: PKDrawing) {
         guard newDrawing != drawing else { return }
         drawing = newDrawing
+        drawingVersion += 1
         save()
     }
 }
