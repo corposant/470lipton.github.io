@@ -1,0 +1,350 @@
+import CoreGraphics
+import Foundation
+
+/// The wand: a gentle tidy-up that keeps your arrangement, and whole-page layouts.
+/// All pure and deterministic (same items, same picture), so they run off the main
+/// thread and can be unit-tested.
+extension MapLayout {
+    /// Whole-page layouts in the wand's menu.
+    enum Style: String, CaseIterable, Identifiable {
+        case stars, mindMap, byTag, web
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .stars: "Stars"
+            case .mindMap: "Mind map"
+            case .byTag: "By tag"
+            case .web: "Web"
+            }
+        }
+
+        var icon: String {
+            switch self {
+            case .stars: "sun.max"
+            case .mindMap: "point.3.connected.trianglepath.dotted"
+            case .byTag: "tag"
+            case .web: "circle.hexagongrid"
+            }
+        }
+
+        /// One line for the menu and VoiceOver.
+        var detail: String {
+            switch self {
+            case .stars: "Each project in a ring of its sub-items"
+            case .mindMap: "Branches out to the left and right"
+            case .byTag: "Tidy blocks, one per set of tags"
+            case .web: "Linked notes pulled close together"
+            }
+        }
+    }
+
+    /// Lays out every item on the page in `style`. Centred on (0, 0).
+    static func layOut(_ style: Style, items: [Item], sizes: [UUID: CGSize] = [:]) -> [UUID: CGPoint] {
+        switch style {
+        case .stars: arrange(items, sizes: sizes)
+        case .mindMap: mindMap(items, sizes: sizes)
+        case .byTag: byTag(items, sizes: sizes)
+        case .web: web(items, sizes: sizes)
+        }
+    }
+
+    // MARK: Tidy up
+
+    /// Fixes the mess without rearranging: sub-items that wandered off come back near
+    /// their folder, overlaps are pushed apart, and tag zones that don't share items are
+    /// moved off each other. Pinned chips never move, and on a map that's already tidy
+    /// nothing moves at all. Items without a position are left out.
+    static func cleanup(_ items: [Item], positions: [UUID: CGPoint], pinned: Set<UUID>,
+                        sizes: [UUID: CGSize] = [:], zones: [Set<UUID>] = []) -> [UUID: CGPoint] {
+        let ids = Set(items.map(\.id))
+        var p = positions.filter { ids.contains($0.key) }
+        let fixed = pinned.intersection(p.keys)
+        let byID = Dictionary(items.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+
+        // 1. Sub-items that wandered off come back within reach of their folder, keeping
+        //    their direction. Parents first, so a pulled folder brings its own along.
+        func depth(_ item: Item) -> Int {
+            var d = 0
+            var current = item.parentID
+            var seen: Set<UUID> = [item.id]
+            while let id = current, let parent = byID[id], seen.insert(id).inserted {
+                d += 1
+                current = parent.parentID
+            }
+            return d
+        }
+        let reach = pitch.width * 2.2
+        let ordered = items.sorted { (depth($0), $0.created) < (depth($1), $1.created) }
+        for item in ordered {
+            guard !fixed.contains(item.id), let parent = item.parentID, parent != item.id,
+                  let c = p[item.id], let f = p[parent] else { continue }
+            let dx = c.x - f.x, dy = c.y - f.y
+            let d = (dx * dx + dy * dy).squareRoot()
+            guard d > reach else { continue }
+            let k = pitch.width * 1.2 / d
+            p[item.id] = CGPoint(x: f.x + dx * k, y: f.y + dy * k)
+        }
+
+        // 2. No overlaps, then zones apart, then overlaps again (moving a zone can cause some).
+        p = separate(p, sizes: sizes, fixed: fixed)
+        p = separateZones(p, zones: zones, sizes: sizes, fixed: fixed)
+        return separate(p, sizes: sizes, fixed: fixed)
+    }
+
+    /// Moves tag zones that share no items off each other, the smaller zone moving.
+    /// Zones that share items (or nest) can't be pulled apart, so they're left alone.
+    static func separateZones(_ positions: [UUID: CGPoint], zones: [Set<UUID>], sizes: [UUID: CGSize] = [:],
+                              fixed: Set<UUID> = [], iterations: Int = 40) -> [UUID: CGPoint] {
+        var p = positions
+        // Zone borders sit about this far outside their chips (see MindMapView.zoneInset).
+        let pad = CGSize(width: 36, height: 44)
+        func rect(_ members: Set<UUID>) -> CGRect? {
+            var r = CGRect.null
+            for id in members {
+                guard let q = p[id] else { continue }
+                let s = size(id, in: sizes)
+                r = r.union(CGRect(x: q.x - s.width / 2, y: q.y - s.height / 2, width: s.width, height: s.height))
+            }
+            return r.isNull ? nil : r.insetBy(dx: -pad.width, dy: -pad.height)
+        }
+        let sorted = zones.filter { !$0.isEmpty }
+            .sorted { ($0.count, $0.map(\.uuidString).min() ?? "") < ($1.count, $1.map(\.uuidString).min() ?? "") }
+        for _ in 0..<iterations {
+            var moved = false
+            for i in sorted.indices {
+                for j in sorted.indices where j > i {
+                    let small = sorted[i], big = sorted[j]
+                    guard small.isDisjoint(with: big),
+                          let rs = rect(small), let rb = rect(big) else { continue }
+                    let overlap = rs.intersection(rb)
+                    guard !overlap.isNull, overlap.width > 0.5, overlap.height > 0.5 else { continue }
+                    let movable = small.subtracting(fixed).filter { p[$0] != nil }
+                    guard !movable.isEmpty else { continue }
+                    var shift = CGVector.zero
+                    if overlap.width < overlap.height {
+                        shift.dx = (rs.midX <= rb.midX ? -1 : 1) * (overlap.width + 1)
+                    } else {
+                        shift.dy = (rs.midY <= rb.midY ? -1 : 1) * (overlap.height + 1)
+                    }
+                    for id in movable {
+                        if let q = p[id] { p[id] = CGPoint(x: q.x + shift.dx, y: q.y + shift.dy) }
+                    }
+                    moved = true
+                }
+            }
+            if !moved { break }
+        }
+        return p
+    }
+
+    // MARK: Mind map
+
+    /// A classic mind map: with one project, it sits in the middle and its branches
+    /// spread left and right; with several, the projects themselves split left and right.
+    /// Each branch is a tidy tree: leaves stacked, every folder centred on its sub-items.
+    static func mindMap(_ items: [Item], sizes: [UUID: CGSize] = [:]) -> [UUID: CGPoint] {
+        guard !items.isEmpty else { return [:] }
+        let ids = Set(items.map(\.id))
+        var children: [UUID: [Item]] = [:]
+        for item in items {
+            if let parent = item.parentID, parent != item.id, ids.contains(parent) {
+                children[parent, default: []].append(item)
+            }
+        }
+        for key in children.keys { children[key]?.sort { $0.created < $1.created } }
+        var roots = items.filter { $0.parentID.map { !ids.contains($0) } ?? true }
+            .sorted { $0.created < $1.created }
+        if roots.isEmpty, let first = items.min(by: { $0.created < $1.created }) { roots = [first] } // all in a loop
+
+        let rowGap = spacing.height, columnGap: CGFloat = 64
+        func size(_ id: UUID) -> CGSize { MapLayout.size(id, in: sizes) }
+
+        var leafCounts: [UUID: Int] = [:]
+        func leaves(_ id: UUID, depth: Int = 0) -> Int {
+            if let n = leafCounts[id] { return n }
+            guard depth < 32 else { return 1 }
+            let kids = children[id] ?? []
+            let n = kids.isEmpty ? 1 : kids.reduce(0) { $0 + leaves($1.id, depth: depth + 1) }
+            leafCounts[id] = n
+            return n
+        }
+
+        var out: [UUID: CGPoint] = [:]
+        var visited = Set<UUID>()
+
+        /// Lays out one side; `cursor` is the next free y on that side.
+        func place(_ id: UUID, x: CGFloat, direction: CGFloat, cursor: inout CGFloat) {
+            visited.insert(id)
+            let s = size(id)
+            let kids = (children[id] ?? []).filter { !visited.contains($0.id) }
+            guard !kids.isEmpty else {
+                out[id] = CGPoint(x: x, y: cursor + s.height / 2)
+                cursor += s.height + rowGap
+                return
+            }
+            var placedKids: [UUID] = []
+            for kid in kids where !visited.contains(kid.id) {
+                let kx = x + direction * (s.width / 2 + columnGap + size(kid.id).width / 2)
+                place(kid.id, x: kx, direction: direction, cursor: &cursor)
+                placedKids.append(kid.id)
+            }
+            let ys = placedKids.compactMap { out[$0]?.y }
+            let y = ys.isEmpty ? cursor + s.height / 2 : (ys.min()! + ys.max()!) / 2
+            out[id] = CGPoint(x: x, y: y)
+            cursor = max(cursor, y + s.height / 2 + rowGap)
+        }
+
+        /// Splits branches between the two sides so each has about the same number of leaves.
+        func split(_ branches: [Item]) -> (right: [Item], left: [Item]) {
+            let total = branches.reduce(0) { $0 + leaves($1.id) }
+            var right: [Item] = [], left: [Item] = []
+            var count = 0
+            for branch in branches {
+                if count * 2 < total { right.append(branch); count += leaves(branch.id) } else { left.append(branch) }
+            }
+            return (right, left)
+        }
+
+        /// Shifts a side so it's centred on y = 0.
+        func centre(_ side: [UUID]) {
+            let ys = side.compactMap { out[$0]?.y }
+            guard let lo = ys.min(), let hi = ys.max() else { return }
+            let mid = (lo + hi) / 2
+            for id in side { if let q = out[id] { out[id] = CGPoint(x: q.x, y: q.y - mid) } }
+        }
+
+        func layOutSide(_ branches: [Item], startX: (Item) -> CGFloat, direction: CGFloat) {
+            var cursor: CGFloat = 0
+            let before = Set(out.keys)
+            for branch in branches where !visited.contains(branch.id) {
+                place(branch.id, x: startX(branch), direction: direction, cursor: &cursor)
+            }
+            centre(Array(Set(out.keys).subtracting(before)))
+        }
+
+        if roots.count == 1, let root = roots.first {
+            // One project: it's the centre.
+            visited.insert(root.id)
+            out[root.id] = .zero
+            let rw = size(root.id).width
+            let sides = split(children[root.id] ?? [])
+            layOutSide(sides.right, startX: { rw / 2 + columnGap + size($0.id).width / 2 }, direction: 1)
+            layOutSide(sides.left, startX: { -(rw / 2 + columnGap + size($0.id).width / 2) }, direction: -1)
+        } else {
+            let sides = split(roots)
+            layOutSide(sides.right, startX: { columnGap / 2 + size($0.id).width / 2 }, direction: 1)
+            layOutSide(sides.left, startX: { -(columnGap / 2 + size($0.id).width / 2) }, direction: -1)
+        }
+
+        // Anything caught in a parent loop goes in a column underneath.
+        var y = (out.values.map(\.y).max() ?? 0) + pitch.height * 1.5
+        for item in items where out[item.id] == nil {
+            out[item.id] = CGPoint(x: 0, y: y)
+            y += size(item.id).height + rowGap
+        }
+        return separate(out, sizes: sizes)
+    }
+
+    // MARK: By tag
+
+    /// One tidy block per set of tags (sub-items count as having their folder's tags),
+    /// each block a small grid in outline order, blocks packed in rows.
+    static func byTag(_ items: [Item], sizes: [UUID: CGSize] = [:]) -> [UUID: CGPoint] {
+        guard !items.isEmpty else { return [:] }
+        let byID = Dictionary(items.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+        func key(_ item: Item) -> String {
+            let tags = MapPage.effectiveTags(item, in: byID).sorted()
+            return tags.isEmpty ? "\u{FFFF}" : tags.joined(separator: "+")
+        }
+        var groups: [String: [Item]] = [:]
+        for item in items { groups[key(item), default: []].append(item) }
+
+        var blocks: [[UUID: CGPoint]] = []
+        for k in groups.keys.sorted() {
+            let members = outlineOrder(groups[k] ?? [])
+            let columns = max(1, min(4, Int(Double(members.count).squareRoot().rounded(.up))))
+            let width = (members.map { size($0.id, in: sizes).width }.max() ?? cell.width) + spacing.width
+            var block: [UUID: CGPoint] = [:]
+            var y: CGFloat = 0
+            var previous: CGFloat?
+            for start in stride(from: 0, to: members.count, by: columns) {
+                let row = members[start..<min(start + columns, members.count)]
+                let height = row.map { size($0.id, in: sizes).height }.max() ?? cell.height
+                if let previous { y += previous / 2 + spacing.height + height / 2 }
+                for (i, item) in row.enumerated() { block[item.id] = CGPoint(x: CGFloat(i) * width, y: y) }
+                previous = height
+            }
+            blocks.append(block)
+        }
+        return separate(packBlocks(blocks, sizes: sizes, maxWidth: 1500, gap: 180), sizes: sizes)
+    }
+
+    /// Folders followed by what's inside them, oldest first at each level.
+    static func outlineOrder(_ items: [Item]) -> [Item] {
+        let ids = Set(items.map(\.id))
+        var children: [UUID: [Item]] = [:]
+        for item in items {
+            if let parent = item.parentID, parent != item.id, ids.contains(parent) {
+                children[parent, default: []].append(item)
+            }
+        }
+        var out: [Item] = []
+        var seen = Set<UUID>()
+        func visit(_ item: Item) {
+            guard seen.insert(item.id).inserted else { return }
+            out.append(item)
+            for kid in (children[item.id] ?? []).sorted(by: { $0.created < $1.created }) { visit(kid) }
+        }
+        let roots = items.filter { $0.parentID.map { !ids.contains($0) } ?? true }.sorted { $0.created < $1.created }
+        for root in roots { visit(root) }
+        for item in items.sorted(by: { $0.created < $1.created }) { visit(item) } // loops
+        return out
+    }
+
+    // MARK: Web
+
+    /// A force layout: everything joined by a line (folder or [[link]]) pulls together,
+    /// everything else pushes apart. Good for notes with lots of links.
+    static func web(_ items: [Item], sizes: [UUID: CGSize] = [:]) -> [UUID: CGPoint] {
+        guard !items.isEmpty else { return [:] }
+        let ids = items.sorted { $0.created < $1.created }.map(\.id)
+        let p = layout(ids: ids, edges: edges(for: items), pinned: [:], spacing: 250, iterations: 300)
+        return separate(centred(p), sizes: sizes)
+    }
+
+    // MARK: Helpers
+
+    /// Shelf-packs blocks (each in its own coordinates) into rows, then centres the lot on (0, 0).
+    static func packBlocks(_ blocks: [[UUID: CGPoint]], sizes: [UUID: CGSize], maxWidth: CGFloat, gap: CGFloat) -> [UUID: CGPoint] {
+        func bounds(_ block: [UUID: CGPoint]) -> CGRect {
+            var r = CGRect.null
+            for (id, q) in block {
+                let s = size(id, in: sizes)
+                r = r.union(CGRect(x: q.x - s.width / 2, y: q.y - s.height / 2, width: s.width, height: s.height))
+            }
+            return r.isNull ? .zero : r
+        }
+        var out: [UUID: CGPoint] = [:]
+        var x: CGFloat = 0, y: CGFloat = 0, rowHeight: CGFloat = 0
+        for block in blocks where !block.isEmpty {
+            let b = bounds(block)
+            if x > 0 && x + b.width > maxWidth {
+                x = 0; y += rowHeight + gap; rowHeight = 0
+            }
+            for (id, q) in block { out[id] = CGPoint(x: q.x - b.minX + x, y: q.y - b.minY + y) }
+            x += b.width + gap
+            rowHeight = max(rowHeight, b.height)
+        }
+        return centred(out)
+    }
+
+    /// The same picture, moved so its middle is (0, 0).
+    static func centred(_ p: [UUID: CGPoint]) -> [UUID: CGPoint] {
+        let xs = p.values.map(\.x), ys = p.values.map(\.y)
+        guard let minX = xs.min(), let maxX = xs.max(), let minY = ys.min(), let maxY = ys.max() else { return p }
+        let cx = (minX + maxX) / 2, cy = (minY + maxY) / 2
+        return p.mapValues { CGPoint(x: $0.x - cx, y: $0.y - cy) }
+    }
+}

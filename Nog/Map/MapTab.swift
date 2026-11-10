@@ -91,6 +91,8 @@ struct MindMapView: View {
     @State private var cache = MapGraphCache()
     /// Each chip's real size, for layouts.
     @State private var chipSizes = ChipSizes()
+    /// Chips flocking to new spots after the wand (nil when nothing is moving).
+    @State private var flight: MapFlight?
     /// The chip that's lit up, with its details card showing.
     @State private var selection: UUID?
     /// The selected chip while it's being dragged, and where it is now (map coordinates).
@@ -203,11 +205,13 @@ struct MindMapView: View {
                                 parent: store.parent(of: selected),
                                 progress: graph.progress[selected.id],
                                 links: linkedTitles(selected, graph: graph),
+                                isPinned: doc.pinned.contains(selected.id),
                                 locked: locked,
                                 canFile: graph.items.count > 1,
                                 open: { router.push(selected.id) },
                                 takeOut: { takeOut(selected.id) },
                                 fileInto: { filing = selected.id },
+                                unpin: { unpin(selected.id) },
                                 close: { select(nil, in: geo.size) })
                         .frame(maxWidth: 460, alignment: .leading)
                         // Leave the button column on the right clear.
@@ -338,6 +342,7 @@ struct MindMapView: View {
         }
         let links = linkedTitles(item, graph: graph).count
         if links > 0 { parts.append(links == 1 ? "1 link" : "\(links) links") }
+        if doc.pinned.contains(item.id) { parts.append("pinned") }
         return parts.joined(separator: ", ")
     }
 
@@ -355,6 +360,9 @@ struct MindMapView: View {
             }
             if let parent = store.parent(of: item) {
                 Button("Take out of \(Self.name(parent))") { takeOut(item.id) }
+            }
+            if doc.pinned.contains(item.id) {
+                Button("Unpin") { unpin(item.id) }
             }
         }
         if item.status == .open || item.status == .someday {
@@ -380,6 +388,7 @@ struct MindMapView: View {
     /// Where a chip is, or nil while it hasn't been placed yet.
     private func placedPoint(_ id: UUID) -> CGPoint? {
         if let drag, drag.id == id { return drag.point }
+        if let flight, let p = flight.positions[id] { return p }
         return doc.positions[id]
     }
 
@@ -519,6 +528,7 @@ struct MindMapView: View {
     private func nodeDrag(_ id: UUID, graph: MapGraph) -> some Gesture {
         DragGesture(minimumDistance: 4)
             .onChanged { value in
+                if flight != nil { landNow() }
                 let start = doc.positions[id] ?? .zero
                 let p = CGPoint(x: start.x + value.translation.width / scale,
                                 y: start.y + value.translation.height / scale)
@@ -550,7 +560,8 @@ struct MindMapView: View {
             file(id, into: folder)
         } else {
             guard let item = store.items[id] else { return }
-            perform(MapChange(spots: [.init(id: id, position: drag.point)]), message: "Moved “\(Self.name(item))”")
+            perform(MapChange(spots: [.init(id: id, position: drag.point)], pins: [.init(id: id, pinned: true)]),
+                    message: "Moved “\(Self.name(item))”")
         }
     }
 
@@ -580,8 +591,15 @@ struct MindMapView: View {
         // Settle just beside the folder rather than on top of it.
         let anchor = doc.positions[folder] ?? doc.positions[id] ?? .zero
         perform(MapChange(spots: [.init(id: id, position: CGPoint(x: anchor.x + 40, y: anchor.y + 70))],
-                          filings: [.init(id: id, parent: folder)]),
+                          filings: [.init(id: id, parent: folder)],
+                          pins: [.init(id: id, pinned: true)]),
                 message: "Filed “\(Self.name(item))” in “\(Self.name(target))”")
+    }
+
+    /// Lets Tidy up move a chip you placed by hand.
+    private func unpin(_ id: UUID) {
+        guard let item = store.items[id] else { return }
+        perform(MapChange(pins: [.init(id: id, pinned: false)]), message: "Unpinned “\(Self.name(item))”")
     }
 
     private func takeOut(_ id: UUID) {
@@ -594,7 +612,8 @@ struct MindMapView: View {
     private func nudge(_ id: UUID, dx: CGFloat, dy: CGFloat, direction: String) {
         guard let item = store.items[id], let p = doc.positions[id] else { return }
         let to = CGPoint(x: p.x + dx * MapLayout.pitch.width / 2, y: p.y + dy * MapLayout.pitch.height)
-        perform(MapChange(spots: [.init(id: id, position: to)]), message: "Moved “\(Self.name(item))” \(direction)")
+        perform(MapChange(spots: [.init(id: id, position: to)], pins: [.init(id: id, pinned: true)]),
+                message: "Moved “\(Self.name(item))” \(direction)")
     }
 
     // MARK: Undo
@@ -769,9 +788,7 @@ struct MindMapView: View {
                     }
                 }
                 if !isScribbling && !locked {
-                    mapButton("wand.and.stars", tint: Theme.violet, label: "Arrange", id: "arrange") {
-                        arrange(graph, in: size)
-                    }
+                    wandButton(graph, size: size)
                 }
                 if !isScribbling {
                     mapButton("viewfinder", tint: Theme.blue, label: "Fit to screen", id: "fit") {
@@ -785,20 +802,123 @@ struct MindMapView: View {
         .padding(16)
     }
 
-    /// Re-arranges the page (undoable).
-    private func arrange(_ graph: MapGraph, in size: CGSize) {
-        let items = graph.items, ids = graph.ids, sizes = chipSizes.sizes
-        Task {
-            // Worked out off the main thread, so a big map doesn't freeze the screen.
-            let arranged = await Task.detached(priority: .userInitiated) {
-                MapLayout.arrange(items, sizes: sizes)
-            }.value
-            withNogAnimation(.snappy) {
-                perform(MapChange(spots: ids.map { .init(id: $0, position: arranged[$0]) }),
-                        message: "Arranged the map")
-                fit(items, in: size)
+    // MARK: The wand
+
+    /// Tap: tidy up (keeps your arrangement). Touch and hold: a whole-page layout.
+    private func wandButton(_ graph: MapGraph, size: CGSize) -> some View {
+        Menu {
+            Button {
+                rearrange(graph, style: nil, in: size)
+            } label: {
+                Label("Tidy up", systemImage: "wand.and.stars")
+                Text("Fixes overlaps, keeps your layout")
+            }
+            Section("Lay out as") {
+                ForEach(MapLayout.Style.allCases) { style in
+                    Button {
+                        rearrange(graph, style: style, in: size)
+                    } label: {
+                        Label(style.title, systemImage: style.icon)
+                        Text(style.detail)
+                    }
+                }
+            }
+        } label: {
+            Image(systemName: "wand.and.stars")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(Theme.violet)
+                .frame(width: 46, height: 46)
+                .contentShape(Circle())
+        } primaryAction: {
+            rearrange(graph, style: nil, in: size)
+        }
+        .buttonStyle(.plain)
+        .glassEffect(.regular.interactive(), in: .circle)
+        .glassEffectID("arrange", in: glassSpace)
+        .accessibilityLabel("Tidy up")
+        .accessibilityHint("Fixes overlaps and keeps your layout. More layouts in the actions.")
+        .accessibilityActions {
+            ForEach(MapLayout.Style.allCases) { style in
+                Button("Lay out as \(style.title)") { rearrange(graph, style: style, in: size) }
             }
         }
+    }
+
+    /// Tidies up (style nil) or lays the page out in a style, then flocks the chips there.
+    /// Undoable. A full layout also unpins everything, since it moves everything.
+    private func rearrange(_ graph: MapGraph, style: MapLayout.Style?, in size: CGSize) {
+        landNow()
+        let items = graph.items, ids = graph.ids, sizes = chipSizes.sizes
+        let current = doc.positions, pinned = doc.pinned
+        let zones = graph.zoneGroups.map(\.members)
+        Task {
+            // Worked out off the main thread, so a big map doesn't freeze the screen.
+            let targets = await Task.detached(priority: .userInitiated) { () -> [UUID: CGPoint] in
+                if let style { return MapLayout.layOut(style, items: items, sizes: sizes) }
+                return MapLayout.cleanup(items, positions: current, pinned: pinned, sizes: sizes, zones: zones)
+            }.value
+            let moved = ids.filter { id in
+                guard let to = targets[id] else { return false }
+                guard let from = current[id] else { return true }
+                return abs(to.x - from.x) > 0.5 || abs(to.y - from.y) > 0.5
+            }
+            var change = MapChange(spots: moved.map { .init(id: $0, position: targets[$0]) })
+            if style != nil {
+                change.pins = ids.filter { pinned.contains($0) }.map { .init(id: $0, pinned: false) }
+            }
+            guard !change.isEmpty else {
+                withNogAnimation(.snappy) { notice = nil }
+                AccessibilityNotification.Announcement("Already tidy").post()
+                return
+            }
+            let message: String
+            if let style {
+                message = "Laid out as \(style.title)"
+            } else {
+                message = moved.count == 1 ? "Tidied up 1 chip" : "Tidied up \(moved.count) chips"
+            }
+            perform(change, message: message)
+            fly(from: current, to: targets, ids: moved, graph: graph)
+            if style != nil {
+                withNogAnimation(.smooth(duration: 0.8)) { fit(items, in: size) }
+            }
+        }
+    }
+
+    /// Flocks the chips that moved from where they were to their new spots.
+    /// With Reduce Motion or Low stimulation they simply appear there.
+    private func fly(from start: [UUID: CGPoint], to targets: [UUID: CGPoint], ids: [UUID], graph: MapGraph) {
+        flight?.cancel()
+        flight = nil
+        guard !Calm.reducesMotion, !ids.isEmpty else { return }
+        // Chips of the same project (or, if loose, the same tag zone) travel as a group.
+        var groups: [UUID: Int] = [:]
+        var rootIndex: [UUID: Int] = [:]
+        for id in ids {
+            var root = id
+            var hops = 0
+            while let parent = graph.byID[root]?.parentID, graph.byID[parent] != nil, hops < 32 {
+                root = parent
+                hops += 1
+            }
+            if rootIndex[root] == nil { rootIndex[root] = rootIndex.count }
+            groups[id] = rootIndex[root]
+        }
+        let moving = Set(ids)
+        let flock = MapFlock(from: start, to: targets.filter { moving.contains($0.key) }, groups: groups,
+                             sizes: chipSizes.sizes)
+        guard !flock.isEmpty else { return }
+        let run = MapFlight(flock)
+        flight = run
+        run.start {
+            if flight === run { flight = nil }
+        }
+    }
+
+    /// Stops any flight: chips jump to where they're going.
+    private func landNow() {
+        flight?.cancel()
+        flight = nil
     }
 
     /// Gives new items a spot (off the main thread), then centres the map if it hasn't been yet.
@@ -923,11 +1043,14 @@ private struct MapInfoCard: View {
     let progress: (done: Int, total: Int)
     /// Titles of items joined to this one by a [[link]].
     let links: [String]
+    /// Placed by hand: Tidy up leaves it alone.
+    let isPinned: Bool
     let locked: Bool
     let canFile: Bool
     let open: () -> Void
     let takeOut: () -> Void
     let fileInto: () -> Void
+    let unpin: () -> Void
     let close: () -> Void
     @Environment(ItemStore.self) private var store
 
@@ -971,6 +1094,9 @@ private struct MapInfoCard: View {
                 if !links.isEmpty {
                     fact("link", "Linked to \(links.joined(separator: ", "))")
                 }
+                if isPinned {
+                    fact("pin", "Pinned here: Tidy up leaves it alone")
+                }
                 if !item.tags.isEmpty {
                     HStack(spacing: 6) {
                         ForEach(item.tags.prefix(4), id: \.self) { tag in
@@ -1002,7 +1128,7 @@ private struct MapInfoCard: View {
                     .buttonStyle(.bordered)
                 }
 
-                if !locked && (canFile || parent != nil) || item.status == .open || item.status == .someday {
+                if !locked && (canFile || parent != nil || isPinned) || item.status == .open || item.status == .someday {
                     Menu {
                         if item.status == .open || item.status == .someday {
                             Button { store.start(item.id) } label: {
@@ -1017,6 +1143,11 @@ private struct MapInfoCard: View {
                         if !locked, let parent {
                             Button(action: takeOut) {
                                 Label("Take out of “\(parent.title)”", systemImage: "folder.badge.minus")
+                            }
+                        }
+                        if !locked && isPinned {
+                            Button(action: unpin) {
+                                Label("Unpin", systemImage: "pin.slash")
                             }
                         }
                     } label: {

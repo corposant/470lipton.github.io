@@ -54,9 +54,14 @@ final class MapDocument {
     /// Bumped by each placement, so a slower, older one is dropped.
     @ObservationIgnored private var generation = 0
 
+    /// Chips placed by hand. Tidy up never moves them (full layouts do, and unpin them).
+    private(set) var pinned: Set<UUID> = []
+
     private struct Stored: Codable {
         var positions: [String: [Double]]
         var drawing: Data?
+        /// Missing in files from before pinning existed.
+        var pinned: [String]?
     }
 
     @ObservationIgnored private var loadedFolder: URL?
@@ -89,6 +94,8 @@ final class MapDocument {
         }
         if loaded != positions { positions = loaded }
         unsettled = unsettled.filter { loaded[$0] != nil }
+        let loadedPins = Set((stored.pinned ?? []).compactMap(UUID.init(uuidString:)))
+        if loadedPins != pinned { pinned = loadedPins }
         let decoded = stored.drawing.flatMap { try? PKDrawing(data: $0) } ?? PKDrawing()
         if decoded.dataRepresentation() != drawing.dataRepresentation() {
             drawing = decoded
@@ -106,7 +113,8 @@ final class MapDocument {
             self.pruneDeleted(store)
             let stored = Stored(
                 positions: Dictionary(uniqueKeysWithValues: self.positions.map { ($0.key.uuidString, [Double($0.value.x), Double($0.value.y)]) }),
-                drawing: self.drawing.strokes.isEmpty ? nil : self.drawing.dataRepresentation())
+                drawing: self.drawing.strokes.isEmpty ? nil : self.drawing.dataRepresentation(),
+                pinned: self.pinned.isEmpty ? nil : self.pinned.map(\.uuidString).sorted())
             if let data = try? JSONEncoder().encode(stored) {
                 store.writeSidecar(self.fileName, data: data)
             }
@@ -126,6 +134,7 @@ final class MapDocument {
         for id in missing where !listing.contains(id.uuidString) {
             positions[id] = nil
             unsettled.remove(id)
+            pinned.remove(id)
         }
     }
 
@@ -146,11 +155,11 @@ final class MapDocument {
         generation += 1
         let mine = generation
         let onPage = Set(ids)
-        let pinned = positions.filter { onPage.contains($0.key) }
+        let placed = positions.filter { onPage.contains($0.key) }
         let result = await Task.detached(priority: .userInitiated) { () -> [UUID: CGPoint] in
-            pinned.isEmpty
+            placed.isEmpty
                 ? MapLayout.arrange(items, sizes: sizes)
-                : MapLayout.place(missing: missing, edges: edges, pinned: pinned, sizes: sizes)
+                : MapLayout.place(missing: missing, edges: edges, pinned: placed, sizes: sizes)
         }.value
         guard mine == generation else { return }
         var placed = false
@@ -203,10 +212,15 @@ final class MapDocument {
                 }
             }
         }
-        if !change.spots.isEmpty { save() }
+        for pin in change.pins {
+            inverse.pins.append(.init(id: pin.id, pinned: pinned.contains(pin.id)))
+            if pin.pinned { pinned.insert(pin.id) } else { pinned.remove(pin.id) }
+        }
+        if !change.spots.isEmpty || !change.pins.isEmpty { save() }
         // Undo in the reverse order, in case one change touched the same item twice.
         inverse.spots.reverse()
         inverse.filings.reverse()
+        inverse.pins.reverse()
         return inverse
     }
 
