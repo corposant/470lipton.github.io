@@ -15,7 +15,6 @@ struct NogsTab: View {
     @AppStorage("listMode") private var mode: Mode = .byTime
     /// The outline shows finished items too when this is on.
     @AppStorage("outlineShowsDone") private var outlineShowsDone = false
-    @State private var showSettings = false
     /// Select mode: tap rows to pick several, then act on them from the bottom bar.
     @State private var editMode: EditMode = .inactive
     @State private var selection: Set<UUID> = []
@@ -70,28 +69,25 @@ struct NogsTab: View {
                         Button("Done") { stopSelecting() }
                             .fontWeight(.semibold)
                     }
-                } else if mode == .outline {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button {
-                            outlineShowsDone.toggle()
-                        } label: {
-                            Image(systemName: outlineShowsDone ? "checkmark.circle.fill" : "checkmark.circle")
-                        }
-                        .accessibilityLabel(outlineShowsDone ? "Hide done items" : "Show done items")
-                    }
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button { showSettings = true } label: { Image(systemName: "gearshape") }
-                            .accessibilityLabel("Settings")
-                    }
                 } else {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button("Select") {
-                            withNogAnimation(.snappy) { editMode = .active }
+                    if mode == .outline {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button {
+                                outlineShowsDone.toggle()
+                            } label: {
+                                Image(systemName: outlineShowsDone ? "checkmark.circle.fill" : "checkmark.circle")
+                            }
+                            .accessibilityLabel(outlineShowsDone ? "Hide done items" : "Show done items")
+                        }
+                    } else {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button("Select") {
+                                withNogAnimation(.snappy) { editMode = .active }
+                            }
                         }
                     }
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button { showSettings = true } label: { Image(systemName: "gearshape") }
-                    }
+                    // Last, so it's always the top-right corner, as on every tab.
+                    SettingsToolbarItem()
                 }
             }
             // The tab bar makes way for the action bar while selecting, as in Mail and Photos.
@@ -110,9 +106,6 @@ struct NogsTab: View {
             .nogFeedback(.selection, trigger: selection.count)
             .navigationDestination(for: UUID.self) { id in
                 ItemDetailView(id: id)
-            }
-            .sheet(isPresented: $showSettings) {
-                SettingsView()
             }
         }
     }

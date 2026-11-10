@@ -6,7 +6,6 @@ import SwiftUI
 struct AgendaView: View {
     @Environment(Router.self) private var router
     @Environment(ItemStore.self) private var store
-    @State private var showSettings = false
 
     var body: some View {
         @Bindable var router = router
@@ -18,16 +17,10 @@ struct AgendaView: View {
             .background { NogBackground() }
             .safeAreaInset(edge: .top) { SilenceBanner() }
             .nogTabTitle(.agenda)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button { showSettings = true } label: { Image(systemName: "gearshape") }
-                        .accessibilityLabel("Settings")
-                }
-            }
+            .toolbar { SettingsToolbarItem() }
             .navigationDestination(for: UUID.self) { id in
                 ItemDetailView(id: id)
             }
-            .sheet(isPresented: $showSettings) { SettingsView() }
         }
     }
 }

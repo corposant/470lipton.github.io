@@ -13,7 +13,6 @@ struct CaptureHomeView: View {
     @State private var showSubItems = false
     @State private var newSubItem = ""
     @State private var newTag = ""
-    @State private var showSettings = false
     @State private var showKindHelp = false
     @State private var showHowTo = false
     @State private var showParentPicker = false
@@ -44,6 +43,7 @@ struct CaptureHomeView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     composer
                     if showSubItems || !draft.subItems.isEmpty { subItemList }
+                    saveButton
                     readout
                     if draft.isEmpty && focus == nil {
                         hint
@@ -68,24 +68,12 @@ struct CaptureHomeView: View {
             }
             .safeAreaInset(edge: .top) { SilenceBanner() }
             .nogTabTitle(.capture)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button { showSettings = true } label: { Image(systemName: "gearshape") }
-                        .accessibilityLabel("Settings")
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(action: submit) {
-                        Text("NOG IT").font(.nogTitle(13)).tracking(2)
-                    }
-                    .disabled(draft.isEmpty)
-                }
-            }
+            .toolbar { SettingsToolbarItem() }
             // The tray sits on the keyboard while typing, and above the tab bar otherwise.
             .safeAreaInset(edge: .bottom) { tray }
             .navigationDestination(for: UUID.self) { id in
                 ItemDetailView(id: id)
             }
-            .sheet(isPresented: $showSettings) { SettingsView() }
             .sheet(isPresented: $showKindHelp) { NogKindSheet() }
             .sheet(isPresented: $showHowTo) { HowToNogSheet() }
             .sheet(isPresented: $showParentPicker) { CaptureParentPicker(selection: $draft.parentID) }
@@ -122,6 +110,18 @@ struct CaptureHomeView: View {
                     submit()
                 }
             }
+    }
+
+    /// Saves the nog, right under what you typed (Return on the keyboard does the same).
+    private var saveButton: some View {
+        Button(action: submit) {
+            Text("SAVE")
+        }
+        .buttonStyle(GradientOutlineButtonStyle())
+        .disabled(draft.isEmpty)
+        .opacity(draft.isEmpty ? 0.45 : 1)
+        .accessibilityLabel("Save")
+        .accessibilityHint(draft.isEmpty ? "Type something first." : "Saves this nog.")
     }
 
     /// Sub-nogs typed straight in. Each one has its own line with a remove button, and the

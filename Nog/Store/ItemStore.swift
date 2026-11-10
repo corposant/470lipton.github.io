@@ -599,6 +599,8 @@ final class Router {
     var captureFocusRequest = 0
     /// Asks the app to show the Silence choices (from the app icon's "Silence for…").
     var showSilenceSheet = false
+    /// Shows Settings. Every tab's gear (SettingsButton) sets this; RootView shows the sheet.
+    var showSettings = false
 
     /// Opens an item on the current tab's stack.
     func push(_ id: UUID) {
