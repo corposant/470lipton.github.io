@@ -24,21 +24,21 @@ enum NogBriefing {
         }
         switch section {
         case .now:
-            let nogging = entries(["Nogging now"])
+            let nogging = entries(["Now"])
             guard !nogging.isEmpty else { return "Nothing's nogging you right now." }
             return "\(count(nogging.count, "thing is", "things are")) nogging: \(list(nogging.map(\.item.title), limit: limit))."
         case .today:
-            let nogging = entries(["Nogging now"]), later = entries(["Later today"])
+            let nogging = entries(["Now"]), later = entries(["Later today"])
             if nogging.isEmpty && later.isEmpty { return "Nothing else today." }
             var parts: [String] = []
-            if !nogging.isEmpty { parts.append("Nogging now: \(list(nogging.map(\.item.title), limit: limit)).") }
+            if !nogging.isEmpty { parts.append("Now: \(list(nogging.map(\.item.title), limit: limit)).") }
             if !later.isEmpty {
                 parts.append("Later today: \(list(later.map { "\($0.item.title) at \(time($0.when))" }, limit: limit)).")
             }
             return parts.joined(separator: " ")
         case .agenda:
             let upcoming = entries(["Later today", "Tomorrow", "This week"])
-            let nogging = entries(["Nogging now"]).count
+            let nogging = entries(["Now"]).count
             guard nogging > 0 || !upcoming.isEmpty else { return "Nothing with a time this week." }
             var parts: [String] = []
             if nogging > 0 { parts.append("\(count(nogging, "thing is", "things are")) nogging now.") }
@@ -48,8 +48,8 @@ enum NogBriefing {
             return parts.joined(separator: " ")
         case .loose:
             let loose = items.filter { $0.isOpen && $0.reminder == nil }.sorted { $0.updated > $1.updated }
-            guard !loose.isEmpty else { return "No loose nogs." }
-            return "\(count(loose.count, "loose nog", "loose nogs")): \(list(loose.map(\.title), limit: limit))."
+            guard !loose.isEmpty else { return "Nothing without a reminder." }
+            return "\(count(loose.count, "thing without a reminder", "things without a reminder")): \(list(loose.map(\.title), limit: limit))."
         case .doing:
             let doing = items.filter(\.isDoing)
             guard !doing.isEmpty else { return "You're not working on anything right now." }

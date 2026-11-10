@@ -36,7 +36,7 @@ struct AgendaList: View {
                     }
                 } header: {
                     SectionLabel(title: group.title, count: group.entries.count,
-                                 tint: group.title == "Nogging now" ? Theme.pink : Theme.muted)
+                                 tint: group.title == "Now" ? Theme.pink : Theme.muted)
                 }
                 .listRowBackground(Theme.glass)
             }
@@ -53,8 +53,8 @@ struct AgendaList: View {
     }
 
     private func header(_ groups: [Agenda.Group]) -> some View {
-        let nogging = groups.first { $0.title == "Nogging now" }?.entries.count ?? 0
-        let today = groups.filter { $0.title == "Nogging now" || $0.title == "Later today" }
+        let nogging = groups.first { $0.title == "Now" }?.entries.count ?? 0
+        let today = groups.filter { $0.title == "Now" || $0.title == "Later today" }
             .map(\.entries.count).reduce(0, +)
         return HStack(alignment: .lastTextBaseline) {
             Text(now.formatted(.dateTime.weekday(.wide).month(.abbreviated).day()).uppercased())

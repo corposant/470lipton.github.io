@@ -35,7 +35,7 @@ enum NogKind: String, CaseIterable, Identifiable {
 
     /// What will happen, in a sentence, for this reminder.
     static func promise(for reminder: Reminder?, now: Date = .now) -> String {
-        guard let r = reminder else { return "Never nogs. It waits in Loose nogs on the List tab." }
+        guard let r = reminder else { return "Never reminds you. It waits under No reminder on the List tab." }
         let time = DayFormat.label(r.start) == "Today"
             ? r.start.formatted(date: .omitted, time: .shortened)
             : "\(DayFormat.label(r.start)) \(r.start.formatted(date: .omitted, time: .shortened))"

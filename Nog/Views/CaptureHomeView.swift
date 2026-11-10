@@ -261,11 +261,11 @@ struct CaptureHomeView: View {
 
     private var hint: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Type anything, like \"call mom tomorrow 9am #family !2h\". Dates, #tags and !shortcuts work anywhere in the line, or use the tray below.")
+            Text("Type it the way you'd say it, like \"call mom tomorrow at 3\" or \"meds every morning\". Or pick options from the tray below.")
                 .font(.callout)
                 .foregroundStyle(Theme.muted)
             Button { showHowTo = true } label: {
-                Label("How to Nog", systemImage: "questionmark.circle")
+                Label("How to use Nog", systemImage: "questionmark.circle")
                     .font(.callout.weight(.medium))
                     .foregroundStyle(Theme.violet)
             }

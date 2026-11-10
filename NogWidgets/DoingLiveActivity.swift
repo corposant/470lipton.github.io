@@ -88,11 +88,11 @@ private struct DoingActivityView: View {
         } else {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(alignment: .firstTextBaseline) {
-                    Label("NOGITIVITY", systemImage: "play.fill")
+                    Label("DOING", systemImage: "play.fill")
                         .font(.nogLabel)
                         .tracking(1.8)
                         .foregroundStyle(Theme.blue)
-                        .accessibilityLabel("Nogitivity")
+                        .accessibilityLabel("Doing")
                     Spacer()
                     if let end = context.state.endsAt {
                         let minutes = Int(end.timeIntervalSince(context.state.startedAt) / 60)

@@ -3,7 +3,7 @@ import WidgetKit
 
 /// Press and hold › Edit Widget: which nogs a Nogitivity widget offers to start.
 struct NogitivityConfiguration: WidgetConfigurationIntent {
-    static var title: LocalizedStringResource = "Nogitivity"
+    static var title: LocalizedStringResource = "What Nog shows"
     static var description = IntentDescription("Start a nog right from your Home Screen, then watch its timer.")
 
     @Parameter(title: "Lists", default: [.now])
@@ -44,12 +44,12 @@ enum NogWidgetList: String, AppEnum {
 
     static var typeDisplayRepresentation: TypeDisplayRepresentation = "Nog List"
     static var caseDisplayRepresentations: [NogWidgetList: DisplayRepresentation] = [
-        .now: DisplayRepresentation(title: "Now", subtitle: "Nogging now and the rest of today"),
-        .nogging: "Nogging now",
+        .now: DisplayRepresentation(title: "Now", subtitle: "What's due now and the rest of today"),
+        .nogging: "Due now",
         .today: "Today",
-        .agenda: "Agenda",
-        .loose: "Loose nogs",
-        .dream: "Dream nogs",
+        .agenda: "This week",
+        .loose: "No reminder",
+        .dream: "Someday",
     ]
 
     var kind: WidgetListKind { WidgetListKind(rawValue: rawValue) ?? .nogging }
@@ -79,13 +79,13 @@ struct NogWidgetEntity: AppEntity {
         if entry.isDoing {
             detail = "Doing"
         } else if entry.isDream {
-            detail = "Dream nog"
+            detail = "Someday"
         } else if entry.isNogging(at: now) {
-            detail = "Nogging now"
+            detail = "Now"
         } else if let when = entry.when(at: now) {
             detail = when.formatted(.relative(presentation: .named))
         } else {
-            detail = "Loose nog"
+            detail = "No reminder"
         }
         if let parent = entry.parentTitle { detail += " · \(parent)" }
         self.init(id: entry.id, title: entry.title, detail: detail)

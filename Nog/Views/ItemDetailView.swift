@@ -439,7 +439,7 @@ private struct ItemEditor: View {
                 Button {
                     showNogSheet = true
                 } label: {
-                    LabeledContent("Nog me", value: item.status.pausedReason)
+                    LabeledContent("Reminders", value: item.status.pausedReason)
                 }
                 .foregroundStyle(.primary)
             }
@@ -559,7 +559,7 @@ private struct NextNogCard: View {
                 if let recurrence = item.recurrence { recurrenceRow(recurrence, start: reminder.start) }
             } else if let reminder = item.reminder {
                 // A one-off that has already gone off.
-                PanelLabel(text: "Nogged you at \(reminder.start.formatted(date: .omitted, time: .shortened))")
+                PanelLabel(text: "Reminded you at \(reminder.start.formatted(date: .omitted, time: .shortened))")
                 rhythmRow("no repeat · tap to pick a new time", reminder: reminder)
             } else if let place = item.place {
                 HStack {
@@ -655,8 +655,8 @@ private struct DreamCard: View {
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                PanelLabel(text: "Dreaming", tint: Theme.violet)
-                Text("Parked in Dream nogs. No nogs.")
+                PanelLabel(text: "Someday", tint: Theme.violet)
+                Text("Parked in Someday. No reminders.")
                     .foregroundStyle(Theme.muted)
             }
             Spacer()

@@ -77,7 +77,7 @@ struct BulkActionBar: View {
                     Button {
                         apply { $0.status = .someday }
                     } label: {
-                        Label("Move to Dream nogs", systemImage: "moon.stars")
+                        Label("Move to Someday", systemImage: "moon.stars")
                     }
                 }
             } label: {

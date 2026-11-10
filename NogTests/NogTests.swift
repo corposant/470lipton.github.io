@@ -1165,7 +1165,7 @@ final class AgendaTests: XCTestCase {
             item("done", start: now.addingTimeInterval(3600), status: .done),
         ]
         let groups = Agenda.groups(items, now: now, calendar: calendar)
-        XCTAssertEqual(groups.map(\.title), ["Nogging now", "Later today", "Tomorrow", "This week"])
+        XCTAssertEqual(groups.map(\.title), ["Now", "Later today", "Tomorrow", "This week"])
         XCTAssertEqual(groups.flatMap(\.entries).map(\.item.title), ["nogging", "later", "tomorrow", "friday"])
         XCTAssertTrue(groups[0].entries[0].isNogging)
         XCTAssertGreaterThan(groups[0].entries[0].when, now, "a nogging item shows its next nog")

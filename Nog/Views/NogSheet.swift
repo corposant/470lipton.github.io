@@ -98,7 +98,7 @@ struct NogSheet: View {
                 }
             }
             .nogListStyle()
-            .navigationTitle("Nog me")
+            .navigationTitle("Reminders")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {

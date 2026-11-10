@@ -140,7 +140,7 @@ struct StatusDial: View {
         switch status {
         case .open: "On your plate. Nogs you on schedule."
         case .doing: "You're on it. Timer running, nogs paused."
-        case .someday: "Parked in Dream nogs. No nogs."
+        case .someday: "Parked in Someday. No reminders."
         case .done: "Finished. Kept for reference."
         }
     }
