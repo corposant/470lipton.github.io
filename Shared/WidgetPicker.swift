@@ -2,10 +2,11 @@ import Foundation
 
 /// The lists a Nogitivity widget can pick from (set by press and hold › Edit Widget).
 enum WidgetListKind: String, CaseIterable, Codable {
-    case nogging, today, agenda, loose, dream
+    case now, nogging, today, agenda, loose, dream
 
     var title: String {
         switch self {
+        case .now: "Now"
         case .nogging: "Nogging now"
         case .today: "Today"
         case .agenda: "Agenda"
@@ -57,6 +58,19 @@ enum WidgetPicker {
         for kind in lists where !result.contains(where: { $0.kind == kind }) {
             var entries: [WidgetSnapshot.Entry]
             switch kind {
+            case .now:
+                // Everything about the present: nogging now (alarms, then longest nogging),
+                // then the rest of today, soonest first.
+                let nogging = candidates.filter { $0.isNogging(at: date) }
+                    .sorted { a, b in
+                        a.alarm != b.alarm ? a.alarm : (a.start ?? date) < (b.start ?? date)
+                    }
+                let laterToday = candidates.filter { e in
+                    e.isOpen && !e.isNogging(at: date)
+                        && e.when(at: date).map { $0 > date && calendar.isDate($0, inSameDayAs: date) } == true
+                }
+                .sorted(by: soonestFirst)
+                entries = nogging + laterToday
             case .nogging:
                 // Longest nogging first.
                 entries = candidates.filter { $0.isNogging(at: date) }

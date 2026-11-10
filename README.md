@@ -82,10 +82,10 @@ Every nog has a play button. Tap it and the nog becomes **Doing**, the thing you
 
 Add **Nogitivity** to your Home Screen (small, medium or large) or Lock Screen (circle, rectangle or the line above the clock).
 
-- **Nothing on:** it lists nogs to start, each with a **▶︎** showing the timebox Nog would pick ("▶ 15m"). Tap ▶︎ and the timer starts without opening the app. The small size shows the top nog with one big **Start**; the large one adds **✓** to mark nogs done.
+- **Nothing on:** most of the widget is for acting. The nog that matters most right now sits up front with big **▶︎ Start** (showing the timebox Nog would pick) and **✓ Done** buttons, plus **Later** on the large size. **+ Take a Nog** opens New Nog. The rest of the widget lists what else is about now, each with a **▶︎** (and **✓** on the large size). Buttons work without opening the app; tap a title to open it. When nothing is due, it says you're clear and offers **Take a Nog**.
 - **While you're doing something:** it turns into the timer, with **✓ Done / +10 min / Stop**. The medium size adds a timebox bar, and the large one shows the item's sub-nogs and what's up next.
 - **Lock Screen:** a ring that fills as the timebox runs (or how many are nogging), the timer with "of 25", or the next nog. Titles hide when **Show titles on Lock Screen** is off.
-- **Press and hold › Edit Widget** to choose what it offers: one or more **Lists** (Nogging now, Today, Agenda, Loose nogs, Dream nogs), **Only #tag**, or **Pick nogs** one by one from everything outstanding. **Show the timer while I'm doing something** can be switched off for a pure list.
+- **Press and hold › Edit Widget** to choose what it offers: one or more **Lists** (**Now**, the default: nogging now plus the rest of today; or Nogging now, Today, Agenda, Loose nogs, Dream nogs), **Only #tag**, or **Pick nogs** one by one from everything outstanding. **Show the timer while I'm doing something** can be switched off for a pure list.
 
 The widgets read a small summary the app writes to a shared App Group whenever your nogs change, so open Nog once after installing.
 
