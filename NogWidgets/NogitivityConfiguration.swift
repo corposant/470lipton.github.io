@@ -6,7 +6,7 @@ struct NogitivityConfiguration: WidgetConfigurationIntent {
     static var title: LocalizedStringResource = "Nogitivity"
     static var description = IntentDescription("Start a nog right from your Home Screen, then watch its timer.")
 
-    @Parameter(title: "Lists", default: [.nogging, .loose])
+    @Parameter(title: "Lists", default: [.now])
     var lists: [NogWidgetList]
 
     @Parameter(title: "Only #tag", description: "Show only nogs with this tag, like kitchen or calls.")
@@ -20,30 +20,31 @@ struct NogitivityConfiguration: WidgetConfigurationIntent {
 
     init() {}
 
-    init(lists: [NogWidgetList], tag: String? = nil, nogs: [NogWidgetEntity]? = nil, showTimer: Bool = true) {
+    init(lists: [NogWidgetList] = [.now], tag: String? = nil, nogs: [NogWidgetEntity]? = nil, showTimer: Bool = true) {
         self.lists = lists
         self.tag = tag
         self.nogs = nogs
         self.showTimer = showTimer
     }
 
-    /// "Nogging now + Loose nogs", "#kitchen" or "Your picks".
+    /// "Now", "Nogging now + Loose nogs", "#kitchen" or "Your picks".
     var label: String {
         if let nogs, !nogs.isEmpty { return "Your picks" }
         if let tag = tag.map(WidgetPicker.cleanTag), !tag.isEmpty { return "#\(tag)" }
-        return lists.isEmpty ? "Nogging now" : lists.map(\.kind.title).joined(separator: " + ")
+        return lists.isEmpty ? "Now" : lists.map(\.kind.title).joined(separator: " + ")
     }
 
     var listKinds: [WidgetListKind] {
-        lists.isEmpty ? [.nogging, .loose] : lists.map(\.kind)
+        lists.isEmpty ? [.now] : lists.map(\.kind)
     }
 }
 
 enum NogWidgetList: String, AppEnum {
-    case nogging, today, agenda, loose, dream
+    case now, nogging, today, agenda, loose, dream
 
     static var typeDisplayRepresentation: TypeDisplayRepresentation = "Nog List"
     static var caseDisplayRepresentations: [NogWidgetList: DisplayRepresentation] = [
+        .now: DisplayRepresentation(title: "Now", subtitle: "Nogging now and the rest of today"),
         .nogging: "Nogging now",
         .today: "Today",
         .agenda: "Agenda",

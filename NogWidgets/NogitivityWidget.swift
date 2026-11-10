@@ -4,7 +4,8 @@ import WidgetKit
 
 // Nogitivity: start a nog from the Home Screen, then watch its timer.
 // While you're doing something it's the timer (with Done / +10 / Stop); otherwise
-// it lists the nogs you chose in Edit Widget, each with a ▶︎ that starts it.
+// it puts the nog that matters most right now up front with Start / Done, a
+// "Take a Nog" button, and a short list of what else is about now.
 
 struct NogitivityWidget: Widget {
     static let kind = "Nogitivity"
@@ -62,7 +63,7 @@ struct NogitivityEntry: TimelineEntry {
 
 struct NogitivityProvider: AppIntentTimelineProvider {
     func placeholder(in context: Context) -> NogitivityEntry {
-        NogitivityEntry(date: .now, snapshot: .sample(), configuration: NogitivityConfiguration(lists: [.nogging, .loose]))
+        NogitivityEntry(date: .now, snapshot: .sample(), configuration: NogitivityConfiguration())
     }
 
     func snapshot(for configuration: NogitivityConfiguration, in context: Context) async -> NogitivityEntry {
@@ -94,6 +95,8 @@ private enum W {
     static let readout = Color(light: 0x1C7ED6, dark: 0xBFE3FF)
     static let listBackground = Color(light: 0xF6F7FA, dark: 0x16171E)
     static let timerBackground = Color(light: 0xEEF4FB, dark: 0x08090C)
+    /// The card behind the nog that matters most right now.
+    static let heroFill = Color(light: 0xFFFFFF, dark: 0x1F2029)
 
     static func label(_ size: CGFloat = 9.5) -> Font { .custom("Futura-Medium", size: size) }
 
@@ -337,7 +340,11 @@ private struct SubItemRow: View {
     }
 }
 
-// MARK: Pick one and start (nothing on)
+// MARK: Start, finish or add a nog (nothing on)
+
+// About 60% of the widget is for acting: the nog that matters most right now, big, with
+// Start / Done (and Later on the large size), plus "Take a Nog" to add a new one.
+// The other 40% lists what else is about now, each with its own ▶︎.
 
 private struct PickWidget: View {
     @Environment(\.widgetFamily) private var family
@@ -350,22 +357,36 @@ private struct PickWidget: View {
         } else {
             switch family {
             case .systemSmall: smallBody(picks)
-            case .systemLarge: large
-            default: medium(picks)
+            case .systemLarge: large(hero: picks[0], rest: Array(picks.dropFirst()))
+            default: medium(hero: picks[0], rest: Array(picks.dropFirst()))
             }
         }
     }
 
+    // MARK: Nothing about now
+
     private var empty: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("START SOMETHING").font(W.label(family == .systemSmall ? 9.5 : 11)).tracking(1.8).foregroundStyle(Theme.violet)
-            Text("All done.").font(.system(size: 15, weight: .semibold))
-            Text(entry.configuration.label).font(.system(size: 11.5)).foregroundStyle(Theme.muted).lineLimit(2)
+        VStack(alignment: .leading, spacing: family == .systemSmall ? 6 : 8) {
+            Text("NOTHING NOGGING").font(W.label(family == .systemSmall ? 9.5 : 11)).tracking(1.8).foregroundStyle(W.mint)
+            Text("You're clear for now.")
+                .font(.system(size: family == .systemSmall ? 15 : 17, weight: .semibold))
+                .lineLimit(2)
+            if family != .systemSmall {
+                Text(entry.configuration.label).font(.system(size: 12)).foregroundStyle(Theme.muted).lineLimit(1)
+            }
             Spacer(minLength: 0)
+            // The whole small widget opens capture; bigger ones get a real button.
+            if family == .systemSmall {
+                TakeANogLabel(height: 38)
+            } else {
+                Link(destination: captureURL!) { TakeANogLabel(height: 44) }
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .widgetURL(captureURL)
     }
+
+    // MARK: Small
 
     /// A tag or a hand-picked set reads best as a short list; otherwise the top nog, big.
     @ViewBuilder
@@ -376,22 +397,20 @@ private struct PickWidget: View {
     }
 
     private func smallTop(_ top: WidgetSnapshot.Entry) -> some View {
-        let section = entry.sections.first?.title ?? "Start"
-        return VStack(alignment: .leading, spacing: 5) {
-            Text("\(section.uppercased()) · TOP").font(W.label()).tracking(1.8).foregroundStyle(Theme.muted).lineLimit(1)
+        VStack(alignment: .leading, spacing: 4) {
+            HeroDetail(item: top, date: entry.date, size: 9.5)
             Text(top.title).font(.system(size: 15, weight: .semibold)).lineLimit(3)
-            if let box = top.suggestedMinutes {
-                Text("~\(IntervalLabel.amount(box))").font(.system(size: 11.5)).foregroundStyle(Theme.muted)
-            }
             Spacer(minLength: 0)
-            Button(intent: StartDoingIntent(itemID: top.id.uuidString)) {
-                Text(top.suggestedMinutes.map { "▶ START · \($0) MIN" } ?? "▶ START")
-                    .font(.nogTitle(12)).tracking(1.6)
-                    .foregroundStyle(.primary)
-                    .lineLimit(1).minimumScaleFactor(0.7)
-                    .frame(maxWidth: .infinity, minHeight: 38)
-                    .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Theme.synth, lineWidth: 1.5))
-                    .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            HStack(spacing: 6) {
+                Button(intent: StartDoingIntent(itemID: top.id.uuidString)) {
+                    PillLabel(text: BoxFormat.short(top.suggestedMinutes).map { "▶ \($0)" } ?? "▶ Start",
+                              tint: Theme.blue, height: 38, bold: true)
+                }
+                .accessibilityLabel(startLabel(top))
+                Button(intent: CompleteItemIntent(itemID: top.id.uuidString)) {
+                    PillLabel(systemImage: "checkmark", tint: W.mint, height: 38).frame(width: 44)
+                }
+                .accessibilityLabel("Mark \(top.title) done")
             }
             .buttonStyle(.plain)
         }
@@ -414,71 +433,233 @@ private struct PickWidget: View {
         }
     }
 
-    private func medium(_ picks: [WidgetSnapshot.Entry]) -> some View {
-        VStack(alignment: .leading, spacing: 7) {
-            HStack(alignment: .firstTextBaseline) {
-                Text("START SOMETHING · \(entry.configuration.label.uppercased())")
-                    .font(W.label(11)).tracking(1.8).foregroundStyle(Theme.violet).lineLimit(1)
-                Spacer(minLength: 6)
-                Text("\(picks.count) open").font(.nogMeta).foregroundStyle(Theme.muted)
-            }
-            ForEach(picks.prefix(4)) { item in
-                HStack(spacing: 8) {
-                    Circle().fill(W.dot(for: item, at: entry.date)).frame(width: 8, height: 8)
-                    Text(item.title).font(.system(size: 13.5)).lineLimit(1)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    StartButton(entry: item, height: 26)
+    // MARK: Medium: act on the left (60%), the rest of now on the right (40%)
+
+    private func medium(hero: WidgetSnapshot.Entry, rest: [WidgetSnapshot.Entry]) -> some View {
+        GeometryReader { geo in
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Link(destination: captureURL!) { TakeANogLabel(height: 28) }
+                    Link(destination: itemURL(hero.id)!) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            HeroDetail(item: hero, date: entry.date, size: 9.5)
+                            Text(hero.title).font(.system(size: 15, weight: .semibold)).lineLimit(2)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
+                    Spacer(minLength: 0)
+                    HStack(spacing: 6) {
+                        Button(intent: StartDoingIntent(itemID: hero.id.uuidString)) {
+                            PillLabel(text: BoxFormat.short(hero.suggestedMinutes).map { "▶ Start \($0)" } ?? "▶ Start",
+                                      tint: Theme.blue, height: 34, bold: true)
+                        }
+                        .accessibilityLabel(startLabel(hero))
+                        Button(intent: CompleteItemIntent(itemID: hero.id.uuidString)) {
+                            PillLabel(text: "✓ Done", tint: W.mint, height: 34, bold: true)
+                        }
+                        .accessibilityLabel("Mark \(hero.title) done")
+                    }
+                    .buttonStyle(.plain)
                 }
+                .frame(width: (geo.size.width - 12) * 0.6, height: geo.size.height, alignment: .topLeading)
+
+                VStack(alignment: .leading, spacing: 6) {
+                    ListHeader(title: listTitle, count: rest.count)
+                    if rest.isEmpty {
+                        Text("Nothing else right now.").font(.system(size: 12)).foregroundStyle(Theme.muted)
+                    }
+                    ForEach(rest.prefix(3)) { item in
+                        NowRow(item: item, date: entry.date, size: 12.5, buttonSize: 28, showsDone: false)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
-            Spacer(minLength: 0)
         }
     }
 
-    private var large: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            HStack(alignment: .firstTextBaseline) {
-                Text("START SOMETHING").font(.nogTitle(16)).tracking(1.6)
-                Spacer(minLength: 6)
-                Text(entry.configuration.label).font(.system(size: 11)).foregroundStyle(Theme.muted).lineLimit(1)
-            }
-            ForEach(Array(budgeted(rows: 8).enumerated()), id: \.offset) { index, section in
-                Text(section.title.uppercased())
-                    .font(W.label()).tracking(1.8)
-                    .foregroundStyle(section.kind == .nogging ? Theme.pink : Theme.muted)
-                    .padding(.top, index == 0 ? 0 : 4)
-                ForEach(section.entries) { item in
-                    HStack(spacing: 8) {
-                        Text(item.title).font(.system(size: 14)).lineLimit(1)
-                            .foregroundStyle(section.kind == .nogging || section.kind == nil ? .primary : .secondary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        StartButton(entry: item, height: 28)
-                        Button(intent: CompleteItemIntent(itemID: item.id.uuidString)) {
-                            CircleLabel(systemImage: "checkmark", tint: W.mint, size: 28)
+    // MARK: Large: act on top (60%), the rest of now below (40%)
+
+    private func large(hero: WidgetSnapshot.Entry, rest: [WidgetSnapshot.Entry]) -> some View {
+        GeometryReader { geo in
+            VStack(alignment: .leading, spacing: 0) {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(alignment: .center, spacing: 8) {
+                        Text("RIGHT NOW").font(.nogTitle(15)).tracking(1.6)
+                        Spacer(minLength: 6)
+                        Link(destination: captureURL!) { TakeANogLabel(height: 34) }
+                            .frame(width: 150)
+                    }
+                    VStack(alignment: .leading, spacing: 8) {
+                        Link(destination: itemURL(hero.id)!) {
+                            VStack(alignment: .leading, spacing: 3) {
+                                HeroDetail(item: hero, date: entry.date, size: 10.5)
+                                Text(hero.title).font(.system(size: 19, weight: .semibold)).lineLimit(2)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                if hero.subTotal > 0 {
+                                    Text("\(hero.subDone) of \(hero.subTotal) sub-nogs done")
+                                        .font(.system(size: 12)).foregroundStyle(Theme.muted)
+                                }
+                            }
+                        }
+                        Spacer(minLength: 0)
+                        HStack(spacing: 8) {
+                            Button(intent: StartDoingIntent(itemID: hero.id.uuidString)) {
+                                PillLabel(text: BoxFormat.short(hero.suggestedMinutes).map { "▶ Start · \($0)" } ?? "▶ Start",
+                                          tint: Theme.blue, height: 44, bold: true)
+                            }
+                            .accessibilityLabel(startLabel(hero))
+                            Button(intent: CompleteItemIntent(itemID: hero.id.uuidString)) {
+                                PillLabel(text: "✓ Done", tint: W.mint, height: 44, bold: true)
+                            }
+                            .accessibilityLabel("Mark \(hero.title) done")
+                            if hero.start != nil {
+                                Button(intent: SnoozeItemIntent(itemID: hero.id.uuidString)) {
+                                    PillLabel(text: "Later", tint: Theme.muted, height: 44).frame(width: 72)
+                                }
+                                .accessibilityLabel("Remind me about \(hero.title) later")
+                            }
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel("Mark \(item.title) done")
                     }
+                    .padding(12)
+                    .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(W.heroFill))
+                    .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .strokeBorder(W.dot(for: hero, at: entry.date).opacity(0.55), lineWidth: 1.5))
                 }
+                .frame(height: geo.size.height * 0.6)
+
+                VStack(alignment: .leading, spacing: 6) {
+                    ListHeader(title: listTitle, count: rest.count)
+                    if rest.isEmpty {
+                        Text("Nothing else right now.").font(.system(size: 13)).foregroundStyle(Theme.muted)
+                    }
+                    ForEach(rest.prefix(3)) { item in
+                        NowRow(item: item, date: entry.date, size: 14, buttonSize: 30, showsDone: true)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .padding(.top, 10)
+                .frame(height: geo.size.height * 0.4, alignment: .top)
             }
-            Spacer(minLength: 0)
         }
     }
 
-    /// Up to `rows` nogs across the sections, each section keeping at least one row.
-    private func budgeted(rows: Int) -> [WidgetPicker.Section] {
-        let sections = Array(entry.sections.prefix(3))
-        var left = rows - sections.count / 2 // headers take room too
-        var result: [WidgetPicker.Section] = []
-        for (index, original) in sections.enumerated() {
-            var section = original
-            let reserve = sections.count - index - 1
-            let take = max(1, min(section.entries.count, left - reserve))
-            section.entries = Array(section.entries.prefix(take))
-            left -= take
-            result.append(section)
-            if left <= 0 { break }
+    /// "ALSO NOW", or the chosen lists when they're not about now ("ALSO · LOOSE NOGS").
+    private var listTitle: String {
+        let config = entry.configuration
+        if config.listKinds == [.now] && (config.nogs ?? []).isEmpty
+            && (config.tag.map { WidgetPicker.cleanTag($0).isEmpty } ?? true) {
+            return "ALSO NOW"
         }
-        return result
+        return "ALSO · \(config.label.uppercased())"
+    }
+
+    private func startLabel(_ item: WidgetSnapshot.Entry) -> String {
+        if let box = item.suggestedMinutes { return "Start \(item.title) for \(IntervalLabel.amount(box))" }
+        return "Start \(item.title)"
+    }
+}
+
+/// "NOGGING SINCE 8:10 AM · ~10 MIN", "TODAY 3:00 PM", "LOOSE NOG".
+private struct HeroDetail: View {
+    let item: WidgetSnapshot.Entry
+    let date: Date
+    let size: CGFloat
+
+    var body: some View {
+        Text(text).font(W.label(size)).tracking(1.4)
+            .foregroundStyle(W.dot(for: item, at: date))
+            .lineLimit(1).minimumScaleFactor(0.8)
+    }
+
+    private var text: String {
+        var parts: [String] = []
+        if item.isDream {
+            parts.append("DREAM NOG")
+        } else if item.isNogging(at: date), let start = item.start {
+            parts.append((item.alarm ? "ALARM SINCE " : "NOGGING SINCE ") + Self.moment(start, from: date))
+        } else if let when = item.when(at: date) {
+            let day = Calendar.current.isDate(when, inSameDayAs: date) ? "TODAY " : ""
+            parts.append(day + Self.moment(when, from: date))
+        } else {
+            parts.append("LOOSE NOG")
+        }
+        if let box = item.suggestedMinutes { parts.append("~\(IntervalLabel.amount(box).uppercased())") }
+        return parts.joined(separator: " · ")
+    }
+
+    /// A time today, otherwise a short date.
+    static func moment(_ when: Date, from date: Date) -> String {
+        Calendar.current.isDate(when, inSameDayAs: date)
+            ? when.formatted(date: .omitted, time: .shortened).uppercased()
+            : when.formatted(.dateTime.month(.abbreviated).day()).uppercased()
+    }
+}
+
+private struct ListHeader: View {
+    let title: String
+    let count: Int
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(title).font(W.label(10)).tracking(1.8).foregroundStyle(Theme.muted).lineLimit(1)
+            Spacer(minLength: 4)
+            if count > 0 { Text("\(count)").font(.nogMeta).foregroundStyle(Theme.muted) }
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// One nog in the list: its dot and title (opens it), ▶︎ to start, and ✓ on the large size.
+private struct NowRow: View {
+    let item: WidgetSnapshot.Entry
+    let date: Date
+    let size: CGFloat
+    let buttonSize: CGFloat
+    let showsDone: Bool
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Link(destination: itemURL(item.id)!) {
+                HStack(spacing: 6) {
+                    Circle().fill(W.dot(for: item, at: date)).frame(width: 7, height: 7)
+                    Text(item.title).font(.system(size: size)).lineLimit(1)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(minHeight: buttonSize)
+                .contentShape(Rectangle())
+            }
+            StartButton(entry: item, height: buttonSize, compact: true)
+            if showsDone {
+                Button(intent: CompleteItemIntent(itemID: item.id.uuidString)) {
+                    CircleLabel(systemImage: "checkmark", tint: W.mint, size: buttonSize)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Mark \(item.title) done")
+            }
+        }
+    }
+}
+
+/// "+ Take a Nog": opens New Nog with the keyboard up.
+private struct TakeANogLabel: View {
+    let height: CGFloat
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Image(systemName: "plus").font(.system(size: 12, weight: .bold))
+            Text("Take a Nog").font(.system(size: 13.5, weight: .semibold))
+        }
+        .foregroundStyle(Theme.pink)
+        .lineLimit(1)
+        .frame(maxWidth: .infinity, minHeight: height, maxHeight: height)
+        .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(Theme.pink.opacity(0.1)))
+        .overlay(RoundedRectangle(cornerRadius: 11, style: .continuous).strokeBorder(Theme.pink.opacity(0.7), lineWidth: 1.5))
+        .contentShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Take a Nog")
+        .accessibilityHint("Opens Nog to add something new")
     }
 }
 
@@ -709,13 +890,13 @@ extension WidgetSnapshot {
 #Preview("Pick", as: .systemMedium) {
     NogitivityWidget()
 } timeline: {
-    NogitivityEntry(date: .now, snapshot: .sample(), configuration: NogitivityConfiguration(lists: [.nogging, .loose]))
+    NogitivityEntry(date: .now, snapshot: .sample(), configuration: NogitivityConfiguration())
 }
 
 #Preview("Pick, large", as: .systemLarge) {
     NogitivityWidget()
 } timeline: {
-    NogitivityEntry(date: .now, snapshot: .sample(), configuration: NogitivityConfiguration(lists: [.nogging, .loose]))
+    NogitivityEntry(date: .now, snapshot: .sample(), configuration: NogitivityConfiguration())
 }
 
 #Preview("Timer", as: .systemMedium) {

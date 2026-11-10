@@ -89,6 +89,22 @@ final class WidgetPickerTests: XCTestCase {
         XCTAssertEqual(sections(all, [.dream]).first?.entries.map(\.title), ["Boat"])
     }
 
+    func testNowIsNoggingThenRestOfToday() {
+        var alarm = entry("Meds", start: -60)
+        alarm.alarm = true
+        let older = entry("Plumber", start: -1800)
+        let later = entry("Paint", start: 3600)
+        let tomorrow = entry("Dentist", start: 86_400)
+        let loose = entry("Garage")
+        let dream = entry("Boat", status: "someday")
+        let doing = entry("Budget", status: "doing")
+
+        let result = sections([later, loose, older, tomorrow, dream, doing, alarm], [.now])
+        XCTAssertEqual(result.map(\.title), ["Now"])
+        // Alarms first, then longest nogging, then later today; nothing from tomorrow or loose.
+        XCTAssertEqual(result[0].entries.map(\.title), ["Meds", "Plumber", "Paint"])
+    }
+
     func testTagFilterAndPinnedPicks() {
         let a = entry("Paint samples", tags: ["Kitchen"])
         let b = entry("Order tiles", start: -60, tags: ["kitchen"])
