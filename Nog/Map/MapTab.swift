@@ -18,8 +18,21 @@ struct MapTab: View {
         let current = tags.contains { $0.tag == page } ? page : ""
         NavigationStack(path: $router.mapPath) {
             VStack(spacing: 0) {
-                // The page strip is part of the page (not an inset), so the nav bar can't cover it.
-                MapPageStrip(tags: tags, selected: current) { page = $0 }
+                // One slim row for the title and the tag pages, in place of the navigation
+                // bar, so the map gets as much of the screen as possible.
+                HStack(spacing: 4) {
+                    Text(AppTab.map.title)
+                        .font(.custom("Futura-Bold", size: 24, relativeTo: .title2))
+                        .tracking(1.5)
+                        .foregroundStyle(AppTab.map.accent)
+                        .lineLimit(1)
+                        .fixedSize()
+                        .padding(.leading, 16)
+                        .accessibilityAddTraits(.isHeader)
+                    MapPageStrip(tags: tags, selected: current, framed: false) { page = $0 }
+                }
+                .background(.ultraThinMaterial)
+                .overlay(alignment: .bottom) { Rectangle().fill(Theme.edge).frame(height: 1) }
                 MindMapView(doc: pages.doc(for: current),
                             seed: current.isEmpty ? nil : pages.doc(for: ""),
                             page: current, showNogged: $showNogged)
@@ -27,7 +40,9 @@ struct MapTab: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .background { NogBackground() }
+            // Still named, for the back button on pages opened from the map.
             .nogTabTitle(.map)
+            .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: UUID.self) { id in
                 ItemDetailView(id: id)
             }
@@ -1401,6 +1416,8 @@ struct MapPageStrip: View {
     @Environment(\.nogAccent) private var accent
     let tags: [(tag: String, count: Int)]
     let selected: String
+    /// With its own background and bottom edge. Off when it sits in a row that has them.
+    var framed = true
     let select: (String) -> Void
 
     var body: some View {
@@ -1420,11 +1437,11 @@ struct MapPageStrip: View {
                          isSelected: selected == entry.tag) { select(entry.tag) }
                 }
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, framed ? 16 : 12)
             .padding(.vertical, 8)
         }
-        .background(.ultraThinMaterial)
-        .overlay(alignment: .bottom) { Rectangle().fill(Theme.edge).frame(height: 1) }
+        .background { if framed { Rectangle().fill(.ultraThinMaterial) } }
+        .overlay(alignment: .bottom) { if framed { Rectangle().fill(Theme.edge).frame(height: 1) } }
         .nogFeedback(.selection, trigger: selected)
     }
 
