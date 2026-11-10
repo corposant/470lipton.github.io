@@ -30,6 +30,10 @@ struct MapTab: View {
                         .padding(.leading, 16)
                         .accessibilityAddTraits(.isHeader)
                     MapPageStrip(tags: tags, selected: current, framed: false) { page = $0 }
+                    // The Map hides its navigation bar, so the gear ends this row instead:
+                    // the same top-right corner as on every other tab.
+                    SettingsButton()
+                        .padding(.trailing, 8)
                 }
                 .background(.ultraThinMaterial)
                 .overlay(alignment: .bottom) { Rectangle().fill(Theme.edge).frame(height: 1) }

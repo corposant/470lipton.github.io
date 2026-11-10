@@ -49,6 +49,34 @@ extension View {
     }
 }
 
+// MARK: Settings
+
+/// The gear that opens Settings. Every tab shows it in the same place, the top-right
+/// corner: tabs with a navigation bar use `SettingsToolbarItem` (last in their toolbar,
+/// so it's always the rightmost), and the Map, which hides its bar, ends its header row
+/// with this. RootView owns the sheet, so there's one Settings, whichever tab opens it.
+struct SettingsButton: View {
+    @Environment(Router.self) private var router
+
+    var body: some View {
+        Button {
+            router.showSettings = true
+        } label: {
+            Image(systemName: "gearshape")
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(Rectangle())
+        }
+        .accessibilityLabel("Settings")
+    }
+}
+
+/// The Settings gear for a tab's navigation bar. Put it last in the toolbar.
+struct SettingsToolbarItem: ToolbarContent {
+    var body: some ToolbarContent {
+        ToolbarItem(placement: .topBarTrailing) { SettingsButton() }
+    }
+}
+
 /// The app's navigation title fonts: Futura Bold for large titles, Futura Medium inline.
 /// Both scale with the person's text size (Dynamic Type), capped so long titles still fit.
 enum NogTitleFont {
