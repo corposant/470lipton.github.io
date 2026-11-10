@@ -7,17 +7,17 @@ options:
 
 settings:
   base:
-    # ▶︎ The app's bundle ID. Bundle IDs are unique across all developers, so if Xcode
-    #   says this one is unavailable, change just this line (e.g. com.<yourname>.nog)
-    #   and run ./update.sh. The widget's ID follows automatically.
-    NOG_BUNDLE_ID: com.ticknor.blerg.nog
+    # ▶︎ The app's bundle ID, registered to Scott's team. It's permanent once a build
+    #   is uploaded to App Store Connect, so don't change it after that.
+    #   The widget's ID and the App Group follow automatically.
+    NOG_BUNDLE_ID: com.ticknor.nog
     SWIFT_VERSION: "5.0"
     MARKETING_VERSION: "0.1.0"
     CURRENT_PROJECT_VERSION: "1"
     # Needs Xcode 27 (iOS 27 SDK).
-    # Put your Apple Team ID here (developer.apple.com/account → Membership)
-    # so you don't have to re-pick it in Xcode every time you run xcodegen.
-    DEVELOPMENT_TEAM: ""
+    # Apple Team ID (developer.apple.com/account → Membership), so Xcode signs
+    # without re-picking the team every time you run xcodegen.
+    DEVELOPMENT_TEAM: MWYUVD6HA5
     CODE_SIGN_STYLE: Automatic
 
 targets:
@@ -31,6 +31,9 @@ targets:
       path: Nog/Info.plist
       properties:
         CFBundleDisplayName: Nog
+        # Nog only uses the encryption built into iOS (HTTPS, file protection), which is
+        # exempt, so App Store Connect doesn't ask about export compliance on every upload.
+        ITSAppUsesNonExemptEncryption: false
         # Other ways Siri may hear "Nog" (a short, unusual word), so phrases like
         # "Take a Nog" still match when Siri hears "Nog app", "Nogg" or "Knog".
         INAlternativeAppNames:
@@ -55,7 +58,7 @@ targets:
         NSAlarmKitUsageDescription: Nog rings like an alarm for the items you mark as can't-miss.
         # Shows the app's iCloud folder as "Nog" in iCloud Drive (Files app, Finder)
         NSUbiquitousContainers:
-          iCloud.io.nogapp.nog:
+          iCloud.com.ticknor.nog:
             NSUbiquitousContainerIsDocumentScopePublic: true
             NSUbiquitousContainerName: Nog
             NSUbiquitousContainerSupportedFolderLevels: Any
@@ -65,12 +68,14 @@ targets:
       path: Nog/Nog.entitlements
       properties:
         com.apple.security.application-groups: [group.$(NOG_BUNDLE_ID)]
+        # Lets nogs break through Focus (the person still allows it per app in Settings).
+        com.apple.developer.usernotifications.time-sensitive: true
     # iCloud Drive sync needs the paid Apple Developer Program, so it's off for now:
     # items are stored on the phone. When you upgrade, uncomment these 3 lines and
     # re-run xcodegen; Nog moves your items into iCloud Drive on its next launch.
     # (they go under the entitlements properties above)
-    #     com.apple.developer.icloud-container-identifiers: [iCloud.io.nogapp.nog]
-    #     com.apple.developer.ubiquity-container-identifiers: [iCloud.io.nogapp.nog]
+    #     com.apple.developer.icloud-container-identifiers: [iCloud.com.ticknor.nog]
+    #     com.apple.developer.ubiquity-container-identifiers: [iCloud.com.ticknor.nog]
     #     com.apple.developer.icloud-services: [CloudDocuments]
     settings:
       base:
