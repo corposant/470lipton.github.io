@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// The Fresh Nog tab: one text box for the thought, sub-items as lines under it, and a
-/// tray of options riding on the keyboard (when, Note/Nog/Alarm, tags, sub-items,
+/// The New Nog tab: one text box for the thought, sub-nogs as lines under it, and a
+/// tray of options riding on the keyboard (when, Note/Nog/Alarm, tags, sub-nogs,
 /// parent). Typed text still works ("tomorrow 9am #home"); the tray shows what it
 /// understood, and anything picked there wins.
 struct CaptureHomeView: View {
@@ -61,7 +61,7 @@ struct CaptureHomeView: View {
                 }
             }
             .safeAreaInset(edge: .top) { SilenceBanner() }
-            .navigationTitle("Fresh Nog")
+            .navigationTitle("New Nog")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button { showSettings = true } label: { Image(systemName: "gearshape") }
@@ -118,41 +118,98 @@ struct CaptureHomeView: View {
             }
     }
 
-    /// Sub-items typed straight in: Return adds one and keeps going; they nog like this item.
+    /// Sub-nogs typed straight in. Each one has its own line with a remove button, and the
+    /// last line is always ready for the next: tap Add (or press Return) and keep going.
+    /// They nog like this one.
     private var subItemList: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionLabel(title: "Sub-items · nog like this one")
+            SectionLabel(title: subNogCount > 1 ? "Sub-nogs" : "Sub-nog")
+                .accessibilityAddTraits(.isHeader)
             VStack(spacing: 0) {
                 ForEach(Array(draft.subItems.enumerated()), id: \.offset) { index, line in
                     HStack(spacing: 12) {
                         Circle().strokeBorder(Theme.muted, lineWidth: 1.5).frame(width: 18, height: 18)
+                            .accessibilityHidden(true)
                         Text(line)
-                        Spacer()
-                        Button {
-                            draft.subItems.remove(at: index)
-                        } label: {
-                            Image(systemName: "xmark").font(.caption.weight(.bold)).foregroundStyle(Theme.muted)
-                                .frame(width: 32, height: 32)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .fixedSize(horizontal: false, vertical: true)
+                        removeButton(label: "Remove sub-nog \(line)") {
+                            withNogAnimation { _ = draft.subItems.remove(at: index) }
                         }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Remove \(line)")
                     }
-                    .padding(.horizontal, 14)
+                    .padding(.leading, 14)
+                    .padding(.trailing, 4)
                     .frame(minHeight: 44)
                     Divider().overlay(Theme.edge)
                 }
                 HStack(spacing: 12) {
                     Image(systemName: "plus").foregroundStyle(Theme.muted).frame(width: 18)
-                    TextField("Add sub-item", text: $newSubItem, axis: .vertical)
+                        .accessibilityHidden(true)
+                    TextField(draft.subItems.isEmpty ? "Add a sub-nog" : "Add another sub-nog",
+                              text: $newSubItem, axis: .vertical)
                         .focused($focus, equals: .subItem)
                         .submitLabel(.next)
                         .onChange(of: newSubItem) { addSubItemsOnReturn() }
+                    if !pendingSubItem.isEmpty {
+                        Button(action: commitPendingSubItem) {
+                            Text("Add")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(Theme.blue)
+                                .padding(.horizontal, 12)
+                                .frame(minHeight: 32)
+                                .overlay(Capsule().strokeBorder(Theme.blue.opacity(0.7), lineWidth: 1))
+                                .frame(minWidth: 44, minHeight: 44)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Add sub-nog \(pendingSubItem)")
+                        .accessibilityHint("Keeps the box ready for another")
+                    }
+                    // Clears what's typed; with nothing else here it closes the section too.
+                    if !pendingSubItem.isEmpty || draft.subItems.isEmpty {
+                        removeButton(label: pendingSubItem.isEmpty ? "Remove sub-nog" : "Clear \(pendingSubItem)") {
+                            newSubItem = ""
+                            if draft.subItems.isEmpty {
+                                withNogAnimation { showSubItems = false }
+                                focus = .title
+                            }
+                        }
+                    }
                 }
-                .padding(.horizontal, 14)
+                .padding(.leading, 14)
+                .padding(.trailing, 4)
                 .frame(minHeight: 44)
             }
             .nogPanel(cornerRadius: 14)
         }
+    }
+
+    /// A 44-point ✕ that removes one sub-nog.
+    private func removeButton(label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: "xmark.circle.fill")
+                .font(.body)
+                .foregroundStyle(Theme.muted)
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
+    }
+
+    /// What's typed in the add box, trimmed.
+    private var pendingSubItem: String { newSubItem.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+    /// Sub-nogs on the page, counting one still being typed.
+    private var subNogCount: Int { draft.subItems.count + (pendingSubItem.isEmpty ? 0 : 1) }
+
+    /// The Add button: keeps what's typed and leaves the cursor ready for the next one.
+    private func commitPendingSubItem() {
+        let line = pendingSubItem
+        guard !line.isEmpty else { return }
+        withNogAnimation { draft.subItems.append(line) }
+        newSubItem = ""
+        focus = .subItem
     }
 
     /// Return adds the line and keeps the cursor here; Return on an empty line goes back to the title.
@@ -220,7 +277,7 @@ struct CaptureHomeView: View {
             parts.append("note, never nogs")
         }
         if !result.tags.isEmpty { parts.append(result.tags.map { "#\($0)" }.joined(separator: " ")) }
-        if subItems > 0 { parts.append("\(subItems) sub-item\(subItems == 1 ? "" : "s")") }
+        if subItems > 0 { parts.append("\(subItems) sub-nog\(subItems == 1 ? "" : "s")") }
         if let parent { parts.append("in \(parent)") }
         return parts.joined(separator: " · ")
     }
@@ -294,16 +351,18 @@ struct CaptureHomeView: View {
                     chip(result.tags.isEmpty ? "Tags" : result.tags.map { "#\($0)" }.joined(separator: " "),
                          systemImage: "number", tint: Theme.violet,
                          isOn: !result.tags.isEmpty, isOpen: panel == .tags) { toggle(.tags) }
-                    chip(draft.subItems.isEmpty ? "Sub-items" : "\(draft.subItems.count) sub-items",
+                    chip(draft.subItems.isEmpty ? "Sub-nogs" : "\(draft.subItems.count) sub-nogs",
                          systemImage: "list.bullet", tint: Theme.blue,
                          isOn: !draft.subItems.isEmpty, isOpen: false) {
                         panel = nil
                         showSubItems = true
                         focus = .subItem
                     }
-                    chip(draft.parentID.flatMap { store.items[$0]?.title } ?? "Part of…",
-                         systemImage: "arrow.up", tint: Theme.violet,
+                    chip(draft.parentID.flatMap { store.items[$0]?.title } ?? "Link",
+                         systemImage: "link", tint: Theme.violet,
                          isOn: draft.parentID != nil, isOpen: false) { showParentPicker = true }
+                        .accessibilityLabel(draft.parentID.flatMap { store.items[$0]?.title }.map { "Linked to \($0)" } ?? "Link")
+                        .accessibilityHint("Puts this nog inside another one")
                     if focus != nil {
                         Button {
                             focus = nil
@@ -512,7 +571,7 @@ struct CaptureHomeView: View {
 /// The card an open tray panel sits in, with three ways out: the Done button
 /// (Escape on a hardware keyboard), a swipe down on its top edge, and the
 /// VoiceOver escape gesture (two-finger scrub). Tapping outside is handled by
-/// the Fresh Nog screen.
+/// the New Nog screen.
 private struct TrayPanelCard<Content: View>: View {
     let title: String
     let close: () -> Void
@@ -580,7 +639,7 @@ private struct CaptureParentPicker: View {
         NavigationStack {
             List {
                 if selection != nil {
-                    Button("Not inside anything") {
+                    Button("Don't link") {
                         selection = nil
                         dismiss()
                     }
@@ -606,7 +665,7 @@ private struct CaptureParentPicker: View {
             }
             .nogListStyle()
             .searchable(text: $search)
-            .navigationTitle("Put inside…")
+            .navigationTitle("Link to…")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
@@ -615,14 +674,14 @@ private struct CaptureParentPicker: View {
     }
 }
 
-/// Capture · Agenda · Nogs · Map
+/// New Nog · Agenda · Nogs · Map
 struct RootView: View {
     @Environment(Router.self) private var router
 
     var body: some View {
         @Bindable var router = router
         TabView(selection: $router.tab) {
-            Tab("Fresh Nog", systemImage: "plus.circle", value: AppTab.capture) {
+            Tab("New Nog", systemImage: "plus.circle", value: AppTab.capture) {
                 CaptureHomeView()
             }
             Tab("Agenda", systemImage: "calendar", value: AppTab.agenda) {

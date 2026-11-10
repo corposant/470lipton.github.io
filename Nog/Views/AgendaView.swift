@@ -134,7 +134,7 @@ private struct AgendaRow: View {
         }
         .appEntityIdentifier(EntityIdentifier(for: ReminderEntity.self, identifier: item.id))
         .swipeActions(edge: .leading) {
-            Button("Nogged") { store.markDone(item.id) }.tint(ProgressRing.complete)
+            Button("Done") { store.markDone(item.id) }.tint(ProgressRing.complete)
         }
         .swipeActions(edge: .trailing) {
             let snooze = NogSettings.snoozeLength(for: item)
@@ -185,7 +185,7 @@ private struct AgendaRow: View {
                 parts.append(r.repeatSummary.map { "then \($0)" } ?? "once")
             }
         }
-        if subItems.total > 0 { parts.append("\(subItems.done)/\(subItems.total) sub-items") }
+        if subItems.total > 0 { parts.append("\(subItems.done)/\(subItems.total) sub-nogs") }
         if let tag = item.tags.first { parts.append("#\(tag)") }
         return parts.joined(separator: " · ")
     }

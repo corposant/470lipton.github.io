@@ -76,7 +76,7 @@ struct NogShortcuts: AppShortcutsProvider {
         AppShortcut(intent: MarkNoggedIntent(),
                     phrases: ["Mark \(\.$item) done in \(.applicationName)", "\(.applicationName) \(\.$item) done",
                               "I nogged \(\.$item) in \(.applicationName)"],
-                    shortTitle: "Mark Nogged",
+                    shortTitle: "Mark Done",
                     systemImageName: "checkmark.circle")
         AppShortcut(intent: StartItemIntent(),
                     phrases: ["Start \(\.$item) in \(.applicationName)", "\(.applicationName) start \(\.$item)"],

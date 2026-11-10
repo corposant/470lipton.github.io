@@ -105,7 +105,7 @@ struct ItemListView: View {
         if all.isEmpty {
             ContentUnavailableView("Nothing captured yet",
                                    systemImage: "tray",
-                                   description: Text("Add something on the Fresh Nog tab. Everything nogs you until it's done."))
+                                   description: Text("Add something on the New Nog tab. Everything nogs you until it's done."))
         } else if !query.isEmpty {
             let results = all
                 .filter { $0.title.lowercased().contains(query) || $0.body.lowercased().contains(query)
@@ -172,7 +172,7 @@ struct ItemListView: View {
                             Text("\(done.count) finished").font(.nogMeta).foregroundStyle(Theme.muted)
                         }
                     } header: {
-                        SectionLabel(title: "Nogged")
+                        SectionLabel(title: "Done")
                     }
                     .listRowBackground(Theme.glass)
                 }
@@ -280,7 +280,7 @@ struct ItemRow: View {
         .confirmationDialog("Delete this item?", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("Delete", role: .destructive) { store.delete(item.id) }
         } message: {
-            Text("“\(item.title.isEmpty ? "Untitled" : item.title)” and its notes will be removed. Sub-items stay, unfiled.")
+            Text("“\(item.title.isEmpty ? "Untitled" : item.title)” and its notes will be removed. Sub-nogs stay, unfiled.")
         }
     }
 
@@ -319,7 +319,7 @@ struct ItemRow: View {
             parts.append("~\(IntervalFormat.amount(estimate))")
         }
         if childCount > 0 {
-            parts.append("\(counts.done)/\(childCount) sub-items")
+            parts.append("\(counts.done)/\(childCount) sub-nogs")
         }
         if let parent = store.parent(of: item) { parts.append("in \(parent.title)") }
         if !item.tags.isEmpty { parts.append(item.tags.map { "#\($0)" }.joined(separator: " ")) }

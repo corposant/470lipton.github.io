@@ -28,7 +28,7 @@ struct StartButton: View {
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Start \(item.title)")
             .accessibilityHint("Starts with \(suggestion.label.lowercased()). Hold to choose a timebox.")
-            .accessibilityValue(subItems.map { "\($0.done) of \($0.total) sub-items done" } ?? "")
+            .accessibilityValue(subItems.map { "\($0.done) of \($0.total) sub-nogs done" } ?? "")
             .accessibilityAddTraits(.isButton)
             .accessibilityAction { store.start(item.id, timebox: suggestion.minutes) }
             .accessibilityAction(named: "Choose timebox") { showPanel = true }
@@ -297,7 +297,7 @@ struct DoingCard: View {
                 Button {
                     store.markDone(item.id)
                 } label: {
-                    Label("Nogged", systemImage: "checkmark")
+                    Label("Done", systemImage: "checkmark")
                 }
                 .buttonStyle(OutlineButtonStyle(tint: Theme.blue))
                 Button {

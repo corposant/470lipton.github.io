@@ -233,7 +233,7 @@ private struct ItemEditor: View {
             } label: {
                 HStack(spacing: 8) {
                     Image(systemName: "checkmark").nogFont(12, weight: .bold)
-                    Text("NOGGED").font(.nogTitle(13)).tracking(2)
+                    Text("DONE").font(.nogTitle(13)).tracking(2)
                 }
                 .foregroundStyle(StatusDial.tint(.done))
                 .padding(.vertical, 15)
@@ -243,7 +243,7 @@ private struct ItemEditor: View {
                 .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
             }
             .buttonStyle(.borderless)
-            .accessibilityLabel("Mark nogged")
+            .accessibilityLabel("Mark done")
         }
         .padding(.top, 4)
     }
@@ -284,7 +284,7 @@ private struct ItemEditor: View {
                             .foregroundStyle(child.status == .done ? Theme.blue : Theme.muted)
                     }
                     .buttonStyle(.borderless)
-                    .accessibilityLabel(child.status == .done ? "Reopen \(child.title)" : "Mark \(child.title) nogged")
+                    .accessibilityLabel(child.status == .done ? "Reopen \(child.title)" : "Mark \(child.title) done")
                     NavigationLink(value: child.id) {
                         Text(child.title)
                             .strikethrough(child.status == .done)
@@ -296,7 +296,7 @@ private struct ItemEditor: View {
                 Image(systemName: "plus").foregroundStyle(Theme.muted)
                 // Multi-line field: Return arrives as a newline, which we turn into "add this one
                 // and keep typing". A single-line field would end editing and drop the keyboard.
-                TextField("Add sub-item", text: $newChild, axis: .vertical)
+                TextField("Add sub-nog", text: $newChild, axis: .vertical)
                     .focused($childFieldFocused)
                     .submitLabel(.next)
                     .onChange(of: newChild) { addChildrenOnReturn() }
@@ -317,7 +317,7 @@ private struct ItemEditor: View {
             }
         } header: {
             HStack {
-                SectionLabel(title: children.isEmpty ? "Sub-items" : "Sub-items · \(done) of \(children.count)")
+                SectionLabel(title: children.isEmpty ? "Sub-nogs" : "Sub-nogs · \(done) of \(children.count)")
                 if !children.isEmpty {
                     ProgressView(value: Double(done), total: Double(children.count))
                         .tint(Theme.blue)
@@ -489,7 +489,7 @@ private struct ItemEditor: View {
                 dismiss()
             }
         } message: {
-            Text("“\(item.title)” and its notes will be removed. Sub-items stay, unfiled.")
+            Text("“\(item.title)” and its notes will be removed. Sub-nogs stay, unfiled.")
         }
     }
 
@@ -642,7 +642,7 @@ private struct NoggedCard: View {
     var body: some View {
         HStack(spacing: 14) {
             VStack(alignment: .leading, spacing: 4) {
-                PanelLabel(text: "Nogged · \(DayFormat.label(item.completed ?? .now))")
+                PanelLabel(text: "Done · \(DayFormat.label(item.completed ?? .now))")
                 GlowReadout(text: (item.completed ?? .now).formatted(date: .omitted, time: .shortened),
                             size: 28, color: Color(red: 0.78, green: 0.96, blue: 0.87), glow: StatusDial.tint(.done))
                 if item.totalTimeSpent() >= 60 {

@@ -16,7 +16,7 @@ struct BulkActionBar: View {
                 apply { $0.status = .done }
                 selection = []
             } label: {
-                Label("Nogged", systemImage: "checkmark.circle")
+                Label("Done", systemImage: "checkmark.circle")
             }
             .disabled(none)
 
@@ -127,7 +127,7 @@ struct BulkActionBar: View {
                     selection = []
                 }
             } message: {
-                Text("Their notes go too. Sub-items of deleted items stay, unfiled.")
+                Text("Their notes go too. Sub-nogs of deleted items stay, unfiled.")
             }
         }
         .labelStyle(StackedLabelStyle())

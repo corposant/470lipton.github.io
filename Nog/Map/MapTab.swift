@@ -52,7 +52,7 @@ struct MapTab: View {
                     } label: {
                         Image(systemName: showNogged ? "checkmark.circle.fill" : "checkmark.circle")
                     }
-                    .accessibilityLabel(showNogged ? "Hide nogged items" : "Show nogged items")
+                    .accessibilityLabel(showNogged ? "Hide done items" : "Show done items")
                 }
             }
             .navigationDestination(for: UUID.self) { id in
@@ -235,7 +235,7 @@ struct MindMapView: View {
             .overlay {
                 if graph.items.isEmpty {
                     ContentUnavailableView("Nothing to map yet", systemImage: "point.3.connected.trianglepath.dotted",
-                                           description: Text("Capture a few things, give them #tags, sub-items or [[links]], and they'll show up here."))
+                                           description: Text("Capture a few things, give them #tags, sub-nogs or [[links]], and they'll show up here."))
                 }
             }
             .confirmationDialog(filingTitle(graph), isPresented: filingShown, titleVisibility: .visible) {
@@ -335,7 +335,7 @@ struct MindMapView: View {
         var parts = [Self.name(item), item.status.label]
         if let parent = store.parent(of: item) { parts.append("in \(Self.name(parent))") }
         let progress = graph.progress[item.id]
-        if progress.total > 0 { parts.append("\(progress.done) of \(progress.total) sub-items done") }
+        if progress.total > 0 { parts.append("\(progress.done) of \(progress.total) sub-nogs done") }
         if !item.tags.isEmpty { parts.append(item.tags.map { "#\($0)" }.joined(separator: " ")) }
         if let next = item.effectiveReminder?.nextFire(after: .now) {
             parts.append("next nog \(next.formatted(date: .abbreviated, time: .shortened))")
@@ -1086,7 +1086,7 @@ private struct MapInfoCard: View {
                     fact("folder", "In \(parent.title.isEmpty ? "Untitled" : parent.title)")
                 }
                 if progress.total > 0 {
-                    fact("checklist", "\(progress.done) of \(progress.total) sub-items done")
+                    fact("checklist", "\(progress.done) of \(progress.total) sub-nogs done")
                 }
                 if let next = item.effectiveReminder?.nextFire(after: .now) {
                     fact("bell", "Next nog \(next.formatted(date: .abbreviated, time: .shortened))")

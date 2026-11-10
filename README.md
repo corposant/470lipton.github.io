@@ -2,7 +2,7 @@
 
 A capture-first iPhone app where **every item can nog you, repeatedly, until it's done.**
 
-- **Everything is an Item.** To-dos, ideas, concepts and projects are all the same thing. Any item can have notes, `[[links]]` to other items, backlinks, tags, and sub-items (an item with sub-items *is* a project).
+- **Everything is an Item.** To-dos, ideas, concepts and projects are all the same thing. Any item can have notes, `[[links]]` to other items, backlinks, tags, and sub-nogs (an item with sub-nogs *is* a project).
 - **Capture is instant.** The app opens with the keyboard already up. Type, hit return, and keep typing.
 - **Every capture gets a default nog** (out of the box: first nog 15 min after capture, then every 8 min until done). You can change that in Settings, or per item.
 - **Nogs repeat forever.** They don't stop after one or two. Each nog has **Done ✓ / Snooze 1 hour / Tomorrow morning** buttons right on the notification. With quiet hours, a timed silence or alarms in play, iOS only lets Nog line up the next few hours of nogs at a time; if you don't open Nog before they run out, one last notification asks you to, so they never just stop.
@@ -38,18 +38,18 @@ As you type, a line above the capture field shows how Nog understood it. A day w
 
 ## iOS 27 features
 
-- **Siri speaks Nog natively.** Nog adopts iOS 27's new Reminders App Schemas (`createReminder`, `updateReminder`, `deleteReminders`, `createList`). Try *"Remind me in Nog to call mom tomorrow at 3"*, *"Add milk to my Groceries list in Nog"*, *"Mark this as done"* and *"Set the due date for this to Friday"*. Any item with sub-items works as a list.
+- **Siri speaks Nog natively.** Nog adopts iOS 27's new Reminders App Schemas (`createReminder`, `updateReminder`, `deleteReminders`, `createList`). Try *"Remind me in Nog to call mom tomorrow at 3"*, *"Add milk to my Groceries list in Nog"*, *"Mark this as done"* and *"Set the due date for this to Friday"*. Any item with sub-nogs works as a list.
 - **"Siri, mark that done."** Nog notifications, list rows and item screens are tagged with their item (iOS 27 entity annotations), so Siri knows what "this" or "that" means.
 - **Spotlight's semantic index.** Items are indexed so Siri and Spotlight can find them by meaning, not just exact words.
 - **Ring like an alarm.** Flip it on per item, or type `!alarm`, and that item's nogs become real AlarmKit alarms. They break through Silent mode and Focus, take over the Lock Screen and your Watch, with **Stop** (silence this ring; nogs continue) and **Done** (finish the item). Regular nogs take over again after the scheduled alarms run out.
-- **Break it down.** On-device Apple Intelligence (Foundation Models) suggests 3–7 concrete first steps for any item, and you pick which ones become sub-items. It runs only on Apple Intelligence devices, and nothing leaves the phone.
+- **Break it down.** On-device Apple Intelligence (Foundation Models) suggests 3–7 concrete first steps for any item, and you pick which ones become sub-nogs. It runs only on Apple Intelligence devices, and nothing leaves the phone.
 
 ## Three tabs
 
 - **Capture** (where Nog opens): one text box. Below it, **Just caught** (your latest captures) and **Next nogs** (the soonest few). Nothing else.
 - **Nogs**: the full overview, with the sections below.
 - **Map**: see your data. The Map and the Outline are two views of the same structure.
-  - **Map mode:** every item is a node. **Tap a node to select it**: it lights up and its details slide up from the bottom; tap it again to open it. **Only a selected node can be dragged** (a drag anywhere else pans), so nothing moves by accident. To file it, hold it over another node until that one glows, then let go. Every move and filing shows an Undo, and VoiceOver users get Move, File into… and Take out actions on each node. A node with things connected under it *is* a folder, shown with a folder icon. Long-press a node to take it out of its folder, open it, or start it. Solid lines show what's filed where; dashed lines show `[[links]]`. Each #tag gets a coloured zone. Tap the wand to **tidy up**: overlaps go, stray sub-items come back to their folder, and anything you placed by hand stays put. Touch and hold the wand for whole-page layouts: Stars, Mind map, By tag or Web. Chips flock to their new spots (or simply appear there with Reduce Motion or Low stimulation), and Undo puts everything back. Tap ✏︎ to scribble with finger or Pencil. Positions and scribbles are saved in `_nogmap.json` next to your items, so they sync too.
+  - **Map mode:** every item is a node. **Tap a node to select it**: it lights up and its details slide up from the bottom; tap it again to open it. **Only a selected node can be dragged** (a drag anywhere else pans), so nothing moves by accident. To file it, hold it over another node until that one glows, then let go. Every move and filing shows an Undo, and VoiceOver users get Move, File into… and Take out actions on each node. A node with things connected under it *is* a folder, shown with a folder icon. Long-press a node to take it out of its folder, open it, or start it. Solid lines show what's filed where; dashed lines show `[[links]]`. Each #tag gets a coloured zone. Tap the wand to **tidy up**: overlaps go, stray sub-nogs come back to their folder, and anything you placed by hand stays put. Touch and hold the wand for whole-page layouts: Stars, Mind map, By tag or Web. Chips flock to their new spots (or simply appear there with Reduce Motion or Low stimulation), and Undo puts everything back. Tap ✏︎ to scribble with finger or Pencil. Positions and scribbles are saved in `_nogmap.json` next to your items, so they sync too.
   - **Outline mode:** each folder is a collapsible section, sub-folders collapse inside it, and anything not connected sits under **Unfiled**. What you've collapsed is remembered.
 
 ## The list
@@ -62,7 +62,7 @@ As you type, a line above the capture field shows how Nog understood it. A day w
 | **Nogs next** | tomorrow and beyond |
 | **Loose nogs** | no reminder: ideas, concepts, notes |
 | **Dream nogs** | someday / maybe |
-| **Nogged** | finished, kept for reference |
+| **Done** | finished, kept for reference |
 
 ## ▶︎ Doing a nog (Nogitivity)
 
@@ -71,7 +71,7 @@ Every nog has a play button. Tap it and the nog becomes **Doing**, the thing you
 - **A live timer on your Lock Screen and in the Dynamic Island** (plus StandBy, Apple Watch and CarPlay), with **Done / +10 min / Stop** buttons.
 - **A timebox Nog picks for you**, in this order: your estimate for the item (`~30m` when capturing, or set it on the item), how long similar items took you before (same #tag, or other steps in the same project), a short start if it's urgent (15 min) or has been waiting over a day (10 min), and otherwise your default (25 min). Hold the button to choose another length or no timer (counts up).
 - **While you're doing it, the usual nogs pause.** When the timebox ends, Nog nogs "Time's up. Done, or 10 more minutes?" every 5 minutes. Alarm items ring. Open-ended sessions get an hourly "Still on it?".
-- **Finishing keeps the item.** Done items stay with their notes, sub-items and the time you spent ("took 40 min"). That history makes future timeboxes smarter. **Stop** puts it back to Open and keeps the time.
+- **Finishing keeps the item.** Done items stay with their notes, sub-nogs and the time you spent ("took 40 min"). That history makes future timeboxes smarter. **Stop** puts it back to Open and keeps the time.
 - **Siri:** *"Start write report in Nog."*
 
 ### Nogitivity widgets
@@ -79,7 +79,7 @@ Every nog has a play button. Tap it and the nog becomes **Doing**, the thing you
 Add **Nogitivity** to your Home Screen (small, medium or large) or Lock Screen (circle, rectangle or the line above the clock).
 
 - **Nothing on:** it lists nogs to start, each with a **▶︎** showing the timebox Nog would pick ("▶ 15m"). Tap ▶︎ and the timer starts without opening the app. The small size shows the top nog with one big **Start**; the large one adds **✓** to mark nogs done.
-- **While you're doing something:** it turns into the timer, with **✓ Nogged / +10 min / Stop**. The medium size adds a timebox bar, and the large one shows the item's sub-items and what's up next.
+- **While you're doing something:** it turns into the timer, with **✓ Done / +10 min / Stop**. The medium size adds a timebox bar, and the large one shows the item's sub-nogs and what's up next.
 - **Lock Screen:** a ring that fills as the timebox runs (or how many are nogging), the timer with "of 25", or the next nog. Titles hide when **Show titles on Lock Screen** is off.
 - **Press and hold › Edit Widget** to choose what it offers: one or more **Lists** (Nogging now, Today, Agenda, Loose nogs, Dream nogs), **Only #tag**, or **Pick nogs** one by one from everything outstanding. **Show the timer while I'm doing something** can be switched off for a pure list.
 

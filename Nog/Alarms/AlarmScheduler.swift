@@ -97,7 +97,7 @@ final class AlarmScheduler {
         // the item keeps nogging). Our one custom button finishes the item.
         let alert = AlarmPresentation.Alert(
             title: "\(item.title)",
-            secondaryButton: AlarmButton(text: "Nogged", textColor: .white, systemImageName: "checkmark"),
+            secondaryButton: AlarmButton(text: "Done", textColor: .white, systemImageName: "checkmark"),
             secondaryButtonBehavior: .custom)
         let attributes = AlarmAttributes(
             presentation: AlarmPresentation(alert: alert),
