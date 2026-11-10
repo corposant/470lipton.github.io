@@ -46,7 +46,7 @@ struct ReadNogsIntent: AppIntent {
 
 /// "Mark <item> done in Nog".
 struct MarkNoggedIntent: AppIntent {
-    static var title: LocalizedStringResource = "Mark Nogged"
+    static var title: LocalizedStringResource = "Mark Done"
     static var description = IntentDescription("Mark a Nog item as done. It stops nogging you.")
     static var openAppWhenRun = false
 
@@ -60,7 +60,7 @@ struct MarkNoggedIntent: AppIntent {
         store.markDone(existing.id)
         await store.syncNow()
         await store.flush()
-        return .result(dialog: IntentDialog(full: "Nogged: \(existing.title).", supporting: "Nogged"))
+        return .result(dialog: IntentDialog(full: "Done: \(existing.title).", supporting: "Done"))
     }
 }
 

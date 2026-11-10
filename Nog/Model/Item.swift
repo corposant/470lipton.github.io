@@ -112,7 +112,7 @@ enum ItemStatus: String, CaseIterable, Hashable {
         case .open: "Open"
         case .doing: "Doing"
         case .someday: "Dream"
-        case .done: "Nogged"
+        case .done: "Done"
         }
     }
 
@@ -122,7 +122,7 @@ enum ItemStatus: String, CaseIterable, Hashable {
         case .open: "Nogging"
         case .doing: "Paused while you're doing it"
         case .someday: "Paused while it's a dream"
-        case .done: "Paused, it's nogged"
+        case .done: "Paused, it's done"
         }
     }
 }

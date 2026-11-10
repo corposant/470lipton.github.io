@@ -35,7 +35,7 @@ struct MapTab: View {
                     } label: {
                         Image(systemName: showNogged ? "checkmark.circle.fill" : "checkmark.circle")
                     }
-                    .accessibilityLabel(showNogged ? "Hide nogged items" : "Show nogged items")
+                    .accessibilityLabel(showNogged ? "Hide done items" : "Show done items")
                 }
             }
             .navigationDestination(for: UUID.self) { id in
@@ -69,6 +69,9 @@ struct MindMapView: View {
     @State private var baseOffset: CGSize = .zero
     @State private var isZooming = false
     @State private var didCenter = false
+    /// Set once you pan or zoom. Until then the map keeps itself fitted when the
+    /// screen changes size (rotation, split view, the page strip settling).
+    @State private var viewMoved = false
     @State private var isScribbling = false
     /// Worked-out items, lines and zones, rebuilt only when the items change.
     @State private var cache = MapGraphCache()
@@ -151,10 +154,14 @@ struct MindMapView: View {
                 doc.refreshFromDisk()
                 place(graph, thenCentreIn: geo.size)
             }
-            .onChange(of: geo.size) { centreIfNeeded(graph.items, in: geo.size) }
+            .onChange(of: geo.size) {
+                if didCenter && !viewMoved { fit(graph.items, in: geo.size) }
+                centreIfNeeded(graph.items, in: geo.size)
+            }
             // Re-centre every time the map opens, once layout has settled.
             .onDisappear {
                 didCenter = false
+                viewMoved = false
                 cancelDrag()
             }
             .task {
@@ -218,7 +225,7 @@ struct MindMapView: View {
             .overlay {
                 if graph.items.isEmpty {
                     ContentUnavailableView("Nothing to map yet", systemImage: "point.3.connected.trianglepath.dotted",
-                                           description: Text("Capture a few things, give them #tags, sub-items or [[links]], and they'll show up here."))
+                                           description: Text("Capture a few things, give them #tags, sub-nogs or [[links]], and they'll show up here."))
                 }
             }
             .confirmationDialog(filingTitle(graph), isPresented: filingShown, titleVisibility: .visible) {
@@ -293,6 +300,7 @@ struct MindMapView: View {
         let margin: CGFloat = 60
         guard s.y > cardTop || s.y < margin || s.x < margin || s.x > size.width - margin else { return }
         let goal = CGPoint(x: min(max(s.x, margin + 40), size.width - margin - 40), y: max(margin + 40, size.height * 0.35))
+        viewMoved = true
         withNogAnimation(.smooth) {
             offset = CGSize(width: offset.width + goal.x - s.x, height: offset.height + goal.y - s.y)
             baseOffset = offset
@@ -318,7 +326,7 @@ struct MindMapView: View {
         var parts = [Self.name(item), item.status.label]
         if let parent = store.parent(of: item) { parts.append("in \(Self.name(parent))") }
         let progress = graph.progress[item.id]
-        if progress.total > 0 { parts.append("\(progress.done) of \(progress.total) sub-items done") }
+        if progress.total > 0 { parts.append("\(progress.done) of \(progress.total) sub-nogs done") }
         if !item.tags.isEmpty { parts.append(item.tags.map { "#\($0)" }.joined(separator: " ")) }
         if let next = item.effectiveReminder?.nextFire(after: .now) {
             parts.append("next nog \(next.formatted(date: .abbreviated, time: .shortened))")
@@ -686,6 +694,7 @@ struct MindMapView: View {
     private func panAndZoom(viewSize: CGSize) -> some Gesture {
         let pan = DragGesture()
             .onChanged { value in
+                viewMoved = true
                 offset = CGSize(width: baseOffset.width + value.translation.width,
                                 height: baseOffset.height + value.translation.height)
             }
@@ -693,6 +702,7 @@ struct MindMapView: View {
         let zoom = MagnifyGesture()
             .onChanged { value in
                 if !isZooming { isZooming = true }
+                viewMoved = true
                 let newScale = min(2.5, max(0.25, baseScale * value.magnification))
                 // Zoom around the middle of the screen.
                 let c = CGPoint(x: viewSize.width / 2, y: viewSize.height / 2)
@@ -709,11 +719,13 @@ struct MindMapView: View {
         return pan.simultaneously(with: zoom)
     }
 
-    /// Centres once, as soon as there's a real screen size to centre in.
+    /// Centres once, as soon as there's a real screen size and every chip has a spot.
     private func centreIfNeeded(_ items: [Item], in size: CGSize) {
         guard !didCenter, size.width > 0, size.height > 0 else { return }
-        // Wait until something has a spot, or the first fit would centre on nothing.
-        guard items.isEmpty || items.contains(where: { doc.positions[$0.id] != nil }) else { return }
+        // Wait until every chip has a spot: new chips are placed off the main thread, and
+        // fitting before they land would centre on only the ones that were saved.
+        // `place` calls this again once they have.
+        guard items.allSatisfy({ doc.positions[$0.id] != nil }) else { return }
         fit(items, in: size)
         didCenter = true
     }
@@ -729,14 +741,26 @@ struct MindMapView: View {
             baseOffset = offset
             return
         }
-        // Leave room for node chips, and for the buttons at the bottom right.
         // On a half-folded iPhone Duo, fit into the larger side of the fold.
         let area = fitArea ?? CGRect(origin: .zero, size: size)
-        let bounds = CGRect(x: minX - 110, y: minY - 60, width: maxX - minX + 220, height: maxY - minY + 120)
-        let usable = CGSize(width: area.width - 24, height: max(120, area.height - 110))
-        scale = min(1.2, max(0.3, min(usable.width / bounds.width, usable.height / bounds.height)))
-        offset = CGSize(width: area.midX - bounds.midX * scale,
-                        height: area.minY + (area.height - 80) / 2 - bounds.midY * scale)
+        // Positions are chip centres. Chips are drawn at about their own size however far
+        // you zoom out (see chipFit), so the room for half a chip each side is in screen
+        // points, not map points. A margin in map points shrinks with the zoom and lets
+        // the outer chips hang off the screen.
+        let span = CGSize(width: max(1, maxX - minX), height: max(1, maxY - minY))
+        let room = CGSize(width: area.width - 24, height: max(120, area.height - 110))
+        var fitted: CGFloat = 1
+        for _ in 0..<3 {
+            let chipScale = min(1.15, max(0.55, fitted))
+            let half = CGSize(width: 100 * chipScale, height: 30 * chipScale)
+            let usable = CGSize(width: max(60, room.width - 2 * half.width),
+                                height: max(60, room.height - 2 * half.height))
+            fitted = min(1.2, max(0.3, min(usable.width / span.width, usable.height / span.height)))
+        }
+        scale = fitted
+        viewMoved = false
+        offset = CGSize(width: area.midX - (minX + maxX) / 2 * scale,
+                        height: area.minY + (area.height - 80) / 2 - (minY + maxY) / 2 * scale)
         baseScale = scale
         baseOffset = offset
     }
@@ -1069,7 +1093,7 @@ private struct MapInfoCard: View {
                     fact("folder", "In \(parent.title.isEmpty ? "Untitled" : parent.title)")
                 }
                 if progress.total > 0 {
-                    fact("checklist", "\(progress.done) of \(progress.total) sub-items done")
+                    fact("checklist", "\(progress.done) of \(progress.total) sub-nogs done")
                 }
                 if let next = item.effectiveReminder?.nextFire(after: .now) {
                     fact("bell", "Next nog \(next.formatted(date: .abbreviated, time: .shortened))")

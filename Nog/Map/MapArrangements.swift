@@ -32,7 +32,7 @@ extension MapLayout {
         /// One line for the menu and VoiceOver.
         var detail: String {
             switch self {
-            case .stars: "Each project in a ring of its sub-items"
+            case .stars: "Each project in a ring of its sub-nogs"
             case .mindMap: "Branches out to the left and right"
             case .byTag: "Tidy blocks, one per set of tags"
             case .web: "Linked notes pulled close together"

@@ -97,7 +97,7 @@ struct NogKindSheet: View {
                             HStack(spacing: 8) {
                                 Text("Stop").padding(.horizontal, 18).frame(minHeight: 30)
                                     .background(.white.opacity(0.14), in: Capsule())
-                                Text("Nogged").fontWeight(.semibold).foregroundStyle(.black)
+                                Text("Done").fontWeight(.semibold).foregroundStyle(.black)
                                     .padding(.horizontal, 18).frame(minHeight: 30)
                                     .background(ProgressRing.complete, in: Capsule())
                             }
@@ -112,7 +112,7 @@ struct NogKindSheet: View {
                         bullets([
                             "Rings full screen like the Clock app until you stop it.",
                             "Rings even on Silent and in a Focus.",
-                            "Stop quiets this ring; it rings again on schedule. Nogged ends it.",
+                            "Stop quiets this ring; it rings again on schedule. Done ends it.",
                         ])
                     }
                     Label("Ignoring a Nog? It can turn into an Alarm: Unhinged does after 3 unanswered nogs, or set it for everything in Settings → Nogs & alerts.",

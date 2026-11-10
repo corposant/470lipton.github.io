@@ -77,7 +77,7 @@ private struct DoingActivityView: View {
                 }
                 .buttonStyle(.plain)
                 .background(Theme.blue.opacity(0.25), in: Circle())
-                .accessibilityLabel("Nogged")
+                .accessibilityLabel("Done")
             }
             .padding(10)
         } else {

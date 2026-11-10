@@ -213,7 +213,7 @@ struct ItemListView: View {
                             Text("\(done.count) finished").font(.nogMeta).foregroundStyle(Theme.muted)
                         }
                     } header: {
-                        SectionLabel(title: "Nogged")
+                        SectionLabel(title: "Done")
                     }
                     .listRowBackground(Theme.glass)
                 }
@@ -321,7 +321,7 @@ struct ItemRow: View {
         .confirmationDialog("Delete this item?", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("Delete", role: .destructive) { store.delete(item.id) }
         } message: {
-            Text("“\(item.title.isEmpty ? "Untitled" : item.title)” and its notes will be removed. Sub-items stay, unfiled.")
+            Text("“\(item.title.isEmpty ? "Untitled" : item.title)” and its notes will be removed. Sub-nogs stay, unfiled.")
         }
     }
 
@@ -360,7 +360,7 @@ struct ItemRow: View {
             parts.append("~\(IntervalFormat.amount(estimate))")
         }
         if childCount > 0 {
-            parts.append("\(counts.done)/\(childCount) sub-items")
+            parts.append("\(counts.done)/\(childCount) sub-nogs")
         }
         if let parent = store.parent(of: item) { parts.append("in \(parent.title)") }
         if !item.tags.isEmpty { parts.append(item.tags.map { "#\($0)" }.joined(separator: " ")) }

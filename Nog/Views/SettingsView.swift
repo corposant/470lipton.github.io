@@ -553,7 +553,7 @@ private struct SiriPage: View {
             } header: {
                 SectionLabel(title: "Try saying")
             } footer: {
-                Text("Any item with sub-items works as a list for Siri. Assign “Quick Capture” to the Action Button in iOS Settings → Action Button → Shortcut.")
+                Text("Any item with sub-nogs works as a list for Siri. Assign “Quick Capture” to the Action Button in iOS Settings → Action Button → Shortcut.")
             }
             .listRowBackground(Theme.glass)
         }
