@@ -151,7 +151,7 @@ struct SettingsView: View {
             SectionLabel(title: "Storage")
         } footer: {
             if storageMode == .iCloud && !store.isUsingICloud && !isSwitchingStorage {
-                Text("iCloud isn't available, so items stay on this iPhone. Check you're signed in with iCloud Drive on (iCloud sync also needs a build signed with a paid developer account).")
+                Text("iCloud isn't available, so items stay on this iPhone. Check you're signed in to iCloud with iCloud Drive on.")
             } else {
                 Text(store.isUsingICloud
                      ? "Every item is a plain Markdown file in iCloud Drive → Nog → Items, also visible on your Mac."
