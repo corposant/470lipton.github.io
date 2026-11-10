@@ -7,7 +7,7 @@ import Foundation
 extension MapLayout {
     /// Whole-page layouts in the wand's menu.
     enum Style: String, CaseIterable, Identifiable {
-        case stars, mindMap, byTag, web
+        case stars, mindMap, byTag, web, grid
 
         var id: String { rawValue }
 
@@ -17,6 +17,7 @@ extension MapLayout {
             case .mindMap: "Mind map"
             case .byTag: "By tag"
             case .web: "Web"
+            case .grid: "Grid"
             }
         }
 
@@ -26,6 +27,7 @@ extension MapLayout {
             case .mindMap: "point.3.connected.trianglepath.dotted"
             case .byTag: "tag"
             case .web: "circle.hexagongrid"
+            case .grid: "square.grid.3x3"
             }
         }
 
@@ -36,6 +38,7 @@ extension MapLayout {
             case .mindMap: "Branches out to the left and right"
             case .byTag: "Tidy blocks, one per set of tags"
             case .web: "Linked notes pulled close together"
+            case .grid: "Everything in even rows and columns"
             }
         }
     }
@@ -47,6 +50,7 @@ extension MapLayout {
         case .mindMap: squeeze(mindMap(items, sizes: sizes), sizes: sizes)
         case .byTag: squeeze(byTag(items, sizes: sizes), sizes: sizes)
         case .web: squeeze(web(items, sizes: sizes), sizes: sizes)
+        case .grid: grid(items, sizes: sizes)
         }
     }
 
@@ -423,6 +427,28 @@ extension MapLayout {
         let ids = items.sorted { $0.created < $1.created }.map(\.id)
         let p = layout(ids: ids, edges: edges(for: items), pinned: [:], spacing: 250, iterations: 300)
         return separate(centred(p), sizes: sizes)
+    }
+
+    // MARK: Grid
+
+    /// Every chip in one even grid, about as wide as it is tall: folders followed by
+    /// their sub-nogs, oldest first. Every cell is the size of the biggest chip, so the
+    /// rows and columns line up exactly.
+    static func grid(_ items: [Item], sizes: [UUID: CGSize] = [:]) -> [UUID: CGPoint] {
+        guard !items.isEmpty else { return [:] }
+        let ordered = outlineOrder(items)
+        let biggest = ordered.reduce(CGSize.zero) { s, item in
+            let c = size(item.id, in: sizes)
+            return CGSize(width: max(s.width, c.width), height: max(s.height, c.height))
+        }
+        let step = CGSize(width: biggest.width + spacing.width, height: biggest.height + spacing.height)
+        // Columns so the grid comes out about square on screen.
+        let columns = max(1, Int((Double(ordered.count) * Double(step.height / step.width)).squareRoot().rounded(.up)))
+        var out: [UUID: CGPoint] = [:]
+        for (i, item) in ordered.enumerated() {
+            out[item.id] = CGPoint(x: CGFloat(i % columns) * step.width, y: CGFloat(i / columns) * step.height)
+        }
+        return centred(out)
     }
 
     // MARK: Helpers
