@@ -95,21 +95,26 @@ A nagging style in one tap. Pick your default in Control Panel → Nogs & alerts
 
 | Profile | Token | First nog | Then | Rings as an alarm |
 |---|---|---|---|---|
+| **Hush** | `!hush` | after 15 min | every 15 min, always silent (no sound, not Time Sensitive) | never |
 | **Whisper** | `!whisper` | after 1 hr | hourly, easing off to daily | never |
-| **Steady** | (default) | after 15 min | every 8 min | per global setting |
+| **Daily** | `!daily` | at the time you type, or this time tomorrow | every 24 hr | never |
 | **Easing** | `!easing` | after 8 min | 8 → 16 → 32 min… up to daily | per global setting |
+| **Steady** | `!steady` (the default) | after 15 min | every 8 min | per global setting |
+| **Building** | `!building` | after 30 min, with heads-ups 15, 5 and 1 min before a set start | 30 → 15 → 8 → 4 min, then every 4 min | per global setting |
+| **Hyperfocus** | `!hyperfocus` or `!break` | after 5 min | every 5 min | after 1 ignored nog |
 | **Unhinged** | `!unhinged` | after 2 min | every 7 min, no let-up | after 3 ignored nogs |
 
-Fine-tune anything and the item becomes **Custom**.
+The first three letters of a token are enough (`!hyp`, `!bui`). Fine-tune anything and the item becomes **Custom**. A Hush item stays silent until you pick another profile.
 
-## Steady or logarithmic
+## Steady, logarithmic or building
 
 Each reminder has a style:
 
 - **Steady**: the same gap every time, e.g. every 8 min until done.
 - **Logarithmic**: urgent at first, then easing off. The gap doubles after each nog (8 min, 16, 32, 1 h, 2 h…) until it reaches a day, then Nog nogs daily until it's done. It never goes quiet.
+- **Building**: the opposite. The gap halves after each nog (30 min, 15, 8, 4…) down to 4 min, then stays there until it's done.
 
-Pick the default in Settings, change it per item, or type `!log` / `!steady` when capturing.
+Pick the default in Settings, change it per item, or type `!log` when capturing.
 
 ## Capture shortcuts
 
@@ -120,9 +125,8 @@ Type these anywhere in a capture line (all optional):
 | `!8m` `!2h` `!1d` | repeat every 8 min / 2 hours / 1 day |
 | `!once` | remind once, don't repeat |
 | `!log` | logarithmic: the gap doubles after each nog |
-| `!steady` | same gap every time |
 | `!alarm` | ring like a real alarm |
-| `!whisper` `!easing` `!unhinged` | use a nog profile; the first three letters are enough (`!unh`) |
+| `!hush` `!whisper` `!daily` `!easing` `!steady` `!building` `!hyperfocus` `!unhinged` | use a nog profile; the first three letters are enough (`!unh`) |
 | `~30m` `~2h` | how long it'll take (the ▶︎ timebox) |
 | `!off` or `!idea` | no reminder |
 | `@30m` `@2h` `@1d` `@now` | when to start nogging |

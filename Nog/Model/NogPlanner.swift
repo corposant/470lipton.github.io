@@ -19,6 +19,8 @@ struct PlannedNotification: Hashable {
     var category: String = NogPlanner.categoryNog
     /// A "coming up" note before the nogs start, not a nog itself.
     var isHeadsUp = false
+    /// Hush: no sound, and no Time Sensitive break-through.
+    var silent = false
 
     var fireDate: Date? {
         if case .at(let date) = trigger { return date }
@@ -91,21 +93,27 @@ enum NogPlanner {
                 : (r.repeatSummary.map { "Nogging \($0) until done" } ?? "Reminder")
             let category = doing ? categoryDoing : self.category(for: item.reminder)
             // A change of category (its buttons) must replace already-scheduled nogs.
-            let titleTag = stableHash(category == categoryNog || doing ? item.title : item.title + "|" + category)
+            // So does turning Hush on or off (the sound is baked into each request).
+            let titleTag = stableHash((category == categoryNog || doing ? item.title : item.title + "|" + category)
+                                      + (r.silent ? "|silent" : ""))
             let base = "\(prefix)\(item.id.uuidString)\(doing ? ".doing" : "")"
 
             func oneShot(_ date: Date, body: String = body, kind: String = "at") -> PlannedNotification {
                 PlannedNotification(identifier: "\(base).\(kind).\(Int(date.timeIntervalSince1970)).\(titleTag)",
                                     itemID: item.id, title: item.title, body: body, trigger: .at(date),
-                                    category: category, isHeadsUp: kind == "heads")
+                                    category: category, isHeadsUp: kind == "heads", silent: r.silent)
             }
 
-            // Heads-up before a dated nog starts.
-            if !doing, policy.headsUpMinutes > 0 {
-                let headsUp = r.start.addingTimeInterval(TimeInterval(-policy.headsUpMinutes * 60))
-                if headsUp > now, !policy.quiet.contains(headsUp, calendar: calendar), !policy.isSilenced(at: headsUp) {
-                    followUps.append(oneShot(headsUp, body: "Coming up in \(IntervalFormat.amount(policy.headsUpMinutes))",
-                                             kind: "heads"))
+            // Heads-up before a dated nog starts: the global one, plus Building's 15 / 5 / 1 min
+            // countdown, which eases the switch into a task.
+            if !doing {
+                var leads = policy.headsUpMinutes > 0 ? [policy.headsUpMinutes] : []
+                if r.curve == .building { leads += Reminder.buildingHeadsUpMinutes }
+                for lead in Set(leads).sorted(by: >) {
+                    let headsUp = r.start.addingTimeInterval(TimeInterval(-lead * 60))
+                    if headsUp > now, !policy.quiet.contains(headsUp, calendar: calendar), !policy.isSilenced(at: headsUp) {
+                        followUps.append(oneShot(headsUp, body: "Coming up in \(IntervalFormat.amount(lead))", kind: "heads"))
+                    }
                 }
             }
 
@@ -118,7 +126,7 @@ enum NogPlanner {
                 primaries.append(PlannedNotification(
                     identifier: "\(base).every.\(Int(seconds)).\(Int(settled.since.timeIntervalSince1970)).\(titleTag)",
                     itemID: item.id, title: item.title, body: body, trigger: .every(seconds),
-                    category: category))
+                    category: category, silent: r.silent))
             } else {
                 // Exact times: skip the ones an alarm already covers, push quiet-hour ones to when quiet ends.
                 var dates: [Date] = []

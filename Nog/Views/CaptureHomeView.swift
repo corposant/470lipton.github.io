@@ -502,7 +502,8 @@ struct CaptureHomeView: View {
                 .fixedSize(horizontal: false, vertical: true)
             if let r = result.reminder {
                 let current = draft.profile ?? NogProfile.matching(r)
-                HStack(spacing: 6) {
+                // Eight profiles: wrap onto more lines rather than squeeze.
+                FlowLayout(spacing: 6) {
                     ForEach(NogProfile.allCases) { profile in
                         smallChip(profile.label, isOn: profile == current) { draft.profile = profile }
                     }

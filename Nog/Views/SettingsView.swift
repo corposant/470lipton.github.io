@@ -274,6 +274,7 @@ private struct NogsAlertsPage: View {
     @AppStorage(NogSettings.repeatKey) private var repeatMinutes = NogSettings.defaultRepeat
     @AppStorage(NogSettings.curveKey) private var curve: RepeatCurve = .steady
     @AppStorage(NogSettings.escalateKey) private var profileEscalate = -1
+    @AppStorage(NogSettings.silentKey) private var profileSilent = false
     @State private var showFineTune = false
     // Quiet hours
     @AppStorage(NogSettings.Key.quietEnabled) private var quietEnabled = false
@@ -300,13 +301,15 @@ private struct NogsAlertsPage: View {
                         repeatMinutes = profile.repeatMinutes
                         curve = profile.curve
                         profileEscalate = profile.escalateAfter ?? -1
+                        profileSilent = profile.silent
                     } label: {
                         ProfileCard(profile: profile, isSelected: currentProfile == profile)
                     }
                     .buttonStyle(.plain)
                 }
                 DisclosureGroup(isExpanded: $showFineTune) {
-                    Stepper(value: $firstDelay, in: 0...240, step: 1) {
+                    // Daily starts a day out, so the range stretches to fit.
+                    Stepper(value: $firstDelay, in: 0...max(240, firstDelay), step: 1) {
                         LabeledContent("First nog", value: firstDelay == 0 ? "Right away" : "after \(IntervalFormat.amount(firstDelay))")
                     }
                     Picker("Then", selection: $repeatMinutes) {
@@ -320,13 +323,14 @@ private struct NogsAlertsPage: View {
                         }
                         .pickerStyle(.segmented)
                     }
+                    Toggle("Silent (no sound, not Time Sensitive)", isOn: $profileSilent)
                 } label: {
                     Text(currentProfile == nil ? "Fine-tune · Custom" : "Fine-tune")
                 }
             } header: {
                 SectionLabel(title: "Default profile")
             } footer: {
-                Text("New captures use this profile unless you type one: !whisper, !easing, !unhinged. Each item can switch profile on its own page.")
+                Text("New captures use this profile unless you type one, like !hush, !building or !unhinged (the first three letters are enough). Each item can switch profile on its own page.")
             }
             .listRowBackground(Theme.glass)
 
@@ -390,6 +394,7 @@ extension NogsAlertsPage {
         NogProfile.allCases.first {
             $0.firstDelayMinutes == firstDelay && $0.repeatMinutes == repeatMinutes
                 && $0.curve == curve && ($0.escalateAfter ?? -1) == profileEscalate
+                && $0.silent == profileSilent
         }
     }
 }
@@ -420,9 +425,9 @@ struct ProfileCard: View {
 
     private var tint: Color {
         switch profile {
-        case .whisper: Theme.blue
-        case .steady, .easing: Theme.violet
-        case .unhinged: Theme.pink
+        case .hush, .whisper, .daily: Theme.blue
+        case .steady, .easing, .building: Theme.violet
+        case .hyperfocus, .unhinged: Theme.pink
         }
     }
 }

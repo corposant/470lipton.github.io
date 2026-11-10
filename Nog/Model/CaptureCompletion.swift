@@ -5,7 +5,7 @@ import Foundation
 enum CaptureCompletion {
     /// The `!` words worth offering, most useful first.
     static let tokens: [String] = NogProfile.tokenProfiles.map { "!" + $0.rawValue }
-        + ["!alarm", "!once", "!log", "!steady", "!off"]
+        + ["!alarm", "!once", "!log", "!off"]
 
     /// Completions for the word being typed (the last one, with no trailing space).
     static func suggestions(for text: String) -> [String] {
