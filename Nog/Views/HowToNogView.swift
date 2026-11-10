@@ -1,8 +1,8 @@
 import SwiftUI
 
-/// "How to Nog": everything the Fresh Nog field understands, as a standard grouped list.
+/// "How to Nog": everything the New Nog field understands, as a standard grouped list.
 /// Every example here must parse as described (see `CaptureParser`, `NaturalDateParser`,
-/// `NogProfile.token`). Opened from the Fresh Nog screen and from Settings.
+/// `NogProfile.token`). Opened from the New Nog screen and from Settings.
 struct HowToNogView: View {
     var body: some View {
         List {
@@ -64,7 +64,7 @@ struct HowToNogView: View {
     }
 }
 
-/// The same guide as a sheet, with Done, for the Fresh Nog screen.
+/// The same guide as a sheet, with Done, for the New Nog screen.
 struct HowToNogSheet: View {
     @Environment(\.dismiss) private var dismiss
 

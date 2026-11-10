@@ -802,7 +802,7 @@ final class NogSheetTests: XCTestCase {
         item.reminder = reminder
         let text = NogSheet.preview(item: item, reminder: reminder, now: now, policy: .standard)
         XCTAssertTrue(text.hasPrefix("First nog"))
-        XCTAssertTrue(text.hasSuffix("until it's nogged."))
+        XCTAssertTrue(text.hasSuffix("until it's done."))
     }
 
     func testPreviewWhenPaused() {

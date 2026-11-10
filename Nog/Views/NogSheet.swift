@@ -70,7 +70,7 @@ struct NogSheet: View {
         NavigationStack {
             Form {
                 if let item {
-                    // Note · Nog · Alarm, the same cards as on Fresh Nog, with what will happen.
+                    // Note · Nog · Alarm, the same cards as on New Nog, with what will happen.
                     Section {
                         KindPicker(selected: NogKind.of(item.reminder)) { setKind($0) }
                         Text(NogKind.promise(for: item.reminder))
@@ -127,13 +127,13 @@ struct NogSheet: View {
                     Toggle(isOn: Binding(
                         get: { reminder.passesDown },
                         set: { on in edit { $0.passesDown = on } })) {
-                        Label("Sub-items nog the same way", systemImage: "arrow.down.circle")
+                        Label("Sub-nogs nog the same way", systemImage: "arrow.down.circle")
                     }
                 }
             } footer: {
                 let following = kids.filter { $0.reminder?.followsParent == true }.count
                 if !kids.isEmpty, reminder.passesDown {
-                    Text("\(following) of \(kids.count) sub-items follow this. Changing a sub-item's own rhythm stops it following; switch Follow back on to rejoin.")
+                    Text("\(following) of \(kids.count) sub-nogs follow this. Changing a sub-nog's own rhythm stops it following; switch Follow back on to rejoin.")
                 } else if parentReminder != nil, reminder.followsParent {
                     Text("Repeat, alarm and snooze come from the parent. Change any of them here and this item keeps its own.")
                 }
@@ -373,6 +373,6 @@ struct NogSheet: View {
         }
         if dates.count == 1 { return "One nog at \(show(first)), no repeat." }
         let rest = dates.dropFirst().map(show).joined(separator: ", ")
-        return "First nog \(show(first)), then \(rest)… until it's nogged."
+        return "First nog \(show(first)), then \(rest)… until it's done."
     }
 }

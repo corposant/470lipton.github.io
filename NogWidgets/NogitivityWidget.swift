@@ -271,7 +271,7 @@ private struct TimerWidget: View {
             TimeboxBar(item: item, date: entry.date)
 
             if item.subTotal > 0 {
-                Text("ITS SUB-ITEMS · \(item.subDone) OF \(item.subTotal)")
+                Text("ITS SUB-NOGS · \(item.subDone) OF \(item.subTotal)")
                     .font(W.label()).tracking(1.8).foregroundStyle(Theme.muted)
                     .padding(.top, 4)
                 ForEach(Array(item.subItems.prefix(3).enumerated()), id: \.offset) { _, sub in
@@ -298,7 +298,7 @@ private struct TimerWidget: View {
     private func buttons(withStop: Bool) -> some View {
         HStack(spacing: 6) {
             Button(intent: CompleteItemIntent(itemID: item.id.uuidString)) {
-                PillLabel(text: "✓ Nogged", tint: W.mint, height: 34, bold: true)
+                PillLabel(text: "✓ Done", tint: W.mint, height: 34, bold: true)
             }
             Button(intent: ExtendTimeboxIntent(itemID: item.id.uuidString, minutes: 10)) {
                 PillLabel(text: "+10 min", tint: Theme.pink, height: 34).frame(width: 92)
@@ -359,7 +359,7 @@ private struct PickWidget: View {
     private var empty: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("START SOMETHING").font(W.label(family == .systemSmall ? 9.5 : 11)).tracking(1.8).foregroundStyle(Theme.violet)
-            Text("All nogged.").font(.system(size: 15, weight: .semibold))
+            Text("All done.").font(.system(size: 15, weight: .semibold))
             Text(entry.configuration.label).font(.system(size: 11.5)).foregroundStyle(Theme.muted).lineLimit(2)
             Spacer(minLength: 0)
         }
@@ -456,7 +456,7 @@ private struct PickWidget: View {
                             CircleLabel(systemImage: "checkmark", tint: W.mint, size: 28)
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel("Mark \(item.title) nogged")
+                        .accessibilityLabel("Mark \(item.title) done")
                     }
                 }
             }
@@ -644,7 +644,7 @@ private struct LockRectangular: View {
     private func detail(_ item: WidgetSnapshot.Entry) -> String? {
         var parts: [String] = []
         if item.alarm { parts.append("Alarm") }
-        if item.subTotal > 0 { parts.append("\(item.subDone)/\(item.subTotal) sub-items") }
+        if item.subTotal > 0 { parts.append("\(item.subDone)/\(item.subTotal) sub-nogs") }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 }
