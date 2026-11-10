@@ -51,6 +51,9 @@ struct OnboardingView: View {
             Text("Nog reminds you until it's done")
                 .font(.nogTitle(30))
                 .accessibilityAddTraits(.isHeader)
+            Text("This is an unhinged reminder app on steroids. If your brain needs something this strong: I'm sorry, and I hope you enjoy it.")
+                .font(.title3)
+                .foregroundStyle(.secondary)
             point("square.and.pencil", "Type it the way you'd say it",
                   "“Call mom tomorrow at 3” or “meds every morning”. Nog works out the when.")
             point("bell.badge", "It keeps reminding you",
