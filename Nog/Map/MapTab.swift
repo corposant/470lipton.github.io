@@ -72,6 +72,7 @@ struct MindMapView: View {
     @Environment(Router.self) private var router
     @Environment(\.undoManager) private var undoManager
     @Environment(\.accessibilityVoiceOverEnabled) private var voiceOverOn
+    @Environment(\.scenePhase) private var scenePhase
     @Bindable var doc: MapDocument
     /// The All page, used to seed a tag page's first layout.
     var seed: MapDocument? = nil
@@ -88,6 +89,8 @@ struct MindMapView: View {
     @State private var isScribbling = false
     /// Worked-out items, lines and zones, rebuilt only when the items change.
     @State private var cache = MapGraphCache()
+    /// Each chip's real size, for layouts.
+    @State private var chipSizes = ChipSizes()
     /// The chip that's lit up, with its details card showing.
     @State private var selection: UUID?
     /// The selected chip while it's being dragged, and where it is now (map coordinates).
@@ -143,7 +146,10 @@ struct MindMapView: View {
                 // Zone titles sit on the zone's top border, above the lines, below the chips.
                 zoneLabels(zones)
                 ForEach(graph.items) { item in
-                    node(item, graph: graph, size: geo.size)
+                    // A new item appears once it has a spot (worked out off the main thread).
+                    if placedPoint(item.id) != nil {
+                        node(item, graph: graph, size: geo.size)
+                    }
                 }
             }
             .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
@@ -157,8 +163,8 @@ struct MindMapView: View {
                     seed.load(from: store)
                     doc.seedIfEmpty(from: seed, ids: graph.ids)
                 }
-                doc.placeMissing(graph.items, edges: graph.edges)
-                centreIfNeeded(graph.items, in: geo.size)
+                doc.refreshFromDisk()
+                place(graph, thenCentreIn: geo.size)
             }
             .onChange(of: geo.size) { centreIfNeeded(graph.items, in: geo.size) }
             // Re-centre every time the map opens, once layout has settled.
@@ -170,7 +176,14 @@ struct MindMapView: View {
                 await Task.yield()
                 centreIfNeeded(graph.items, in: geo.size)
             }
-            .onChange(of: graph.ids) { doc.placeMissing(graph.items, edges: graph.edges) }
+            .onChange(of: graph.ids) {
+                // Another device may have placed the new items already.
+                doc.refreshFromDisk()
+                place(graph, thenCentreIn: geo.size)
+            }
+            .onChange(of: scenePhase) {
+                if scenePhase == .active { doc.refreshFromDisk() }
+            }
             .onChange(of: isScribbling) {
                 // Scribbling clears the undo history, and nothing is selected meanwhile.
                 if isScribbling {
@@ -241,12 +254,19 @@ struct MindMapView: View {
         let canMove = isSelected && !locked && !isScribbling
         // With something selected, chips not joined to it fade back a little.
         let isDimmed = selection.map { $0 != item.id && !(graph.neighbours[$0]?.contains(item.id) ?? false) } ?? false
+        let chip = chipFit
         return MapNode(item: item, isFolder: graph.folders.contains(item.id),
                        isSelected: isSelected, isDimmed: isDimmed,
                        isDropCandidate: dropCandidate == item.id && dropTarget != item.id,
                        isDropTarget: dropTarget == item.id,
-                       subItems: graph.progress[item.id])
-            .scaleEffect(min(1.15, max(0.55, scale)))
+                       subItems: graph.progress[item.id],
+                       maxWidth: chip.maxWidth, compact: chip.compact)
+            // Measured at full size only: a zoomed-out compact chip isn't its real size.
+            .onGeometryChange(for: CGSize.self) { $0.size } action: { measured in
+                guard !chip.compact else { return }
+                chipSizes.record(item.id, measured) { settle(graph) }
+            }
+            .scaleEffect(chip.scale)
             // Before .position, so VoiceOver's outline hugs the chip, not the whole map.
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(spokenLabel(item, graph: graph))
@@ -354,8 +374,23 @@ struct MindMapView: View {
     }
 
     private func mapPoint(_ id: UUID) -> CGPoint {
+        placedPoint(id) ?? .zero
+    }
+
+    /// Where a chip is, or nil while it hasn't been placed yet.
+    private func placedPoint(_ id: UUID) -> CGPoint? {
         if let drag, drag.id == id { return drag.point }
-        return doc.positions[id] ?? .zero
+        return doc.positions[id]
+    }
+
+    /// How big chips are drawn at this zoom. Below about 55% they stop shrinking so
+    /// titles stay readable, but they also get narrower (one line) so they still fit
+    /// between their neighbours instead of piling up.
+    private var chipFit: (scale: CGFloat, maxWidth: CGFloat, compact: Bool) {
+        let chipScale = min(1.15, max(0.55, scale))
+        // Room between neighbouring standard spots, in the chip's own (unscaled) points.
+        let room = MapLayout.pitch.width * scale / chipScale - 16
+        return room < 190 ? (chipScale, max(56, room), true) : (chipScale, 190, false)
     }
 
     private func screen(_ p: CGPoint) -> CGPoint {
@@ -392,7 +427,7 @@ struct MindMapView: View {
         // The groups come smallest first, so each zone can grow around the ones nested
         // inside it: borders never coincide and the titles stack instead of overprinting.
         var zones: [Zone] = graph.zoneGroups.compactMap { group in
-            let points = group.members.map(mapPoint)
+            let points = group.members.compactMap(placedPoint)
             guard let minX = points.map(\.x).min(), let maxX = points.map(\.x).max(),
                   let minY = points.map(\.y).min(), let maxY = points.map(\.y).max() else { return nil }
             let rect = CGRect(x: minX - inset.side, y: minY - inset.top,
@@ -452,9 +487,10 @@ struct MindMapView: View {
 
     /// Lines between chips. With a chip selected, its own lines get stronger and the rest fade.
     private func edgeLayer(_ edges: [MapLayout.Edge], focus: UUID?, size: CGSize) -> some View {
-        let lines = edges.map { edge in
-            (kind: edge.kind, a: screen(mapPoint(edge.from)), b: screen(mapPoint(edge.to)),
-             emphasis: focus.map { $0 == edge.from || $0 == edge.to ? 1.6 : 0.45 } ?? 1.0)
+        let lines = edges.compactMap { edge -> (kind: MapLayout.Edge.Kind, a: CGPoint, b: CGPoint, emphasis: Double)? in
+            guard let from = placedPoint(edge.from), let to = placedPoint(edge.to) else { return nil }
+            return (kind: edge.kind, a: screen(from), b: screen(to),
+                    emphasis: focus.map { $0 == edge.from || $0 == edge.to ? 1.6 : 0.45 } ?? 1.0)
         }
         return Canvas { context, _ in
             for line in lines {
@@ -532,7 +568,9 @@ struct MindMapView: View {
             .filter { $0.id != id && !store.isDescendant($0.id, of: id) }
             .first { other in
                 guard let q = doc.positions[other.id] else { return false }
-                return abs(q.x - point.x) < 70 && abs(q.y - point.y) < 26
+                // The middle three quarters of the target chip, so brushing its edge doesn't count.
+                let s = MapLayout.size(other.id, in: chipSizes.sizes)
+                return abs(q.x - point.x) < s.width * 0.375 && abs(q.y - point.y) < s.height * 0.375
             }?.id
     }
 
@@ -672,6 +710,8 @@ struct MindMapView: View {
     /// Centres once, as soon as there's a real screen size to centre in.
     private func centreIfNeeded(_ items: [Item], in size: CGSize) {
         guard !didCenter, size.width > 0, size.height > 0 else { return }
+        // Wait until something has a spot, or the first fit would centre on nothing.
+        guard items.isEmpty || items.contains(where: { doc.positions[$0.id] != nil }) else { return }
         fit(items, in: size)
         didCenter = true
     }
@@ -747,12 +787,33 @@ struct MindMapView: View {
 
     /// Re-arranges the page (undoable).
     private func arrange(_ graph: MapGraph, in size: CGSize) {
-        let arranged = MapLayout.arrange(graph.items)
-        withNogAnimation(.snappy) {
-            perform(MapChange(spots: graph.ids.map { .init(id: $0, position: arranged[$0]) }),
-                    message: "Arranged the map")
-            fit(graph.items, in: size)
+        let items = graph.items, ids = graph.ids, sizes = chipSizes.sizes
+        Task {
+            // Worked out off the main thread, so a big map doesn't freeze the screen.
+            let arranged = await Task.detached(priority: .userInitiated) {
+                MapLayout.arrange(items, sizes: sizes)
+            }.value
+            withNogAnimation(.snappy) {
+                perform(MapChange(spots: ids.map { .init(id: $0, position: arranged[$0]) }),
+                        message: "Arranged the map")
+                fit(items, in: size)
+            }
         }
+    }
+
+    /// Gives new items a spot (off the main thread), then centres the map if it hasn't been yet.
+    private func place(_ graph: MapGraph, thenCentreIn size: CGSize) {
+        let items = graph.items, edges = graph.edges, sizes = chipSizes.sizes
+        Task {
+            await doc.placeMissing(items, edges: edges, sizes: sizes)
+            centreIfNeeded(items, in: size)
+        }
+    }
+
+    /// Once chips have been measured, tidies any that were placed with a guessed size.
+    private func settle(_ graph: MapGraph) {
+        let ids = Set(graph.ids), sizes = chipSizes.sizes
+        Task { await doc.settle(onPage: ids, sizes: sizes) }
     }
 
     /// A Liquid Glass circle. Interactive glass squishes and glows under your finger;
@@ -1006,6 +1067,10 @@ private struct MapNode: View {
     /// Let go now and the dragged chip is filed here.
     var isDropTarget = false
     var subItems: (done: Int, total: Int) = (0, 0)
+    /// Widest the chip may be, in its own (unzoomed) points.
+    var maxWidth: CGFloat = 190
+    /// Zoomed far out: one line and tighter padding, so chips still fit between neighbours.
+    var compact = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private var isProject: Bool { isFolder }
 
@@ -1027,13 +1092,13 @@ private struct MapNode: View {
             }
             Text(item.title.isEmpty ? "Untitled" : item.title)
                 .font(isProject ? .subheadline.weight(.semibold) : .footnote.weight(.medium))
-                .lineLimit(2)
+                .lineLimit(compact ? 1 : 2)
                 .strikethrough(item.status == .done)
                 .foregroundStyle(item.status == .done ? .secondary : .primary)
         }
-        .padding(.horizontal, isProject ? 14 : 11)
-        .padding(.vertical, isProject ? 10 : 7)
-        .frame(maxWidth: 190)
+        .padding(.horizontal, compact ? 8 : (isProject ? 14 : 11))
+        .padding(.vertical, compact ? 5 : (isProject ? 10 : 7))
+        .frame(maxWidth: maxWidth)
         .nogPanel(cornerRadius: 12)
         .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
             .strokeBorder(borderColor, style: StrokeStyle(lineWidth: borderWidth, dash: isDropCandidate ? [4, 3] : [])))

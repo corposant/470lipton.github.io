@@ -45,6 +45,14 @@ final class MapDocument {
 
     @ObservationIgnored private weak var store: ItemStore?
     @ObservationIgnored private var saveTask: Task<Void, Never>?
+    /// True from a change until it's written, so a reload from disk can't undo it.
+    @ObservationIgnored private var hasPendingSave = false
+    /// When we last read or wrote the file; anything newer came from another device.
+    @ObservationIgnored private var lastSync = Date.distantPast
+    /// Chips placed automatically before their real size was known; `settle` tidies them.
+    @ObservationIgnored private(set) var unsettled: Set<UUID> = []
+    /// Bumped by each placement, so a slower, older one is dropped.
+    @ObservationIgnored private var generation = 0
 
     private struct Stored: Codable {
         var positions: [String: [Double]]
@@ -58,31 +66,66 @@ final class MapDocument {
         guard loadedFolder != store.folder else { return }
         loadedFolder = store.folder
         self.store = store
+        read(from: store)
+    }
+
+    /// Picks up the map file if another device changed it (iCloud), unless there are
+    /// changes here still waiting to be saved.
+    func refreshFromDisk() {
+        guard let store, loadedFolder == store.folder, !hasPendingSave else { return }
+        let url = store.folder.appending(path: fileName)
+        guard let modified = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate,
+              modified.timeIntervalSince(lastSync) > 5 else { return }
+        read(from: store)
+    }
+
+    private func read(from store: ItemStore) {
+        lastSync = .now
         guard let data = store.readSidecar(fileName),
               let stored = try? JSONDecoder().decode(Stored.self, from: data) else { return }
         var loaded: [UUID: CGPoint] = [:]
         for (key, xy) in stored.positions where xy.count == 2 {
             if let id = UUID(uuidString: key) { loaded[id] = CGPoint(x: xy[0], y: xy[1]) }
         }
-        positions = loaded
-        if let drawingData = stored.drawing, let decoded = try? PKDrawing(data: drawingData) {
+        if loaded != positions { positions = loaded }
+        unsettled = unsettled.filter { loaded[$0] != nil }
+        let decoded = stored.drawing.flatMap { try? PKDrawing(data: $0) } ?? PKDrawing()
+        if decoded.dataRepresentation() != drawing.dataRepresentation() {
             drawing = decoded
             drawingVersion += 1
         }
     }
 
-    /// Debounced save.
+    /// Debounced save. Spots of items that no longer exist anywhere are dropped.
     func save() {
+        hasPendingSave = true
         saveTask?.cancel()
         saveTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(1))
             guard !Task.isCancelled, let self, let store = self.store else { return }
+            self.pruneDeleted(store)
             let stored = Stored(
                 positions: Dictionary(uniqueKeysWithValues: self.positions.map { ($0.key.uuidString, [Double($0.value.x), Double($0.value.y)]) }),
                 drawing: self.drawing.strokes.isEmpty ? nil : self.drawing.dataRepresentation())
             if let data = try? JSONEncoder().encode(stored) {
                 store.writeSidecar(self.fileName, data: data)
             }
+            self.lastSync = .now
+            self.hasPendingSave = false
+        }
+    }
+
+    /// Forgets the spots of deleted items. An item missing from memory is only treated
+    /// as deleted when its file is gone from the folder too, so items still downloading
+    /// from iCloud (or not loaded yet) keep their place.
+    private func pruneDeleted(_ store: ItemStore) {
+        let missing = positions.keys.filter { store.items[$0] == nil }
+        guard !missing.isEmpty, !store.items.isEmpty,
+              let names = try? FileManager.default.contentsOfDirectory(atPath: store.folder.path) else { return }
+        let listing = names.joined(separator: "\n")
+        for id in missing where !listing.contains(id.uuidString) {
+            positions[id] = nil
+            unsettled.remove(id)
         }
     }
 
@@ -93,26 +136,52 @@ final class MapDocument {
         if !positions.isEmpty { save() }
     }
 
-    /// Places any items that don't have a spot yet, near what they're connected to.
-    func placeMissing(_ items: [Item], edges: [MapLayout.Edge]) {
+    /// Places any items that don't have a spot yet, near what they're connected to,
+    /// without moving anything that's already placed. A brand-new page gets the full
+    /// smart arrangement. Worked out off the main thread.
+    func placeMissing(_ items: [Item], edges: [MapLayout.Edge], sizes: [UUID: CGSize]) async {
         let ids = items.map(\.id)
-        guard ids.contains(where: { positions[$0] == nil }) else { return }
-        // A brand-new page gets the full smart arrangement.
-        if positions.isEmpty {
-            positions = MapLayout.arrange(items)
-            save()
-            return
+        let missing = ids.filter { positions[$0] == nil }
+        guard !missing.isEmpty else { return }
+        generation += 1
+        let mine = generation
+        let onPage = Set(ids)
+        let pinned = positions.filter { onPage.contains($0.key) }
+        let result = await Task.detached(priority: .userInitiated) { () -> [UUID: CGPoint] in
+            pinned.isEmpty
+                ? MapLayout.arrange(items, sizes: sizes)
+                : MapLayout.place(missing: missing, edges: edges, pinned: pinned, sizes: sizes)
+        }.value
+        guard mine == generation else { return }
+        var placed = false
+        for id in missing where positions[id] == nil {
+            guard let p = result[id] else { continue }
+            positions[id] = p
+            if sizes[id] == nil { unsettled.insert(id) }
+            placed = true
         }
-        let pinned = positions.filter { ids.contains($0.key) }
-        let laidOut = MapLayout.layout(ids: ids, edges: edges, pinned: pinned)
-        for id in ids where positions[id] == nil { positions[id] = laidOut[id] }
-        save()
+        if placed { save() }
     }
 
-    /// Re-arranges everything from scratch.
-    func tidy(_ items: [Item], edges: [MapLayout.Edge]) {
-        positions = MapLayout.arrange(items)
-        save()
+    /// Once chips have been measured, nudges the ones that were placed automatically
+    /// (with a guessed size) so none overlap. Nothing you placed by hand moves.
+    func settle(onPage ids: Set<UUID>, sizes: [UUID: CGSize]) async {
+        let moving = unsettled.intersection(ids).filter { sizes[$0] != nil }
+        guard !moving.isEmpty else { return }
+        let current = positions.filter { ids.contains($0.key) }
+        let fixed = Set(current.keys).subtracting(moving)
+        let result = await Task.detached(priority: .utility) {
+            MapLayout.separate(current, sizes: sizes, fixed: fixed)
+        }.value
+        unsettled.subtract(moving)
+        var changed = false
+        for id in moving {
+            // Skip anything that moved meanwhile.
+            guard let p = result[id], let before = current[id], positions[id] == before, p != before else { continue }
+            positions[id] = p
+            changed = true
+        }
+        if changed { save() }
     }
 
     /// Applies an undoable change and returns the change that undoes it.
@@ -122,6 +191,7 @@ final class MapDocument {
         for spot in change.spots {
             inverse.spots.append(.init(id: spot.id, position: positions[spot.id]))
             positions[spot.id] = spot.position
+            unsettled.remove(spot.id) // placed on purpose now
         }
         if !change.filings.isEmpty {
             store.batch {

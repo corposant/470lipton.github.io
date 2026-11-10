@@ -112,3 +112,26 @@ struct MapChange {
 
     var isEmpty: Bool { spots.isEmpty && filings.isEmpty }
 }
+
+/// Each chip's size as drawn (unzoomed), so layouts can use real sizes: long titles
+/// and large text sizes need more room than the standard cell.
+///
+/// Not observed: a measurement never needs to redraw the map by itself.
+@MainActor
+final class ChipSizes {
+    private(set) var sizes: [UUID: CGSize] = [:]
+    private var pending: Task<Void, Never>?
+
+    /// Records a measurement; `changed` runs once things have been quiet for a moment.
+    func record(_ id: UUID, _ size: CGSize, changed: @escaping @MainActor () -> Void) {
+        guard size.width > 1, size.height > 1 else { return }
+        if let old = sizes[id], abs(old.width - size.width) < 0.5, abs(old.height - size.height) < 0.5 { return }
+        sizes[id] = size
+        pending?.cancel()
+        pending = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(300))
+            guard !Task.isCancelled else { return }
+            changed()
+        }
+    }
+}
