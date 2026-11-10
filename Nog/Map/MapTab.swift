@@ -22,22 +22,12 @@ struct MapTab: View {
                 MapPageStrip(tags: tags, selected: current) { page = $0 }
                 MindMapView(doc: pages.doc(for: current),
                             seed: current.isEmpty ? nil : pages.doc(for: ""),
-                            page: current, showNogged: showNogged)
+                            page: current, showNogged: $showNogged)
                     .id(current) // fresh pan/zoom and centring per page
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .background { NogBackground() }
             .nogTabTitle(.map)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        showNogged.toggle()
-                    } label: {
-                        Image(systemName: showNogged ? "checkmark.circle.fill" : "checkmark.circle")
-                    }
-                    .accessibilityLabel(showNogged ? "Hide done items" : "Show done items")
-                }
-            }
             .navigationDestination(for: UUID.self) { id in
                 ItemDetailView(id: id)
             }
@@ -60,7 +50,8 @@ struct MindMapView: View {
     /// The All page, used to seed a tag page's first layout.
     var seed: MapDocument? = nil
     var page: String = ""
-    let showNogged: Bool
+    /// Whether done nogs are on the map (the button with the wand and grid).
+    @Binding var showNogged: Bool
 
     // The view transform: a map point p appears on screen at offset + p * scale.
     @State private var scale: CGFloat = 1
@@ -899,6 +890,12 @@ struct MindMapView: View {
                     .accessibilityHint("Puts every nog in even rows and columns. Undo puts them back.")
                 }
                 if !isScribbling {
+                    mapButton(showNogged ? "checkmark.circle.fill" : "checkmark.circle", tint: Theme.blue,
+                              label: showNogged ? "Hide done nogs" : "Show done nogs", id: "done", active: showNogged) {
+                        withNogAnimation(.snappy) { showNogged.toggle() }
+                    }
+                }
+                if !isScribbling {
                     mapButton("viewfinder", tint: Theme.blue, label: "Fit to screen", id: "fit") {
                         withNogAnimation(.snappy) { fit(graph.items, in: size) }
                     }
@@ -1079,7 +1076,7 @@ struct MindMapView: View {
         guard #available(iOS 27.1, *) else { return 0 }
         let regions = (geo.reservedRegions(kind: .division) + geo.reservedRegions(kind: .occlusion)).filter(\.isActive)
         guard !regions.isEmpty else { return 0 }
-        let stackHeight: CGFloat = 5 * 46 + 4 * 10 + 32
+        let stackHeight: CGFloat = 6 * 46 + 5 * 10 + 32
         let w = geo.size.width, h = geo.size.height
         var lift: CGFloat = 0
         for region in regions {
