@@ -64,9 +64,14 @@ struct MapTab: View {
 
 // MARK: - Mind map
 
+/// The map. Tap a chip to select it (it lights up and its details slide up from
+/// the bottom); tap it again to open it. Only a selected chip can be dragged; a drag
+/// that starts anywhere else pans, so nothing moves by accident.
 struct MindMapView: View {
     @Environment(ItemStore.self) private var store
     @Environment(Router.self) private var router
+    @Environment(\.undoManager) private var undoManager
+    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOverOn
     @Bindable var doc: MapDocument
     /// The All page, used to seed a tag page's first layout.
     var seed: MapDocument? = nil
@@ -78,51 +83,67 @@ struct MindMapView: View {
     @State private var baseScale: CGFloat = 1
     @State private var offset: CGSize = .zero
     @State private var baseOffset: CGSize = .zero
+    @State private var isZooming = false
     @State private var didCenter = false
     @State private var isScribbling = false
-    @State private var dragging: [UUID: CGPoint] = [:]
-    /// The node a dragged node would be filed into if dropped now.
+    /// Worked-out items, lines and zones, rebuilt only when the items change.
+    @State private var cache = MapGraphCache()
+    /// The chip that's lit up, with its details card showing.
+    @State private var selection: UUID?
+    /// The selected chip while it's being dragged, and where it is now (map coordinates).
+    @State private var drag: NodeDrag?
+    /// The chip a dragged chip is hovering over (not filed yet).
+    @State private var dropCandidate: UUID?
+    /// The chip it will be filed into if dropped now: armed after a short hold.
     @State private var dropTarget: UUID?
+    @State private var dwell: Task<Void, Never>?
+    /// "Moved · Undo": the last change, until you dismiss it or make another.
+    @State private var notice: MapNotice?
+    /// The item whose "File into…" list is showing (VoiceOver and the card).
+    @State private var filing: UUID?
     @State private var scribble = ScribbleController()
-    /// Locked: nodes can't be moved or filed, no scribbling or tidying (pan/zoom/tap still work).
+    /// Locked: nodes can't be moved or filed, no scribbling or tidying (pan/zoom/tap/select still work).
     @AppStorage("mapLocked") private var locked = false
     /// Lets the Liquid Glass buttons morph into each other as the set changes.
     @Namespace private var glassSpace
     /// On a half-folded iPhone Duo, the larger side of the fold (Fit centres there).
     @State private var fitArea: CGRect?
 
+    private struct NodeDrag {
+        let id: UUID
+        var point: CGPoint
+    }
+
+    /// How long a dragged chip has to hover over another before dropping files it there.
+    private static let fileHold: Duration = .milliseconds(500)
+
     var body: some View {
-        let items = MapPage.items(Array(store.items.values), page: page, showNogged: showNogged)
-            .sorted { $0.created < $1.created }
-        let edges = MapLayout.edges(for: items)
-        let hasChildren = Set(items.compactMap(\.parentID))
-        let progress = ChildStats(Array(store.items.values))
+        let graph = cache.graph(store.items, page: page, showNogged: showNogged)
+        let selected = selection.flatMap { graph.byID[$0] }
 
         GeometryReader { geo in
             ZStack(alignment: .topLeading) {
                 // Scribbles sit underneath everything else. While scribbling, the nodes
                 // ignore touches, so strokes reach this layer even where they pass under a node.
-                // Scribbles are stored in map coordinates and shown through the current pan/zoom.
-                ScribbleCanvas(drawing: doc.drawing.transformed(using: viewTransform),
-                               isActive: isScribbling, controller: scribble) { onScreen in
-                    doc.setDrawing(onScreen.transformed(using: viewTransform.inverted()))
-                }
-                .frame(width: geo.size.width, height: geo.size.height)
-                .allowsHitTesting(isScribbling)
-                let zones = zoneList(items)
+                ScribbleCanvas(drawing: doc.drawing, drawingVersion: doc.drawingVersion,
+                               transform: viewTransform, isZooming: isZooming,
+                               isActive: isScribbling, controller: scribble) { doc.setDrawing($0) }
+                    .frame(width: geo.size.width, height: geo.size.height)
+                    .allowsHitTesting(isScribbling)
+                // Tapping empty space clears the selection.
+                Color.clear
+                    .contentShape(Rectangle())
+                    .frame(width: geo.size.width, height: geo.size.height)
+                    .onTapGesture { select(nil, in: geo.size) }
+                    .allowsHitTesting(!isScribbling)
+                    .accessibilityHidden(true)
+                let zones = zoneList(graph)
                 zoneFills(zones)
-                edgeLayer(edges, size: geo.size)
+                edgeLayer(graph.edges, focus: selected?.id, size: geo.size)
                 // Zone titles sit on the zone's top border, above the lines, below the chips.
                 zoneLabels(zones)
-                ForEach(items) { item in
-                    MapNode(item: item, isFolder: hasChildren.contains(item.id), isDropTarget: dropTarget == item.id,
-                            subItems: progress[item.id])
-                        .scaleEffect(min(1.15, max(0.55, scale)))
-                        .position(screen(mapPoint(item.id)))
-                        .gesture(nodeDrag(item.id, among: items), including: locked ? .none : .all)
-                        .onTapGesture { router.push(item.id) }
-                        .contextMenu { nodeMenu(item) }
-                        .allowsHitTesting(!isScribbling)
+                ForEach(graph.items) { item in
+                    node(item, graph: graph, size: geo.size)
                 }
             }
             .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
@@ -134,31 +155,195 @@ struct MindMapView: View {
                 doc.load(from: store)
                 if let seed {
                     seed.load(from: store)
-                    doc.seedIfEmpty(from: seed, ids: items.map(\.id))
+                    doc.seedIfEmpty(from: seed, ids: graph.ids)
                 }
-                doc.placeMissing(items, edges: edges)
-                centreIfNeeded(items, in: geo.size)
+                doc.placeMissing(graph.items, edges: graph.edges)
+                centreIfNeeded(graph.items, in: geo.size)
             }
-            .onChange(of: geo.size) { centreIfNeeded(items, in: geo.size) }
+            .onChange(of: geo.size) { centreIfNeeded(graph.items, in: geo.size) }
             // Re-centre every time the map opens, once layout has settled.
-            .onDisappear { didCenter = false }
+            .onDisappear {
+                didCenter = false
+                cancelDrag()
+            }
             .task {
                 await Task.yield()
-                centreIfNeeded(items, in: geo.size)
+                centreIfNeeded(graph.items, in: geo.size)
             }
-            .onChange(of: items.map(\.id)) { doc.placeMissing(items, edges: edges) }
+            .onChange(of: graph.ids) { doc.placeMissing(graph.items, edges: graph.edges) }
+            .onChange(of: isScribbling) {
+                // Scribbling clears the undo history, and nothing is selected meanwhile.
+                if isScribbling {
+                    selection = nil
+                    notice = nil
+                }
+            }
             .onGeometryChange(for: CGRect?.self) { proxy in Self.largerPane(proxy) } action: { fitArea = $0 }
             .overlay(alignment: .bottomTrailing) {
-                controls(items, edges: edges, size: geo.size)
+                controls(graph, size: geo.size)
                     .padding(.bottom, Self.controlsLift(geo))
                     .nogAnimation(.smooth, value: Self.controlsLift(geo))
             }
+            .overlay(alignment: .bottomLeading) {
+                if let selected, !isScribbling {
+                    MapInfoCard(item: selected,
+                                parent: store.parent(of: selected),
+                                progress: graph.progress[selected.id],
+                                links: linkedTitles(selected, graph: graph),
+                                locked: locked,
+                                canFile: graph.items.count > 1,
+                                open: { router.push(selected.id) },
+                                takeOut: { takeOut(selected.id) },
+                                fileInto: { filing = selected.id },
+                                close: { select(nil, in: geo.size) })
+                        .frame(maxWidth: 460, alignment: .leading)
+                        // Leave the button column on the right clear.
+                        .padding(.leading, 12)
+                        .padding(.trailing, 46 + 16 + 12)
+                        .padding(.bottom, 16 + Self.controlsLift(geo))
+                        .transition(.nog(.move(edge: .bottom).combined(with: .opacity)))
+                        .id(selected.id)
+                }
+            }
+            .overlay(alignment: .top) {
+                if let notice {
+                    MapNoticeBanner(notice: notice, undo: undoLast) {
+                        withNogAnimation(.snappy) { self.notice = nil }
+                    }
+                    .padding(.top, 10)
+                    .padding(.horizontal, 16)
+                    .transition(.nog(.move(edge: .top).combined(with: .opacity)))
+                }
+            }
             .overlay {
-                if items.isEmpty {
+                if graph.items.isEmpty {
                     ContentUnavailableView("Nothing to map yet", systemImage: "point.3.connected.trianglepath.dotted",
                                            description: Text("Capture a few things, give them #tags, sub-items or [[links]], and they'll show up here."))
                 }
             }
+            .confirmationDialog(filingTitle(graph), isPresented: filingShown, titleVisibility: .visible) {
+                if let id = filing {
+                    ForEach(graph.filingTargets(for: id, isDescendant: { store.isDescendant($0, of: $1) })) { target in
+                        Button(Self.name(target)) { file(id, into: target.id) }
+                    }
+                }
+                Button("Cancel", role: .cancel) {}
+            }
+            .nogFeedback(.selection, trigger: selection)
+            .nogFeedback(.impact(weight: .medium), trigger: dropTarget) { _, new in new != nil }
+        }
+    }
+
+    // MARK: Nodes
+
+    private func node(_ item: Item, graph: MapGraph, size: CGSize) -> some View {
+        let isSelected = selection == item.id
+        let canMove = isSelected && !locked && !isScribbling
+        // With something selected, chips not joined to it fade back a little.
+        let isDimmed = selection.map { $0 != item.id && !(graph.neighbours[$0]?.contains(item.id) ?? false) } ?? false
+        return MapNode(item: item, isFolder: graph.folders.contains(item.id),
+                       isSelected: isSelected, isDimmed: isDimmed,
+                       isDropCandidate: dropCandidate == item.id && dropTarget != item.id,
+                       isDropTarget: dropTarget == item.id,
+                       subItems: graph.progress[item.id])
+            .scaleEffect(min(1.15, max(0.55, scale)))
+            // Before .position, so VoiceOver's outline hugs the chip, not the whole map.
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(spokenLabel(item, graph: graph))
+            .accessibilityHint(isSelected ? "Double-tap to open." : "Double-tap to select.")
+            .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
+            .accessibilityAction { tap(item.id, in: size) }
+            .accessibilityActions { nodeActions(item, graph: graph) }
+            .position(screen(mapPoint(item.id)))
+            // Only the selected chip can be dragged. Anywhere else, a drag pans the map.
+            .gesture(nodeDrag(item.id, graph: graph), including: canMove ? .all : .none)
+            .onTapGesture { tap(item.id, in: size) }
+            .contextMenu { nodeMenu(item) }
+            .allowsHitTesting(!isScribbling)
+            .zIndex(isSelected ? 1 : 0)
+    }
+
+    /// First tap selects, second tap opens.
+    private func tap(_ id: UUID, in size: CGSize) {
+        if selection == id {
+            router.push(id)
+        } else {
+            select(id, in: size)
+        }
+    }
+
+    private func select(_ id: UUID?, in size: CGSize) {
+        guard id != selection else { return }
+        withNogAnimation(.snappy) { selection = id }
+        if let id { reveal(id, in: size) }
+    }
+
+    /// Pans so a newly selected chip isn't hidden under its details card or off screen.
+    private func reveal(_ id: UUID, in size: CGSize) {
+        guard let p = doc.positions[id] else { return }
+        let s = screen(p)
+        let cardTop = size.height - 260
+        let margin: CGFloat = 60
+        guard s.y > cardTop || s.y < margin || s.x < margin || s.x > size.width - margin else { return }
+        let goal = CGPoint(x: min(max(s.x, margin + 40), size.width - margin - 40), y: max(margin + 40, size.height * 0.35))
+        withNogAnimation(.smooth) {
+            offset = CGSize(width: offset.width + goal.x - s.x, height: offset.height + goal.y - s.y)
+            baseOffset = offset
+        }
+    }
+
+    private static func name(_ item: Item) -> String {
+        item.title.isEmpty ? "Untitled" : item.title
+    }
+
+    private func linkedTitles(_ item: Item, graph: MapGraph) -> [String] {
+        (graph.neighbours[item.id] ?? [])
+            .compactMap { graph.byID[$0] }
+            .filter { $0.id != item.parentID && $0.parentID != item.id }
+            .map(Self.name)
+            .sorted()
+    }
+
+    /// What VoiceOver reads for a chip. Only worked out in full while VoiceOver is on,
+    /// since it's rebuilt for every chip on every pan frame.
+    private func spokenLabel(_ item: Item, graph: MapGraph) -> String {
+        guard voiceOverOn else { return Self.name(item) }
+        var parts = [Self.name(item), item.status.label]
+        if let parent = store.parent(of: item) { parts.append("in \(Self.name(parent))") }
+        let progress = graph.progress[item.id]
+        if progress.total > 0 { parts.append("\(progress.done) of \(progress.total) sub-items done") }
+        if !item.tags.isEmpty { parts.append(item.tags.map { "#\($0)" }.joined(separator: " ")) }
+        if let next = item.effectiveReminder?.nextFire(after: .now) {
+            parts.append("next nog \(next.formatted(date: .abbreviated, time: .shortened))")
+        }
+        let links = linkedTitles(item, graph: graph).count
+        if links > 0 { parts.append(links == 1 ? "1 link" : "\(links) links") }
+        return parts.joined(separator: ", ")
+    }
+
+    /// VoiceOver and Switch Control: everything a drag can do, without dragging.
+    @ViewBuilder
+    private func nodeActions(_ item: Item, graph: MapGraph) -> some View {
+        Button("Open") { router.push(item.id) }
+        if !locked {
+            Button("Move left") { nudge(item.id, dx: -1, dy: 0, direction: "left") }
+            Button("Move right") { nudge(item.id, dx: 1, dy: 0, direction: "right") }
+            Button("Move up") { nudge(item.id, dx: 0, dy: -1, direction: "up") }
+            Button("Move down") { nudge(item.id, dx: 0, dy: 1, direction: "down") }
+            if graph.items.count > 1 {
+                Button("File into…") { filing = item.id }
+            }
+            if let parent = store.parent(of: item) {
+                Button("Take out of \(Self.name(parent))") { takeOut(item.id) }
+            }
+        }
+        if item.status == .open || item.status == .someday {
+            Button("Start") { store.start(item.id) }
+        }
+        if item.status == .done {
+            Button("Reopen") { store.reopen(item.id) }
+        } else {
+            Button("Mark done") { store.markDone(item.id) }
         }
     }
 
@@ -169,7 +354,8 @@ struct MindMapView: View {
     }
 
     private func mapPoint(_ id: UUID) -> CGPoint {
-        dragging[id] ?? doc.positions[id] ?? .zero
+        if let drag, drag.id == id { return drag.point }
+        return doc.positions[id] ?? .zero
     }
 
     private func screen(_ p: CGPoint) -> CGPoint {
@@ -201,38 +387,23 @@ struct MindMapView: View {
                                     bottom: MapLayout.cell.height / 2 + 26)
 
     /// One soft, coloured zone per #tag, wrapped around its items.
-    private func zoneList(_ items: [Item]) -> [Zone] {
-        var members: [String: Set<UUID>] = [:]
-        for item in items {
-            // Tags flow down, so a zone wraps a whole project with its sub-items.
-            // On a tag's own page, its zone would just surround everything, so skip it.
-            for tag in MapPage.effectiveTags(item, in: store.items) where tag != page {
-                members[tag, default: []].insert(item.id)
-            }
-        }
-        // Tags that wrap exactly the same items share one zone and one title ("#HOME · #CALLS").
-        var byMembers: [Set<UUID>: [String]] = [:]
-        for (tag, ids) in members { byMembers[ids, default: []].append(tag) }
-
+    private func zoneList(_ graph: MapGraph) -> [Zone] {
         let inset = Self.zoneInset
-        var zones: [Zone] = byMembers.compactMap { ids, tags in
-            let points = ids.map(mapPoint)
+        // The groups come smallest first, so each zone can grow around the ones nested
+        // inside it: borders never coincide and the titles stack instead of overprinting.
+        var zones: [Zone] = graph.zoneGroups.compactMap { group in
+            let points = group.members.map(mapPoint)
             guard let minX = points.map(\.x).min(), let maxX = points.map(\.x).max(),
                   let minY = points.map(\.y).min(), let maxY = points.map(\.y).max() else { return nil }
             let rect = CGRect(x: minX - inset.side, y: minY - inset.top,
                               width: maxX - minX + 2 * inset.side, height: maxY - minY + inset.top + inset.bottom)
-            return Zone(tags: tags.sorted(), members: ids, rect: rect)
+            return Zone(tags: group.tags, members: group.members, rect: rect)
         }
-        // Smallest first, so each zone can grow around the ones nested inside it:
-        // borders never coincide and the titles stack instead of overprinting.
-        zones.sort { ($0.members.count, $0.id) < ($1.members.count, $1.id) }
         for j in zones.indices {
             for i in zones.indices where i < j && zones[i].members.isStrictSubset(of: zones[j].members) {
                 let inner = zones[i].rect
-                var outer = zones[j].rect
-                outer = outer.union(CGRect(x: inner.minX - 18, y: inner.minY - 32,
-                                           width: inner.width + 36, height: inner.height + 50))
-                zones[j].rect = outer
+                zones[j].rect = zones[j].rect.union(CGRect(x: inner.minX - 18, y: inner.minY - 32,
+                                                           width: inner.width + 36, height: inner.height + 50))
             }
         }
         // Biggest drawn first (underneath).
@@ -279,21 +450,26 @@ struct MindMapView: View {
         }
     }
 
-    private func edgeLayer(_ edges: [MapLayout.Edge], size: CGSize) -> some View {
-        let lines = edges.map { ($0.kind, screen(mapPoint($0.from)), screen(mapPoint($0.to))) }
+    /// Lines between chips. With a chip selected, its own lines get stronger and the rest fade.
+    private func edgeLayer(_ edges: [MapLayout.Edge], focus: UUID?, size: CGSize) -> some View {
+        let lines = edges.map { edge in
+            (kind: edge.kind, a: screen(mapPoint(edge.from)), b: screen(mapPoint(edge.to)),
+             emphasis: focus.map { $0 == edge.from || $0 == edge.to ? 1.6 : 0.45 } ?? 1.0)
+        }
         return Canvas { context, _ in
-            for (kind, a, b) in lines {
+            for line in lines {
                 var path = Path()
-                path.move(to: a)
+                path.move(to: line.a)
                 // A gentle curve reads better than straight spokes.
-                let mid = CGPoint(x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 - abs(a.x - b.x) * 0.08)
-                path.addQuadCurve(to: b, control: mid)
-                switch kind {
+                let mid = CGPoint(x: (line.a.x + line.b.x) / 2, y: (line.a.y + line.b.y) / 2 - abs(line.a.x - line.b.x) * 0.08)
+                path.addQuadCurve(to: line.b, control: mid)
+                let e = line.emphasis
+                switch line.kind {
                 case .parent:
-                    context.stroke(path, with: .color(Theme.blue.opacity(0.45)), lineWidth: 1.5)
+                    context.stroke(path, with: .color(Theme.blue.opacity(min(1, 0.45 * e))), lineWidth: 1.5 * max(1, e))
                 case .link:
-                    context.stroke(path, with: .color(Theme.violet.opacity(0.6)),
-                                   style: StrokeStyle(lineWidth: 1.2, dash: [5, 5]))
+                    context.stroke(path, with: .color(Theme.violet.opacity(min(1, 0.6 * e))),
+                                   style: StrokeStyle(lineWidth: 1.2 * max(1, e), dash: [5, 5]))
                 }
             }
         }
@@ -301,42 +477,134 @@ struct MindMapView: View {
         .allowsHitTesting(false)
     }
 
-    // MARK: Gestures
+    // MARK: Moving and filing
 
-    /// Drag to move. Drop onto another node to file it there (that node becomes its folder).
-    private func nodeDrag(_ id: UUID, among items: [Item]) -> some Gesture {
-        DragGesture(minimumDistance: 5)
+    /// Drags the selected chip. Hover over another chip for a moment, then let go, to file it there.
+    private func nodeDrag(_ id: UUID, graph: MapGraph) -> some Gesture {
+        DragGesture(minimumDistance: 4)
             .onChanged { value in
                 let start = doc.positions[id] ?? .zero
                 let p = CGPoint(x: start.x + value.translation.width / scale,
                                 y: start.y + value.translation.height / scale)
-                dragging[id] = p
-                dropTarget = target(near: p, dragging: id, among: items)
+                drag = NodeDrag(id: id, point: p)
+                hover(over: target(near: p, dragging: id, graph: graph))
             }
-            .onEnded { _ in
-                guard let p = dragging[id] else { return }
-                if let folder = dropTarget, var item = store.items[id] {
-                    item.parentID = folder
-                    store.update(item)
-                    // Settle just beside the folder rather than on top of it.
-                    let anchor = doc.positions[folder] ?? p
-                    doc.move(id, to: CGPoint(x: anchor.x + 40, y: anchor.y + 70))
-                } else {
-                    doc.move(id, to: p)
-                }
-                dragging[id] = nil
-                dropTarget = nil
-            }
+            .onEnded { _ in finishDrag(id) }
+    }
+
+    /// Arms filing only after the chip has hovered over the same target for a moment,
+    /// so sliding past a chip on the way somewhere else never files anything.
+    private func hover(over candidate: UUID?) {
+        guard candidate != dropCandidate else { return }
+        dropCandidate = candidate
+        dropTarget = nil
+        dwell?.cancel()
+        guard let candidate else { return }
+        dwell = Task { @MainActor in
+            try? await Task.sleep(for: Self.fileHold)
+            guard !Task.isCancelled, dropCandidate == candidate else { return }
+            withNogAnimation(.snappy) { dropTarget = candidate }
+        }
+    }
+
+    private func finishDrag(_ id: UUID) {
+        defer { cancelDrag() }
+        guard let drag, drag.id == id else { return }
+        if let folder = dropTarget {
+            file(id, into: folder)
+        } else {
+            guard let item = store.items[id] else { return }
+            perform(MapChange(spots: [.init(id: id, position: drag.point)]), message: "Moved “\(Self.name(item))”")
+        }
+    }
+
+    private func cancelDrag() {
+        dwell?.cancel()
+        dwell = nil
+        drag = nil
+        dropCandidate = nil
+        dropTarget = nil
     }
 
     /// The node under `point`, if filing into it is allowed (not itself, not one of its own sub-items).
-    private func target(near point: CGPoint, dragging id: UUID, among items: [Item]) -> UUID? {
-        items.lazy
+    private func target(near point: CGPoint, dragging id: UUID, graph: MapGraph) -> UUID? {
+        graph.items.lazy
             .filter { $0.id != id && !store.isDescendant($0.id, of: id) }
             .first { other in
                 guard let q = doc.positions[other.id] else { return false }
                 return abs(q.x - point.x) < 70 && abs(q.y - point.y) < 26
             }?.id
+    }
+
+    private func file(_ id: UUID, into folder: UUID) {
+        guard let item = store.items[id], let target = store.items[folder],
+              folder != id, !store.isDescendant(folder, of: id) else { return }
+        // Settle just beside the folder rather than on top of it.
+        let anchor = doc.positions[folder] ?? doc.positions[id] ?? .zero
+        perform(MapChange(spots: [.init(id: id, position: CGPoint(x: anchor.x + 40, y: anchor.y + 70))],
+                          filings: [.init(id: id, parent: folder)]),
+                message: "Filed “\(Self.name(item))” in “\(Self.name(target))”")
+    }
+
+    private func takeOut(_ id: UUID) {
+        guard let item = store.items[id], let parent = store.parent(of: item) else { return }
+        perform(MapChange(filings: [.init(id: id, parent: nil)]),
+                message: "Took “\(Self.name(item))” out of “\(Self.name(parent))”")
+    }
+
+    /// Moves a chip one step (VoiceOver, Switch Control).
+    private func nudge(_ id: UUID, dx: CGFloat, dy: CGFloat, direction: String) {
+        guard let item = store.items[id], let p = doc.positions[id] else { return }
+        let to = CGPoint(x: p.x + dx * MapLayout.pitch.width / 2, y: p.y + dy * MapLayout.pitch.height)
+        perform(MapChange(spots: [.init(id: id, position: to)]), message: "Moved “\(Self.name(item))” \(direction)")
+    }
+
+    // MARK: Undo
+
+    /// Makes a change, makes it undoable, and says what happened.
+    private func perform(_ change: MapChange, message: String) {
+        guard !change.isEmpty else { return }
+        let undo = doc.apply(change, store: store)
+        if let undoManager {
+            Self.registerUndo(undo, doc: doc, store: store, manager: undoManager, name: message)
+        }
+        withNogAnimation(.snappy) { notice = MapNotice(message: message, undo: undo) }
+        AccessibilityNotification.Announcement(message).post()
+    }
+
+    /// Registers `change` as the undo; undoing registers its opposite as the redo.
+    private static func registerUndo(_ change: MapChange, doc: MapDocument, store: ItemStore,
+                                     manager: UndoManager, name: String) {
+        manager.registerUndo(withTarget: doc) { doc in
+            MainActor.assumeIsolated {
+                let opposite = doc.apply(change, store: store)
+                registerUndo(opposite, doc: doc, store: store, manager: manager, name: name)
+            }
+        }
+        manager.setActionName(name)
+    }
+
+    /// The banner's Undo: the same as the system undo (shake, three-finger swipe, ⌘Z).
+    private func undoLast() {
+        guard let notice else { return }
+        if let undoManager, undoManager.canUndo {
+            undoManager.undo()
+        } else {
+            doc.apply(notice.undo, store: store)
+        }
+        withNogAnimation(.snappy) { self.notice = nil }
+        AccessibilityNotification.Announcement("Undone").post()
+    }
+
+    // MARK: Menus
+
+    private var filingShown: Binding<Bool> {
+        Binding(get: { filing != nil }, set: { if !$0 { filing = nil } })
+    }
+
+    private func filingTitle(_ graph: MapGraph) -> String {
+        guard let id = filing, let item = graph.byID[id] else { return "File into…" }
+        return "File “\(Self.name(item))” into…"
     }
 
     @ViewBuilder
@@ -348,9 +616,7 @@ struct MindMapView: View {
         }
         if !locked, let parent = store.parent(of: item) {
             Button {
-                var unfiled = item
-                unfiled.parentID = nil
-                store.update(unfiled)
+                takeOut(item.id)
             } label: {
                 Label("Take out of “\(parent.title)”", systemImage: "folder.badge.minus")
             }
@@ -386,6 +652,7 @@ struct MindMapView: View {
             .onEnded { _ in baseOffset = offset }
         let zoom = MagnifyGesture()
             .onChanged { value in
+                if !isZooming { isZooming = true }
                 let newScale = min(2.5, max(0.25, baseScale * value.magnification))
                 // Zoom around the middle of the screen.
                 let c = CGPoint(x: viewSize.width / 2, y: viewSize.height / 2)
@@ -397,6 +664,7 @@ struct MindMapView: View {
             .onEnded { _ in
                 baseScale = scale
                 baseOffset = offset
+                isZooming = false
             }
         return pan.simultaneously(with: zoom)
     }
@@ -433,7 +701,7 @@ struct MindMapView: View {
 
     // MARK: Controls
 
-    private func controls(_ items: [Item], edges: [MapLayout.Edge], size: CGSize) -> some View {
+    private func controls(_ graph: MapGraph, size: CGSize) -> some View {
         GlassEffectContainer(spacing: 14) {
             VStack(spacing: 10) {
                 if !isScribbling {
@@ -462,15 +730,12 @@ struct MindMapView: View {
                 }
                 if !isScribbling && !locked {
                     mapButton("wand.and.stars", tint: Theme.violet, label: "Arrange", id: "arrange") {
-                        withNogAnimation(.snappy) {
-                            doc.tidy(items, edges: edges)
-                            fit(items, in: size)
-                        }
+                        arrange(graph, in: size)
                     }
                 }
                 if !isScribbling {
                     mapButton("viewfinder", tint: Theme.blue, label: "Fit to screen", id: "fit") {
-                        withNogAnimation(.snappy) { fit(items, in: size) }
+                        withNogAnimation(.snappy) { fit(graph.items, in: size) }
                     }
                 }
             }
@@ -478,6 +743,16 @@ struct MindMapView: View {
         .nogAnimation(.smooth(duration: 0.35), value: isScribbling)
         .nogAnimation(.smooth(duration: 0.35), value: locked)
         .padding(16)
+    }
+
+    /// Re-arranges the page (undoable).
+    private func arrange(_ graph: MapGraph, in size: CGSize) {
+        let arranged = MapLayout.arrange(graph.items)
+        withNogAnimation(.snappy) {
+            perform(MapChange(spots: graph.ids.map { .init(id: $0, position: arranged[$0]) }),
+                    message: "Arranged the map")
+            fit(graph.items, in: size)
+        }
     }
 
     /// A Liquid Glass circle. Interactive glass squishes and glows under your finger;
@@ -536,13 +811,202 @@ struct MindMapView: View {
     }
 }
 
+/// The last change on the map, offered for undo.
+struct MapNotice: Equatable {
+    let id = UUID()
+    let message: String
+    /// Undoes it if the system undo isn't available.
+    let undo: MapChange
+
+    static func == (a: MapNotice, b: MapNotice) -> Bool { a.id == b.id }
+}
+
+/// "Moved “Hotel” · Undo". Stays until dismissed or replaced, so there's no rush.
+private struct MapNoticeBanner: View {
+    let notice: MapNotice
+    let undo: () -> Void
+    let dismiss: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Text(notice.message)
+                .font(.subheadline)
+                .lineLimit(2)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Button("Undo", action: undo)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Theme.blue)
+            Button(action: dismiss) {
+                Image(systemName: "xmark")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(Theme.muted)
+                    .frame(width: 28, height: 28)
+                    .contentShape(Rectangle())
+            }
+            .accessibilityLabel("Dismiss")
+        }
+        .buttonStyle(.plain)
+        .padding(.leading, 16)
+        .padding(.trailing, 8)
+        .padding(.vertical, 8)
+        .frame(maxWidth: 460)
+        .nogPanel(cornerRadius: 18)
+        .accessibilityElement(children: .contain)
+    }
+}
+
+/// Details for the selected chip, at the bottom of the map.
+private struct MapInfoCard: View {
+    let item: Item
+    let parent: Item?
+    let progress: (done: Int, total: Int)
+    /// Titles of items joined to this one by a [[link]].
+    let links: [String]
+    let locked: Bool
+    let canFile: Bool
+    let open: () -> Void
+    let takeOut: () -> Void
+    let fileInto: () -> Void
+    let close: () -> Void
+    @Environment(ItemStore.self) private var store
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 8) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(item.status.label.uppercased())
+                        .font(.nogLabel)
+                        .tracking(1.4)
+                        .foregroundStyle(tint)
+                    Text(item.title.isEmpty ? "Untitled" : item.title)
+                        .font(.headline)
+                        .lineLimit(3)
+                        .strikethrough(item.status == .done)
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityAddTraits(.isHeader)
+                Spacer(minLength: 0)
+                Button(action: close) {
+                    Image(systemName: "xmark")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(Theme.muted)
+                        .frame(width: 32, height: 32)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Deselect")
+            }
+
+            VStack(alignment: .leading, spacing: 5) {
+                if let parent {
+                    fact("folder", "In \(parent.title.isEmpty ? "Untitled" : parent.title)")
+                }
+                if progress.total > 0 {
+                    fact("checklist", "\(progress.done) of \(progress.total) sub-items done")
+                }
+                if let next = item.effectiveReminder?.nextFire(after: .now) {
+                    fact("bell", "Next nog \(next.formatted(date: .abbreviated, time: .shortened))")
+                }
+                if !links.isEmpty {
+                    fact("link", "Linked to \(links.joined(separator: ", "))")
+                }
+                if !item.tags.isEmpty {
+                    HStack(spacing: 6) {
+                        ForEach(item.tags.prefix(4), id: \.self) { tag in
+                            let pair = TagPalette.color(for: tag)
+                            Text("#\(tag)")
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(Color(light: pair.light, dark: pair.dark))
+                        }
+                    }
+                }
+            }
+
+            HStack(spacing: 8) {
+                Button(action: open) {
+                    Label("Open", systemImage: "arrow.up.right")
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(Theme.blue)
+
+                if item.status == .done {
+                    Button { store.reopen(item.id) } label: {
+                        Label("Reopen", systemImage: "arrow.uturn.backward")
+                    }
+                    .buttonStyle(.bordered)
+                } else {
+                    Button { store.markDone(item.id) } label: {
+                        Label("Done", systemImage: "checkmark")
+                    }
+                    .buttonStyle(.bordered)
+                }
+
+                if !locked && (canFile || parent != nil) || item.status == .open || item.status == .someday {
+                    Menu {
+                        if item.status == .open || item.status == .someday {
+                            Button { store.start(item.id) } label: {
+                                Label("Start", systemImage: "play")
+                            }
+                        }
+                        if !locked && canFile {
+                            Button(action: fileInto) {
+                                Label("File into…", systemImage: "folder.badge.plus")
+                            }
+                        }
+                        if !locked, let parent {
+                            Button(action: takeOut) {
+                                Label("Take out of “\(parent.title)”", systemImage: "folder.badge.minus")
+                            }
+                        }
+                    } label: {
+                        Label("More", systemImage: "ellipsis")
+                            .labelStyle(.iconOnly)
+                            .frame(minWidth: 28, minHeight: 20)
+                    }
+                    .buttonStyle(.bordered)
+                    .accessibilityLabel("More actions")
+                }
+            }
+            .font(.subheadline.weight(.medium))
+            .tint(Theme.blue)
+        }
+        .padding(14)
+        .nogPanel(cornerRadius: 20)
+        .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(Theme.blue.opacity(0.5), lineWidth: 1))
+    }
+
+    private func fact(_ icon: String, _ text: String) -> some View {
+        Label {
+            Text(text).lineLimit(2)
+        } icon: {
+            Image(systemName: icon).foregroundStyle(Theme.muted)
+        }
+        .font(.subheadline)
+    }
+
+    private var tint: Color {
+        switch item.status {
+        case .doing, .done: Theme.blue
+        case .someday: Theme.violet
+        case .open: item.reminder.map { $0.isActive(at: .now) ? Theme.pink : Theme.violet } ?? Theme.muted
+        }
+    }
+}
+
 /// A node: frosted chip, coloured by status. Folders (nodes with things filed in them)
-/// are bigger and show a folder icon.
+/// are bigger and show a folder icon. Selected: a thick outline and a check badge
+/// (shape as well as colour). Dimmed: something else is selected.
 private struct MapNode: View {
     let item: Item
     let isFolder: Bool
+    var isSelected = false
+    var isDimmed = false
+    /// A dragged chip is hovering over this one, not long enough to file yet.
+    var isDropCandidate = false
+    /// Let go now and the dragged chip is filed here.
     var isDropTarget = false
     var subItems: (done: Int, total: Int) = (0, 0)
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private var isProject: Bool { isFolder }
 
     var body: some View {
@@ -558,7 +1022,6 @@ private struct MapNode: View {
                             ProgressRing(fraction: Double(subItems.done) / Double(subItems.total), tint: tint, lineWidth: 2)
                         }
                     }
-                    .accessibilityLabel("\(subItems.done) of \(subItems.total) sub-items done")
             } else {
                 Circle().fill(tint).frame(width: 7, height: 7)
             }
@@ -573,10 +1036,43 @@ private struct MapNode: View {
         .frame(maxWidth: 190)
         .nogPanel(cornerRadius: 12)
         .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
-            .strokeBorder(isDropTarget ? Theme.blue : tint.opacity(0.55), lineWidth: isDropTarget ? 2.5 : 1))
-        .nogGlow(color: isDropTarget ? Theme.blue.opacity(0.6) : .clear, radius: 12)
-        .scaleEffect(isDropTarget ? 1.08 : 1)
+            .strokeBorder(borderColor, style: StrokeStyle(lineWidth: borderWidth, dash: isDropCandidate ? [4, 3] : [])))
+        .overlay(alignment: .topTrailing) {
+            if isSelected {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(.white, Theme.blue)
+                    .background(Circle().fill(Theme.base).padding(1))
+                    .offset(x: 7, y: -7)
+                    .transition(.nog(.scale.combined(with: .opacity)))
+            }
+        }
+        .nogGlow(color: glow, radius: 12)
+        // Lifting is motion: kept still with Reduce Motion (Low stimulation also drops the glow).
+        .scaleEffect(reduceMotion ? 1 : (isDropTarget ? 1.08 : isSelected ? 1.04 : 1))
+        // Stays well above 4.5:1 text contrast while dimmed.
+        .opacity(isDimmed ? 0.7 : 1)
         .nogAnimation(.snappy, value: isDropTarget)
+        .nogAnimation(.snappy, value: isSelected)
+        .nogAnimation(.snappy, value: isDimmed)
+    }
+
+    private var borderColor: Color {
+        if isDropTarget || isSelected || isDropCandidate { return Theme.blue }
+        return tint.opacity(0.55)
+    }
+
+    private var borderWidth: CGFloat {
+        if isDropTarget { return 3 }
+        if isSelected { return 2.5 }
+        if isDropCandidate { return 1.5 }
+        return 1
+    }
+
+    private var glow: Color {
+        if isDropTarget { return Theme.blue.opacity(0.6) }
+        if isSelected { return Theme.blue.opacity(0.4) }
+        return .clear
     }
 
     private var tint: Color {
@@ -644,7 +1140,7 @@ struct OutlineView: View {
         .overlay {
             if roots.isEmpty {
                 ContentUnavailableView("No items yet", systemImage: "folder",
-                                       description: Text("On the map, drop a node onto another to file it there."))
+                                       description: Text("On the map, select a node, then hold it over another to file it there."))
             }
         }
     }
