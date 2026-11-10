@@ -299,3 +299,68 @@ final class MapFlockTests: XCTestCase {
         XCTAssertEqual(one.positions, two.positions)
     }
 }
+
+/// Big pages: an import of hundreds of nogs must lay out quickly and tidily.
+final class MapBigPageTests: XCTestCase {
+    private func bigPage(_ count: Int) -> [Item] {
+        var items: [Item] = []
+        let tags = ["home", "work", "calls", "errands"]
+        for i in 0..<count {
+            var item = Item(title: "Test item \(i)", created: Date(timeIntervalSince1970: Double(i)))
+            item.tags = ["perftest", tags[i % tags.count]]
+            if i % 5 == 1, let parent = items.last(where: { $0.parentID == nil }) { item.parentID = parent.id }
+            items.append(item)
+        }
+        return items
+    }
+
+    func testThreeHundredItemsArrangeWithoutOverlap() {
+        let items = bigPage(300)
+        let p = MapLayout.arrange(items)
+        XCTAssertEqual(p.count, 300)
+        XCTAssertTrue(p.values.allSatisfy { $0.x.isFinite && $0.y.isFinite })
+        XCTAssertFalse(MapLayout.hasOverlap(p))
+    }
+
+    func testBulkPlacementGoesBesideTheExistingMap() {
+        let old = bigPage(10)
+        let existing = MapLayout.arrange(old)
+        let new = bigPage(60).suffix(50).map { item -> Item in
+            var copy = Item(title: item.title, created: item.created)
+            copy.tags = item.tags
+            return copy
+        }
+        let out = MapLayout.placeBeside(Array(new), existing: existing)
+        XCTAssertEqual(out.count, 50)
+        let oldRight = existing.values.map(\.x).max() ?? 0
+        XCTAssertTrue(out.values.allSatisfy { $0.x > oldRight })
+        var all = existing
+        all.merge(out) { a, _ in a }
+        XCTAssertFalse(MapLayout.hasOverlap(all))
+    }
+
+    func testWebLayoutHandlesABigPage() {
+        let items = bigPage(300)
+        let p = MapLayout.layOut(.web, items: items)
+        XCTAssertEqual(p.count, 300)
+        XCTAssertTrue(p.values.allSatisfy { $0.x.isFinite && $0.y.isFinite })
+    }
+
+    func testSeparateOnABigCrowdedPage() {
+        // 300 chips scattered so that many overlap, deterministically.
+        var p: [UUID: CGPoint] = [:]
+        var seed = 12345
+        func next() -> CGFloat {
+            seed = (seed * 1_103_515_245 + 12345) % 2_147_483_648
+            return CGFloat(seed % 4000)
+        }
+        for _ in 0..<300 {
+            let x = next(), y = next()
+            p[UUID()] = CGPoint(x: x, y: y)
+        }
+        XCTAssertTrue(MapLayout.hasOverlap(p))
+        let out = MapLayout.separate(p, iterations: 400)
+        XCTAssertEqual(out.count, 300)
+        XCTAssertFalse(MapLayout.hasOverlap(out))
+    }
+}

@@ -25,6 +25,8 @@ struct MapGraph {
     let neighbours: [UUID: Set<UUID>]
     /// One group per zone, smallest first.
     let zoneGroups: [ZoneGroup]
+    /// The tag of the smallest zone each item sits in: its colour in the zoomed-out overview.
+    let dotTags: [UUID: String]
 
     init(all: [UUID: Item], page: String, showNogged: Bool) {
         let values = Array(all.values)
@@ -56,6 +58,11 @@ struct MapGraph {
         zoneGroups = byMembers
             .map { ZoneGroup(tags: $0.value.sorted(), members: $0.key) }
             .sorted { ($0.members.count, $0.id) < ($1.members.count, $1.id) }
+        var dots: [UUID: String] = [:]
+        for group in zoneGroups {
+            for id in group.members where dots[id] == nil { dots[id] = group.tags[0] }
+        }
+        dotTags = dots
     }
 
     /// Folders `id` could be filed into: anything else on the page except its own

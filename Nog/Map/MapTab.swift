@@ -72,6 +72,8 @@ struct MindMapView: View {
     /// Set once you pan or zoom. Until then the map keeps itself fitted when the
     /// screen changes size (rotation, split view, the page strip settling).
     @State private var viewMoved = false
+    /// How far you can zoom out: always far enough to see the whole page (set by `fit`).
+    @State private var zoomFloor: CGFloat = 0.25
     @State private var isScribbling = false
     /// Worked-out items, lines and zones, rebuilt only when the items change.
     @State private var cache = MapGraphCache()
@@ -108,6 +110,13 @@ struct MindMapView: View {
     /// How long a dragged chip has to hover over another before dropping files it there.
     private static let fileHold: Duration = .milliseconds(500)
 
+    /// Zoomed out further than this, chips can't fit between their neighbours, so the
+    /// map shows each one as a small coloured block instead (an overview). Not while
+    /// VoiceOver is on: then every chip stays a real, readable element.
+    private static let overviewScale: CGFloat = 0.2
+
+    private var isOverview: Bool { scale < Self.overviewScale && !voiceOverOn }
+
     var body: some View {
         let graph = cache.graph(store.items, page: page, showNogged: showNogged)
         let selected = selection.flatMap { graph.byID[$0] }
@@ -121,21 +130,28 @@ struct MindMapView: View {
                                isActive: isScribbling, controller: scribble) { doc.setDrawing($0) }
                     .frame(width: geo.size.width, height: geo.size.height)
                     .allowsHitTesting(isScribbling)
-                // Tapping empty space clears the selection.
+                // Tapping empty space clears the selection. In the overview, it zooms in there.
                 Color.clear
                     .contentShape(Rectangle())
                     .frame(width: geo.size.width, height: geo.size.height)
-                    .onTapGesture { select(nil, in: geo.size) }
+                    .onTapGesture(count: 1, coordinateSpace: .local) { location in
+                        if isOverview {
+                            zoomIn(at: location, in: geo.size)
+                        } else {
+                            select(nil, in: geo.size)
+                        }
+                    }
                     .allowsHitTesting(!isScribbling)
                     .accessibilityHidden(true)
                 let zones = zoneList(graph)
                 zoneFills(zones)
                 edgeLayer(graph.edges, focus: selected?.id, size: geo.size)
                 // Zone titles sit on the zone's top border, above the lines, below the chips.
+                if isOverview { overviewBlocks(graph, size: geo.size) }
                 zoneLabels(zones)
                 ForEach(graph.items) { item in
                     // A new item appears once it has a spot (worked out off the main thread).
-                    if placedPoint(item.id) != nil {
+                    if let p = placedPoint(item.id), showsChip(item.id, at: p, in: geo.size) {
                         node(item, graph: graph, size: geo.size)
                     }
                 }
@@ -184,6 +200,22 @@ struct MindMapView: View {
                 }
             }
             .onGeometryChange(for: CGRect?.self) { proxy in Self.largerPane(proxy) } action: { fitArea = $0 }
+            .overlay(alignment: .top) {
+                if doc.isPlacing {
+                    Label {
+                        Text("Arranging \(graph.items.count) nogs…")
+                    } icon: {
+                        ProgressView()
+                    }
+                    .font(.footnote)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(.regularMaterial, in: Capsule())
+                    .padding(.top, 12)
+                    .transition(.nog(.opacity))
+                    .accessibilityElement(children: .combine)
+                }
+            }
             .overlay(alignment: .bottomTrailing) {
                 controls(graph, size: geo.size)
                     .padding(.bottom, Self.controlsLift(geo))
@@ -485,6 +517,37 @@ struct MindMapView: View {
         }
     }
 
+    /// The overview: every chip as a small block in its tag's colour, all in one layer.
+    private func overviewBlocks(_ graph: MapGraph, size: CGSize) -> some View {
+        var colours: [String: Color] = [:]
+        let blocks = graph.items.compactMap { item -> (rect: CGRect, color: Color, done: Bool)? in
+            guard let p = placedPoint(item.id) else { return nil }
+            let s = MapLayout.size(item.id, in: chipSizes.sizes)
+            let w = max(6, s.width * scale), h = max(4, s.height * scale)
+            let c = screen(p)
+            var color = Theme.blue
+            if let tag = graph.dotTags[item.id] {
+                if let known = colours[tag] {
+                    color = known
+                } else {
+                    let pair = TagPalette.color(for: tag)
+                    color = Color(light: pair.light, dark: pair.dark)
+                    colours[tag] = color
+                }
+            }
+            return (CGRect(x: c.x - w / 2, y: c.y - h / 2, width: w, height: h), color, item.status == .done)
+        }
+        return Canvas { context, _ in
+            for block in blocks {
+                let path = Path(roundedRect: block.rect, cornerRadius: min(block.rect.height / 2, 6))
+                context.fill(path, with: .color(block.color.opacity(block.done ? 0.35 : 0.85)))
+            }
+        }
+        .frame(width: size.width, height: size.height)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
     /// Lines between chips. With a chip selected, its own lines get stronger and the rest fade.
     private func edgeLayer(_ edges: [MapLayout.Edge], focus: UUID?, size: CGSize) -> some View {
         let lines = edges.compactMap { edge -> (kind: MapLayout.Edge.Kind, a: CGPoint, b: CGPoint, emphasis: Double)? in
@@ -703,7 +766,7 @@ struct MindMapView: View {
             .onChanged { value in
                 if !isZooming { isZooming = true }
                 viewMoved = true
-                let newScale = min(2.5, max(0.25, baseScale * value.magnification))
+                let newScale = min(2.5, max(zoomFloor, baseScale * value.magnification))
                 // Zoom around the middle of the screen.
                 let c = CGPoint(x: viewSize.width / 2, y: viewSize.height / 2)
                 let ratio = newScale / scale
@@ -728,6 +791,35 @@ struct MindMapView: View {
         guard items.allSatisfy({ doc.positions[$0.id] != nil }) else { return }
         fit(items, in: size)
         didCenter = true
+    }
+
+    /// The furthest any page can zoom out: hundreds of nogs still fit on a phone.
+    private static let smallestZoom: CGFloat = 0.02
+
+    /// Whether a chip is drawn as a real chip. Off-screen chips are skipped (a big page
+    /// would otherwise build hundreds of views every frame while you pan), except while
+    /// VoiceOver is on, which needs them all. The selected chip always shows.
+    private func showsChip(_ id: UUID, at p: CGPoint, in size: CGSize) -> Bool {
+        if id == selection { return true }
+        if isOverview { return false }
+        if voiceOverOn { return true }
+        let margin = CGSize(width: 140 * chipFit.scale, height: 50 * chipFit.scale)
+        let s = screen(p)
+        return s.x > -margin.width && s.x < size.width + margin.width
+            && s.y > -margin.height && s.y < size.height + margin.height
+    }
+
+    /// Overview: zooms in on the spot you tapped, close enough to read the chips there.
+    private func zoomIn(at location: CGPoint, in size: CGSize) {
+        let target = CGPoint(x: (location.x - offset.width) / scale, y: (location.y - offset.height) / scale)
+        let newScale: CGFloat = 0.6
+        viewMoved = true
+        withNogAnimation(.smooth) {
+            scale = newScale
+            offset = CGSize(width: size.width / 2 - target.x * newScale, height: size.height / 2 - target.y * newScale)
+        }
+        baseScale = scale
+        baseOffset = offset
     }
 
     /// Zooms and centres so every node is on screen.
@@ -755,9 +847,11 @@ struct MindMapView: View {
             let half = CGSize(width: 100 * chipScale, height: 30 * chipScale)
             let usable = CGSize(width: max(60, room.width - 2 * half.width),
                                 height: max(60, room.height - 2 * half.height))
-            fitted = min(1.2, max(0.3, min(usable.width / span.width, usable.height / span.height)))
+            fitted = min(1.2, max(Self.smallestZoom, min(usable.width / span.width, usable.height / span.height)))
         }
         scale = fitted
+        // Always allow zooming out a little past the whole page, however big it is.
+        zoomFloor = max(Self.smallestZoom, min(0.25, fitted * 0.7))
         viewMoved = false
         offset = CGSize(width: area.midX - (minX + maxX) / 2 * scale,
                         height: area.minY + (area.height - 80) / 2 - (minY + maxY) / 2 * scale)
