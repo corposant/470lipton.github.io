@@ -5,7 +5,7 @@ A capture-first iPhone app where **every item can nog you, repeatedly, until it'
 - **Everything is an Item.** To-dos, ideas, concepts and projects are all the same thing. Any item can have notes, `[[links]]` to other items, backlinks, tags, and sub-items (an item with sub-items *is* a project).
 - **Capture is instant.** The app opens with the keyboard already up. Type, hit return, and keep typing.
 - **Every capture gets a default nog** (out of the box: first nog 15 min after capture, then every 8 min until done). You can change that in Settings, or per item.
-- **Nogs repeat forever.** They don't stop after one or two. Each nog has **Done ✓ / Snooze 1 hour / Tomorrow morning** buttons right on the notification.
+- **Nogs repeat forever.** They don't stop after one or two. Each nog has **Done ✓ / Snooze 1 hour / Tomorrow morning** buttons right on the notification. With quiet hours, a timed silence or alarms in play, iOS only lets Nog line up the next few hours of nogs at a time; if you don't open Nog before they run out, one last notification asks you to, so they never just stop.
 - **"Hey Siri, Nog me"** captures something hands-free (Siri asks what).
 - **Syncs through iCloud Drive.** Each item is a plain Markdown file in *iCloud Drive → Nog → Items*, readable on your Mac too. If iCloud isn't available, files stay on the phone and move to iCloud automatically once it is.
 

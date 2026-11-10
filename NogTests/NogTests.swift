@@ -103,6 +103,51 @@ final class NogPlannerTests: XCTestCase {
         XCTAssertEqual(NogPlanner.plan(items: [a], now: now).map(\.identifier),
                        NogPlanner.plan(items: [a], now: now.addingTimeInterval(1000)).map(\.identifier))
     }
+
+    // MARK: "Open Nog to keep nogging"
+
+    func testPauseNoticeComesJustAfterTheLastLinedUpNog() throws {
+        let a = item("a", startOffset: 600, every: 8)
+        let plan = NogPlanner.plan(items: [a], now: now, maxFollowUpsPerItem: 3)
+        let notice = try XCTUnwrap(NogPlanner.pauseNotice(for: plan, items: [a], now: now))
+        XCTAssertEqual(notice.fireDate, now.addingTimeInterval(2040 + 60))
+        XCTAssertEqual(notice.category, NogPlanner.categoryPause)
+        XCTAssertTrue(notice.identifier.hasPrefix(NogPlanner.prefix), "so sync replaces and clears it")
+    }
+
+    func testPauseNoticeFollowsTheItemThatRunsOutFirst() throws {
+        let soon = item("soon", startOffset: 60, every: 1)
+        let later = item("later", startOffset: 3600, every: 30)
+        let plan = NogPlanner.plan(items: [soon, later], now: now, budget: 6)
+        let notice = try XCTUnwrap(NogPlanner.pauseNotice(for: plan, items: [soon, later], now: now))
+        let lastSoon = try XCTUnwrap(plan.filter { $0.itemID == soon.id }.compactMap(\.fireDate).max())
+        XCTAssertEqual(notice.fireDate, lastSoon.addingTimeInterval(60))
+    }
+
+    func testNoPauseNoticeWhenEverythingRepeatsOnItsOwn() {
+        let a = item("a", startOffset: -600, every: 8)
+        let plan = NogPlanner.plan(items: [a], now: now)
+        XCTAssertNil(NogPlanner.pauseNotice(for: plan, items: [a], now: now))
+    }
+
+    func testNoPauseNoticeForOneOffReminders() {
+        let once = item("once", startOffset: 600, every: nil)
+        let plan = NogPlanner.plan(items: [once], now: now)
+        XCTAssertNil(NogPlanner.pauseNotice(for: plan, items: [once], now: now))
+    }
+
+    func testPauseNoticeWaitsForQuietHoursToEnd() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+        // `now` is 08:00 UTC. Nogs at 08:06, 08:14, 08:22 are lined up; quiet runs 08:23 to 11:23.
+        let a = item("a", startOffset: -600, every: 8)
+        var policy = NogPolicy.standard
+        policy.quiet = QuietHours(enabled: true, start: 8 * 60 + 23, end: 11 * 60 + 23)
+        let plan = NogPlanner.plan(items: [a], now: now, maxFollowUpsPerItem: 2, policy: policy, calendar: calendar)
+        XCTAssertEqual(plan.compactMap(\.fireDate), [360, 840, 1320].map { now.addingTimeInterval($0) })
+        let notice = try XCTUnwrap(NogPlanner.pauseNotice(for: plan, items: [a], now: now, policy: policy, calendar: calendar))
+        XCTAssertEqual(notice.fireDate, now.addingTimeInterval((3 * 60 + 23) * 60))
+    }
 }
 
 @MainActor
@@ -120,6 +165,14 @@ final class ItemStoreTests: XCTestCase {
         XCTAssertEqual(reloaded.children(of: parent.id).map(\.id), [child.id])
         XCTAssertEqual(reloaded.items[child.id]?.status, .done)
         XCTAssertNotNil(reloaded.items[child.id]?.completed)
+    }
+
+    func testUnreadableFolderIsNotMistakenForAnEmptyOne() throws {
+        let missing = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        XCTAssertFalse(FileStorage.readAllNow(in: missing, coordinated: false).folderReadable)
+
+        try FileManager.default.createDirectory(at: missing, withIntermediateDirectories: true)
+        XCTAssertTrue(FileStorage.readAllNow(in: missing, coordinated: false).folderReadable)
     }
 }
 

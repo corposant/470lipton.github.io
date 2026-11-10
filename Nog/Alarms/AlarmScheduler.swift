@@ -2,6 +2,7 @@ import AlarmKit
 import AppIntents
 import Foundation
 import SwiftUI
+import UIKit
 
 /// Data AlarmKit hands back to us with each alarm.
 struct NogAlarmMetadata: AlarmMetadata {
@@ -37,8 +38,15 @@ final class AlarmScheduler {
     /// Brings scheduled alarms in line with the items.
     /// Returns, per item, the times that will ring as alarms (notifications skip those).
     func sync(items: [Item], policy: NogPolicy) async -> [UUID: [Date]] {
-        guard isAuthorized else { return [:] }
         let now = Date.now
+        // Something should ring (escalation turned on, Unhinged, a typed !alarm) but iOS hasn't
+        // been asked yet: ask now, while you're in the app, or those alarms would never ring.
+        if manager.authorizationState == .notDetermined,
+           UIApplication.shared.applicationState == .active,
+           items.contains(where: { !Self.alarmDates(for: $0, policy: policy, now: now, limit: 1).isEmpty }) {
+            await requestAuthorization()
+        }
+        guard isAuthorized else { return [:] }
 
         var desired: [UUID: (item: Item, date: Date)] = [:]
         var ringing: [UUID: [Date]] = [:]
