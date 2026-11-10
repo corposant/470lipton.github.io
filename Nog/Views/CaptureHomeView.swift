@@ -685,6 +685,10 @@ private struct CaptureParentPicker: View {
 /// New Nog · Agenda · List · Map. Each tab has its own accent colour (see TabTheme.swift).
 struct RootView: View {
     @Environment(Router.self) private var router
+    @Environment(ItemStore.self) private var store
+    @AppStorage(OnboardingView.doneKey) private var onboardingDone = false
+    /// First-run setup waits until we know this isn't an existing install.
+    @State private var checkedFirstRun = false
 
     var body: some View {
         @Bindable var router = router
@@ -706,5 +710,20 @@ struct RootView: View {
         .tint(router.tab.accent)
         .tabBarMinimizeBehavior(.onScrollDown)
         .sheet(isPresented: $router.showSilenceSheet) { SilenceSheet() }
+        .sheet(isPresented: $router.showSettings) { SettingsView() }
+        // First run only: what Nog does, how firm, and permissions with their reasons.
+        .fullScreenCover(isPresented: Binding(get: { checkedFirstRun && !onboardingDone },
+                                              set: { if !$0 { onboardingDone = true } })) {
+            OnboardingView()
+        }
+        .task {
+            // Anyone who used Nog before first-run setup existed skips it.
+            if !onboardingDone {
+                await store.refresh()
+                let status = await NotificationScheduler.shared.authorizationStatus()
+                if !store.items.isEmpty || status != .notDetermined { onboardingDone = true }
+            }
+            checkedFirstRun = true
+        }
     }
 }

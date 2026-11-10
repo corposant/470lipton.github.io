@@ -32,9 +32,12 @@ struct NogApp: App {
                     }
                 }
                 .task {
-                    await NotificationScheduler.shared.requestAuthorization()
                     // Launch also makes the scene active, which refreshes too; the two share one run.
                     await store.refresh()
+                    // First-run setup asks for notifications itself, with the reason (RootView).
+                    if UserDefaults.standard.bool(forKey: OnboardingView.doneKey) {
+                        await NotificationScheduler.shared.requestAuthorization()
+                    }
                 }
         }
         .onChange(of: scenePhase) { _, phase in
