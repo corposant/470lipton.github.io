@@ -16,7 +16,7 @@ struct DoingLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: DoingAttributes.self) { context in
             DoingActivityView(context: context)
-                .activityBackgroundTint(Color(red: 0.11, green: 0.11, blue: 0.15).opacity(0.72))
+                .activityBackgroundTint(Color(red: 0.08, green: 0.055, blue: 0.15).opacity(0.72))
                 .activitySystemActionForegroundColor(Theme.blue)
         } dynamicIsland: { context in
             DynamicIsland {

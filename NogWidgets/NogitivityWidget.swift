@@ -92,11 +92,11 @@ private enum W {
     static let mint = ProgressRing.complete
     static let amber = Color(light: 0xB86E00, dark: 0xFFB65C)
     /// The glowing readout blue of the timers.
-    static let readout = Color(light: 0x1C7ED6, dark: 0xBFE3FF)
-    static let listBackground = Color(light: 0xF6F7FA, dark: 0x16171E)
-    static let timerBackground = Color(light: 0xEEF4FB, dark: 0x08090C)
+    static let readout = Color(light: 0x1D5CA3, dark: 0xCFE9FF)
+    static let listBackground = Color(light: 0xF6EEDF, dark: 0x140E26)
+    static let timerBackground = Color(light: 0xFBF5EA, dark: 0x0C0818)
     /// The card behind the nog that matters most right now.
-    static let heroFill = Color(light: 0xFFFFFF, dark: 0x1F2029)
+    static let heroFill = Color(light: 0xFFFBF3, dark: 0x221838)
 
     static func label(_ size: CGFloat = 9.5) -> Font { .custom("Futura-Medium", size: size) }
 

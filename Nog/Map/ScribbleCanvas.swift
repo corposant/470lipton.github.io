@@ -68,7 +68,7 @@ struct ScribbleCanvas: UIViewRepresentable {
         canvas.isScrollEnabled = false
         canvas.minimumZoomScale = 1
         canvas.maximumZoomScale = 1
-        canvas.tool = PKInkingTool(.pen, color: UIColor(hex: 0xFF5FB0), width: 5)
+        canvas.tool = PKInkingTool(.pen, color: UIColor(hex: 0xFF74C8), width: 5)
         canvas.delegate = context.coordinator
         canvas.isUserInteractionEnabled = false
         let host = Host(canvas: canvas)

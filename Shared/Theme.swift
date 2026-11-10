@@ -1,8 +1,9 @@
 import SwiftUI
 import UIKit
 
-// "Dark Side": charcoal + frosted glass + synthwave pink/blue, outlined controls.
-// Light mode keeps the same accents on a cool, pale-gray base.
+// "Cream Soda + Sunset Glass".
+// Dark: deep synthwave indigo, a magenta and cyan haze, clear glass panels with a faint pink edge.
+// Light: soft vanilla cream with warm brown greys and slightly deeper accents.
 //
 // Typography uses fonts built into iOS, so there's nothing to license or bundle:
 //   • Futura    titles, section labels, dial and panel labels: geometric, mid-century
@@ -12,37 +13,41 @@ import UIKit
 enum Theme {
     // Accents. Light-mode values are dark enough for text (WCAG AA, 4.5:1 or better on the
     // base and on glass); Increase Contrast swaps in stronger ones (7:1 or better).
-    static let pink = Color(light: 0xB8236A, dark: 0xFF5FB0, highLight: 0x9E1A5A, highDark: 0xFF8CC6)
-    static let violet = Color(light: 0x6A48D1, dark: 0xA17BFF, highLight: 0x5233B5, highDark: 0xC0A6FF)
-    static let blue = Color(light: 0x0F62B0, dark: 0x4FB3FF, highLight: 0x0B4F91, highDark: 0x8CCEFF)
+    // Normal values are 5.5:1 or better on the base and the glass; Increase Contrast ones 7.5:1 or better.
+    static let pink = Color(light: 0xA8265C, dark: 0xFF74C8, highLight: 0x8A1A4A, highDark: 0xFFA3DB)
+    static let violet = Color(light: 0x6440BE, dark: 0xBC9BFF, highLight: 0x4E2E9E, highDark: 0xD4BFFF)
+    static let blue = Color(light: 0x1D5CA3, dark: 0x62C9FF, highLight: 0x154883, highDark: 0xA0DDFF)
 
     /// Pink → violet → blue: thin lines and outlines only, never big fills.
     static let synth = LinearGradient(colors: [pink, violet, blue], startPoint: .leading, endPoint: .trailing)
 
     // Surfaces
-    static let base = Color(light: 0xF1F2F6, dark: 0x15161C)
-    static let baseTop = Color(light: 0xE7E9F0, dark: 0x1C1D25)
+    static let base = Color(light: 0xF6EEDF, dark: 0x140E26)
+    static let baseTop = Color(light: 0xFBF5EA, dark: 0x1F1238)
     /// Frosted panel fill (sits on top of a material). More solid with Increase Contrast.
     static let glass = Color(uiColor: UIColor { t in
         let high = t.accessibilityContrast == .high
         return t.userInterfaceStyle == .dark
-            ? UIColor(white: 1, alpha: high ? 0.09 : 0.045) : UIColor(white: 1, alpha: high ? 0.85 : 0.55) })
+            ? UIColor(white: 1, alpha: high ? 0.12 : 0.07) : UIColor(hex: 0xFFFBF3, alpha: high ? 0.88 : 0.62) })
+    /// Hairline edges: a faint pink glow on the dark glass, warm brown on cream.
     static let edge = Color(uiColor: UIColor { t in
         let high = t.accessibilityContrast == .high
         return t.userInterfaceStyle == .dark
-            ? UIColor(white: 1, alpha: high ? 0.30 : 0.10) : UIColor(white: 0, alpha: high ? 0.30 : 0.08) })
+            ? UIColor(hex: high ? 0xFFC8F0 : 0xFF8CDC, alpha: high ? 0.40 : 0.16)
+            : UIColor(hex: 0x5A3C1E, alpha: high ? 0.32 : 0.10) })
     static let edgeStrong = Color(uiColor: UIColor { t in
         let high = t.accessibilityContrast == .high
         return t.userInterfaceStyle == .dark
-            ? UIColor(white: 1, alpha: high ? 0.40 : 0.16) : UIColor(white: 0, alpha: high ? 0.40 : 0.14) })
-    /// Secondary text. 5:1 or better on the base in both modes.
-    static let muted = Color(light: 0x5D6175, dark: 0x9296AB, highLight: 0x40434F, highDark: 0xB9BDD0)
+            ? UIColor(hex: high ? 0xFFD2F2 : 0xFFA0E6, alpha: high ? 0.55 : 0.30)
+            : UIColor(hex: 0x5A3C1E, alpha: high ? 0.45 : 0.22) })
+    /// Secondary text. 5:1 or better on the base and glass in both modes.
+    static let muted = Color(light: 0x6E5D4E, dark: 0xAFA3CC, highLight: 0x4E4136, highDark: 0xCEC4E6)
 
     /// Tiny labels inside panels and on the dark recessed wells.
-    static let panelLabel = Color(light: 0x5D6175, dark: 0x8A94A3, highLight: 0x40434F, highDark: 0xB9BDD0)
+    static let panelLabel = Color(light: 0x6E5D4E, dark: 0xAFA3CC, highLight: 0x4E4136, highDark: 0xCEC4E6)
 
     /// Lit "LCD" digits: pale blue on the dark wells, a readable blue on a light background.
-    static let lcd = Color(light: 0x0F62B0, dark: 0xBFE3FF, highLight: 0x0B4F91, highDark: 0xDDF0FF)
+    static let lcd = Color(light: 0x1D5CA3, dark: 0xCFE9FF, highLight: 0x154883, highDark: 0xE6F4FF)
 }
 
 extension Color {
@@ -333,7 +338,8 @@ extension EnvironmentValues {
     @Entry var nogAccent: Color? = nil
 }
 
-/// Charcoal with a haze top-right in the tab's accent (blue by default), a pink haze lower-left and a faint display grid.
+/// Indigo (or cream) with a haze top-right in the tab's accent (blue by default), a warm haze
+/// lower-left (magenta at night, apricot by day) and a faint display grid.
 struct NogBackground: View {
     @Environment(\.colorScheme) private var scheme
     @Environment(\.nogAccent) private var accent
@@ -354,9 +360,10 @@ struct NogBackground: View {
 
     private var haze: some View {
         ZStack {
-            RadialGradient(colors: [(accent ?? Theme.blue).opacity(scheme == .dark ? 0.12 : 0.10), .clear],
+            RadialGradient(colors: [(accent ?? Theme.blue).opacity(scheme == .dark ? 0.20 : 0.12), .clear],
                            center: UnitPoint(x: 0.9, y: 0.05), startRadius: 0, endRadius: 420)
-            RadialGradient(colors: [Theme.pink.opacity(scheme == .dark ? 0.08 : 0.07), .clear],
+            RadialGradient(colors: [scheme == .dark ? Color(UIColor(hex: 0xFF50AA)).opacity(0.15)
+                                                    : Color(UIColor(hex: 0xE8965A)).opacity(0.14), .clear],
                            center: UnitPoint(x: 0.05, y: 0.65), startRadius: 0, endRadius: 380)
             Canvas { context, size in
                 var path = Path()
@@ -367,7 +374,7 @@ struct NogBackground: View {
                 stride(from: 0, through: size.height, by: step).forEach { y in
                     path.move(to: CGPoint(x: 0, y: y)); path.addLine(to: CGPoint(x: size.width, y: y))
                 }
-                context.stroke(path, with: .color(scheme == .dark ? .white.opacity(0.018) : .black.opacity(0.025)), lineWidth: 1)
+                context.stroke(path, with: .color(scheme == .dark ? .white.opacity(0.025) : Color(UIColor(hex: 0x5A3C1E)).opacity(0.035)), lineWidth: 1)
             }
         }
     }
