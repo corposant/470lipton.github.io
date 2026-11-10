@@ -6,9 +6,9 @@ import UIKit
 // tab is also named in its title and on the tab bar, so nothing depends on seeing colour.
 
 extension Theme {
-    /// The Map tab's accent. 4.5:1 or better on the base in light mode, 9:1 in dark;
-    /// Increase Contrast swaps in 7:1 or better.
-    static let teal = Color(light: 0x00736B, dark: 0x3DD6C6, highLight: 0x005A54, highDark: 0x8AEBE0)
+    /// The Map tab's accent. 5.5:1 or better on the base and glass in light mode, 10:1 in dark;
+    /// Increase Contrast swaps in 7.5:1 or better.
+    static let teal = Color(light: 0x0A6A62, dark: 0x46EDD6, highLight: 0x05544E, highDark: 0x9AF5E8)
 }
 
 extension AppTab {
