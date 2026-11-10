@@ -52,10 +52,12 @@ struct Item: Identifiable, Hashable {
         case .doing:
             guard let since = doingSince else { return nil }
             if let end = timeboxEnd {
-                return Reminder(start: end, repeatMinutes: max(1, policy.timesUpEvery), alarm: reminder?.alarm ?? false)
+                return Reminder(start: end, repeatMinutes: max(1, policy.timesUpEvery), alarm: reminder?.alarm ?? false,
+                                silent: reminder?.silent ?? false)
             }
             guard let checkIn = policy.checkInEvery, checkIn > 0 else { return nil }
-            return Reminder(start: since.addingTimeInterval(TimeInterval(checkIn * 60)), repeatMinutes: checkIn)
+            return Reminder(start: since.addingTimeInterval(TimeInterval(checkIn * 60)), repeatMinutes: checkIn,
+                            silent: reminder?.silent ?? false)
         case .someday, .done:
             return nil
         }
@@ -133,11 +135,14 @@ enum RepeatCurve: String, CaseIterable, Hashable {
     case steady
     /// Gap doubles each time, capped at a day: 8, 16, 32, 64… then daily, forever.
     case logarithmic
+    /// Gap halves each time down to a floor, getting more insistent: 30, 15, 8, 4, 4, 4…
+    case building
 
     var label: String {
         switch self {
         case .steady: "Steady"
         case .logarithmic: "Logarithmic"
+        case .building: "Building"
         }
     }
 }
@@ -150,6 +155,8 @@ struct Reminder: Hashable {
     var curve: RepeatCurve = .steady
     /// Ring as a real alarm (AlarmKit) that breaks through Silent and Focus.
     var alarm: Bool = false
+    /// Hush: nogs arrive as a quiet banner, with no sound and no Time Sensitive break-through.
+    var silent: Bool = false
     /// Ring as an alarm after this many ignored nogs. nil = the global setting, 0 = never.
     var escalateAfter: Int? = nil
     /// This item's "Snooze" length in minutes. nil = the Settings default.
@@ -164,6 +171,10 @@ struct Reminder: Hashable {
 
     /// Logarithmic gaps stop growing here.
     static let logarithmicCapMinutes = 1440
+    /// Building gaps stop shrinking here.
+    static let buildingFloorMinutes = 4
+    /// Building items get a heads-up this many minutes before they start, to ease the switch.
+    static let buildingHeadsUpMinutes = [15, 5, 1]
 
     var repeatInterval: TimeInterval? {
         repeatMinutes.map { TimeInterval(max(1, $0) * 60) }
@@ -186,6 +197,15 @@ struct Reminder: Hashable {
                 i += 1
             }
             return TimeInterval(min(minutes, cap) * 60)
+        case .building:
+            let fastest = min(base, Self.buildingFloorMinutes)
+            var minutes = base
+            var i = 0
+            while i < k && minutes > fastest {
+                minutes = max(fastest, (minutes + 1) / 2)
+                i += 1
+            }
+            return TimeInterval(minutes * 60)
         }
     }
 
@@ -240,6 +260,9 @@ struct Reminder: Hashable {
         switch curve {
         case .steady: return "every \(IntervalFormat.short(m))"
         case .logarithmic: return "every \(IntervalFormat.short(m)), easing off to daily"
+        case .building:
+            let fastest = min(m, Self.buildingFloorMinutes)
+            return "every \(IntervalFormat.short(m)), building to every \(IntervalFormat.short(fastest))"
         }
     }
 }
@@ -248,7 +271,7 @@ extension Reminder {
     /// Same rhythm: everything about how it nogs except when it starts.
     func sameRhythm(as other: Reminder) -> Bool {
         repeatMinutes == other.repeatMinutes && curve == other.curve && alarm == other.alarm
-            && escalateAfter == other.escalateAfter
+            && silent == other.silent && escalateAfter == other.escalateAfter
             && snoozeMinutes == other.snoozeMinutes && morningMinutes == other.morningMinutes
     }
 
@@ -258,6 +281,7 @@ extension Reminder {
         r.repeatMinutes = parent.repeatMinutes
         r.curve = parent.curve
         r.alarm = parent.alarm
+        r.silent = parent.silent
         r.escalateAfter = parent.escalateAfter
         r.snoozeMinutes = parent.snoozeMinutes
         r.morningMinutes = parent.morningMinutes

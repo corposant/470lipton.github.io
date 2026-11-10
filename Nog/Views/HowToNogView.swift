@@ -21,12 +21,16 @@ struct HowToNogView: View {
                 ("!8m  !2h  !1d", "repeat every 8 min, 2 h, a day"),
                 ("!once", "remind once, no repeat"),
                 ("!log", "gaps double each time: 8, 16, 32 min…"),
-                ("!steady", "same gap every time"),
                 ("!off", "no reminder, just keep the idea"),
             ])
             section("How it gets you", footer: "Start typing a ! word and Nog offers to finish it.", [
+                ("!hush  !hus", "silent banner every 15 min, never rings"),
                 ("!whisper  !whi", "gentle, never rings"),
+                ("!daily  !dai", "once a day at the same time, never rings"),
                 ("!easing  !eas", "eases off over time"),
+                ("!steady  !ste", "every 8 min until done"),
+                ("!building  !bui", "heads-up 15, 5, 1 min before, then closer and closer"),
+                ("!hyperfocus  !hyp  !break", "every 5 min, rings after 1 ignored nog"),
                 ("!unhinged  !unh", "no let-up, rings after 3 ignored nogs"),
                 ("!alarm", "rings like a real alarm"),
             ])

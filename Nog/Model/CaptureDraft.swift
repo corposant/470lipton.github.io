@@ -73,7 +73,8 @@ struct CaptureDraft: Equatable {
         } else {
             var r = result.reminder ?? Reminder(
                 start: now.addingTimeInterval(TimeInterval(defaults.firstDelayMinutes * 60)),
-                repeatMinutes: defaults.repeatMinutes, curve: defaults.curve, escalateAfter: defaults.escalateAfter)
+                repeatMinutes: defaults.repeatMinutes, curve: defaults.curve, silent: defaults.silent,
+                escalateAfter: defaults.escalateAfter)
             if let profile { r = profile.apply(to: r) }
             if let when { r.start = when }
             r.alarm = kind == .alarm
@@ -98,6 +99,6 @@ extension CaptureDefaults {
     static func differs(_ reminder: Reminder?, from defaults: CaptureDefaults) -> Bool {
         guard let r = reminder else { return false }
         return r.repeatMinutes != defaults.repeatMinutes || r.curve != defaults.curve
-            || r.escalateAfter != defaults.escalateAfter
+            || r.escalateAfter != defaults.escalateAfter || r.silent != defaults.silent
     }
 }

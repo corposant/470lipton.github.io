@@ -5,6 +5,8 @@ struct CaptureDefaults: Equatable {
     var repeatMinutes: Int?
     var curve: RepeatCurve = .steady
     var escalateAfter: Int? = nil
+    /// Hush: no sound, no Time Sensitive.
+    var silent = false
 }
 
 struct CaptureResult: Equatable {
@@ -20,9 +22,10 @@ struct CaptureResult: Equatable {
 ///   `!8m` `!2h` `!1d`   repeat every 8 minutes / 2 hours / 1 day
 ///   `!once` `!norepeat` remind once, don't repeat
 ///   `!log`              logarithmic: gaps double each time (8, 16, 32…), capped at daily
-///   `!steady`           same gap every time
 ///   `!alarm`            ring like a real alarm (through Silent and Focus)
-///   `!whisper` `!easing` `!unhinged`   use a nog profile (or just `!whi` `!eas` `!unh`)
+///   `!hush` `!whisper` `!daily` `!easing` `!steady` `!building` `!hyperfocus` `!unhinged`
+///                       use a nog profile (or just its first three letters: `!hus` `!unh`…;
+///                       `!gentle` = Whisper, `!break` = Hyperfocus)
 ///   `!off` / `!idea`    no reminder at all
 ///   `@30m` `@2h` `@1d`  start nogging in 30 minutes / 2 hours / 1 day
 ///   `@now`              start now
@@ -57,9 +60,6 @@ enum CaptureParser {
                 continue
             case "!log", "!logarithmic", "!ease":
                 curveOverride = .logarithmic
-                continue
-            case "!steady":
-                curveOverride = .steady
                 continue
             case "!alarm", "!ring":
                 alarm = true
@@ -99,7 +99,7 @@ enum CaptureParser {
         }
         let effective = profile.map {
             CaptureDefaults(firstDelayMinutes: $0.firstDelayMinutes, repeatMinutes: $0.repeatMinutes,
-                            curve: $0.curve, escalateAfter: $0.escalateAfter)
+                            curve: $0.curve, escalateAfter: $0.escalateAfter, silent: $0.silent)
         } ?? defaults
         let start: Date
         if let delayOverride {
@@ -111,7 +111,7 @@ enum CaptureParser {
         }
         let repeatMinutes = once ? nil : (repeatOverride ?? natural.repeatMinutes ?? effective.repeatMinutes)
         let reminder = Reminder(start: start, repeatMinutes: repeatMinutes,
-                                curve: curveOverride ?? effective.curve, alarm: alarm,
+                                curve: curveOverride ?? effective.curve, alarm: alarm, silent: effective.silent,
                                 escalateAfter: effective.escalateAfter)
         return CaptureResult(title: title, reminder: reminder, tags: tags, estimateMinutes: estimate)
     }

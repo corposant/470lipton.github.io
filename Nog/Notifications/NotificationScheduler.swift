@@ -154,14 +154,16 @@ final class NotificationScheduler {
             content.title = "Nog"
             content.body = "Something's nogging you."
         }
-        content.sound = NogSettings.playsSound ? .default : nil
+        // Hush items never make a sound. Neither they nor heads-ups (a gentle "coming up") break through Focus.
+        let quiet = planned.silent || planned.isHeadsUp
+        content.sound = NogSettings.playsSound && !planned.silent ? .default : nil
         content.categoryIdentifier = planned.category
         content.threadIdentifier = planned.itemID.uuidString
         content.userInfo = [Self.itemIDKey: planned.itemID.uuidString]
         // iOS 27: lets people say "Siri, mark that done" about the nog on screen.
         content.appEntityIdentifiers = [EntityIdentifier(for: ReminderEntity.self, identifier: planned.itemID)]
         // Takes effect once the Time Sensitive capability is added (see README).
-        content.interruptionLevel = NogSettings.timeSensitive ? .timeSensitive : .active
+        content.interruptionLevel = NogSettings.timeSensitive && !quiet ? .timeSensitive : .active
 
         let trigger: UNNotificationTrigger
         switch planned.trigger {

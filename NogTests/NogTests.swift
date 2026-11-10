@@ -626,6 +626,67 @@ final class ProfileTests: XCTestCase {
         item.updated = now
         XCTAssertEqual(ItemFile.decode(ItemFile.encode(item)), item)
     }
+
+    func testEveryProfileMatchesBackToItself() {
+        for profile in NogProfile.allCases {
+            XCTAssertEqual(NogProfile.matching(profile.reminder(from: now)), profile, profile.label)
+        }
+    }
+
+    func testEveryProfileHasItsOwnToken() {
+        for profile in NogProfile.allCases {
+            XCTAssertEqual(NogProfile.token("!" + profile.rawValue), profile)
+            XCTAssertEqual(NogProfile.token("!" + profile.rawValue.prefix(3)), profile, "3-letter token for \(profile.label)")
+        }
+        XCTAssertEqual(NogProfile.token("!break"), .hyperfocus)
+    }
+
+    func testBuildingGapsShrinkToFourMinutes() {
+        let r = NogProfile.building.apply(to: Reminder(start: now))
+        let gaps = (0..<6).compactMap { r.gap(after: $0) }.map { Int($0 / 60) }
+        XCTAssertEqual(gaps, [30, 15, 8, 4, 4, 4])
+        XCTAssertEqual(r.settledPhase?.gap, 4 * 60)
+        XCTAssertEqual(r.fireDates(after: now, limit: 4),
+                       [30, 45, 53, 57].map { now.addingTimeInterval(TimeInterval($0 * 60)) })
+    }
+
+    func testBuildingWarnsFifteenFiveAndOneMinuteBeforeItStarts() {
+        let start = now.addingTimeInterval(3600)
+        let item = Item(title: "leave for bus", reminder: NogProfile.building.apply(to: Reminder(start: start)))
+        let plan = NogPlanner.plan(items: [item], now: now)
+        let headsUps = plan.filter(\.isHeadsUp).compactMap(\.fireDate).sorted()
+        XCTAssertEqual(headsUps, [15, 5, 1].map { start.addingTimeInterval(TimeInterval(-$0 * 60)) })
+    }
+
+    func testHushIsSilentNeverRingsAndSurvivesTheFile() throws {
+        var policy = NogPolicy.standard
+        policy.escalateAfter = 1
+        var item = Item(title: "drink water", reminder: NogProfile.hush.apply(to: Reminder(start: now.addingTimeInterval(-60))))
+        XCTAssertTrue(try XCTUnwrap(item.reminder).silent)
+        XCTAssertTrue(AlarmScheduler.alarmDates(for: item, policy: policy, now: now).isEmpty)
+        XCTAssertTrue(NogPlanner.plan(items: [item], now: now).allSatisfy(\.silent))
+        item.created = now
+        item.updated = now
+        XCTAssertEqual(ItemFile.decode(ItemFile.encode(item)), item)
+        // Picking another profile turns the sound back on.
+        XCTAssertFalse(NogProfile.steady.apply(to: try XCTUnwrap(item.reminder)).silent)
+    }
+
+    func testHyperfocusRingsAfterOneIgnoredNog() {
+        let reminder = NogProfile.hyperfocus.apply(to: Reminder(start: now.addingTimeInterval(-60)))
+        let item = Item(title: "stop coding", reminder: reminder)
+        let alarms = AlarmScheduler.alarmDates(for: item, policy: .standard, now: now, limit: 1)
+        XCTAssertEqual(alarms, [now.addingTimeInterval(-60 + 5 * 60)])
+    }
+
+    func testDailyNogsOnceADayFromTheTimeYouType() throws {
+        let defaults = CaptureDefaults(firstDelayMinutes: 15, repeatMinutes: 8)
+        let r = try XCTUnwrap(CaptureParser.parse("meds !daily", defaults: defaults, now: now).reminder)
+        XCTAssertEqual(r.start, now.addingTimeInterval(86_400))
+        XCTAssertEqual(r.repeatMinutes, 1440)
+        XCTAssertEqual(r.escalateAfter, 0)
+        XCTAssertEqual(NogProfile.matching(r), .daily)
+    }
 }
 
 final class MapPageTests: XCTestCase {

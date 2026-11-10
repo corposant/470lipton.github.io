@@ -36,6 +36,7 @@ enum ItemFile {
             if let m = r.repeatMinutes { lines.append("repeat_minutes: \(m)") }
             if r.curve != .steady { lines.append("repeat_curve: \(r.curve.rawValue)") }
             if r.alarm { lines.append("alarm: true") }
+            if r.silent { lines.append("silent: true") }
             if let e = r.escalateAfter { lines.append("escalate_after: \(e)") }
             if let s = r.snoozeMinutes { lines.append("snooze_minutes: \(s)") }
             if let m = r.morningMinutes { lines.append("snooze_morning: \(String(format: "%02d:%02d", m / 60, m % 60))") }
@@ -101,6 +102,7 @@ enum ItemFile {
             let curve = fields["repeat_curve"].flatMap(RepeatCurve.init(rawValue:)) ?? .steady
             item.reminder = Reminder(start: start, repeatMinutes: repeatMinutes, curve: curve,
                                      alarm: fields["alarm"] == "true",
+                                     silent: fields["silent"] == "true",
                                      escalateAfter: fields["escalate_after"].flatMap { Int($0) },
                                      snoozeMinutes: fields["snooze_minutes"].flatMap { Int($0) }.flatMap { $0 > 0 ? $0 : nil },
                                      morningMinutes: fields["snooze_morning"].flatMap(Self.clockMinutes),

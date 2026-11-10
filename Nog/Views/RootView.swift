@@ -378,7 +378,8 @@ struct ItemRow: View {
         }
         if r.repeatMinutes != nil, let next = r.nextFire(after: now) {
             return "Nogging until done · next \(next.formatted(.relative(presentation: .named)))"
-                + (r.curve == .logarithmic ? " · easing off" : "")
+                + (r.curve == .logarithmic ? " · easing off" : r.curve == .building ? " · building" : "")
+                + (r.silent ? " · silent" : "")
         }
         return "Reminded once, \(r.start.formatted(.relative(presentation: .named)))"
     }

@@ -35,6 +35,10 @@ enum NogSettings {
     }
 
     static let escalateKey = "defaultEscalateAfter" // -1 = follow the global setting
+    static let silentKey = "defaultSilent"
+
+    /// New captures arrive silent (the default profile is Hush).
+    static var silent: Bool { UserDefaults.standard.bool(forKey: silentKey) }
 
     /// Per-capture escalation from the default profile (nil = global "ring as an alarm after").
     static var defaultEscalateAfter: Int? {
@@ -44,19 +48,19 @@ enum NogSettings {
 
     static var captureDefaults: CaptureDefaults {
         CaptureDefaults(firstDelayMinutes: firstDelayMinutes, repeatMinutes: repeatMinutes, curve: curve,
-                        escalateAfter: defaultEscalateAfter)
+                        escalateAfter: defaultEscalateAfter, silent: silent)
     }
 
     static var defaultReminderFromNow: Reminder {
         Reminder(start: .now.addingTimeInterval(TimeInterval(firstDelayMinutes * 60)),
-                 repeatMinutes: repeatMinutes, curve: curve, escalateAfter: defaultEscalateAfter)
+                 repeatMinutes: repeatMinutes, curve: curve, silent: silent, escalateAfter: defaultEscalateAfter)
     }
 
     /// The profile new captures use, if the defaults match one exactly.
     static var defaultProfile: NogProfile? {
         NogProfile.allCases.first {
             $0.firstDelayMinutes == firstDelayMinutes && $0.repeatMinutes == repeatMinutes
-                && $0.curve == curve && $0.escalateAfter == defaultEscalateAfter
+                && $0.curve == curve && $0.escalateAfter == defaultEscalateAfter && $0.silent == silent
         }
     }
 
@@ -67,6 +71,7 @@ enum NogSettings {
         d.set(profile.repeatMinutes, forKey: repeatKey)
         d.set(profile.curve.rawValue, forKey: curveKey)
         d.set(profile.escalateAfter ?? -1, forKey: escalateKey)
+        d.set(profile.silent, forKey: silentKey)
     }
 
     /// Choices offered in pickers (0 = once).
