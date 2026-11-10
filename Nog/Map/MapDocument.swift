@@ -162,14 +162,14 @@ final class MapDocument {
                 : MapLayout.place(missing: missing, edges: edges, pinned: placed, sizes: sizes)
         }.value
         guard mine == generation else { return }
-        var placed = false
+        var added = false
         for id in missing where positions[id] == nil {
             guard let p = result[id] else { continue }
             positions[id] = p
             if sizes[id] == nil { unsettled.insert(id) }
-            placed = true
+            added = true
         }
-        if placed { save() }
+        if added { save() }
     }
 
     /// Once chips have been measured, nudges the ones that were placed automatically
