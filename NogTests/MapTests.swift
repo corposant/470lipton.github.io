@@ -363,4 +363,63 @@ final class MapBigPageTests: XCTestCase {
         XCTAssertEqual(out.count, 300)
         XCTAssertFalse(MapLayout.hasOverlap(out))
     }
+
+    private func extent(_ p: [UUID: CGPoint]) -> CGRect {
+        p.values.reduce(CGRect.null) { $0.union(CGRect(x: $1.x - 98, y: $1.y - 29, width: 196, height: 58)) }
+    }
+
+    func testBigLayoutsAreRoughlySquareNotLongColumns() {
+        let items = bigPage(300)
+        for style in MapLayout.Style.allCases {
+            let r = extent(MapLayout.layOut(style, items: items))
+            let ratio = r.width / r.height
+            XCTAssertTrue(ratio > 0.25 && ratio < 4, "\(style.title) is \(Int(r.width)) × \(Int(r.height))")
+        }
+    }
+
+    func testTidyUpOnABigPageDoesNotSprawl() {
+        let items = bigPage(300)
+        let graph = MapGraph(all: Dictionary(uniqueKeysWithValues: items.map { ($0.id, $0) }), page: "", showNogged: true)
+        let start = MapLayout.arrange(items)
+        let out = MapLayout.cleanup(items, positions: start, pinned: [], zones: graph.zoneGroups.map(\.members))
+        XCTAssertFalse(MapLayout.hasOverlap(out))
+        let before = extent(start), after = extent(out)
+        XCTAssertLessThanOrEqual(after.width * after.height, before.width * before.height * 1.5)
+    }
+
+    func testTidyingTwiceMovesNothingTheSecondTime() {
+        let items = bigPage(300)
+        let graph = MapGraph(all: Dictionary(uniqueKeysWithValues: items.map { ($0.id, $0) }), page: "", showNogged: true)
+        let zones = graph.zoneGroups.map(\.members)
+        // Start from a mess: the tidy layout, with every third chip thrown somewhere else.
+        var start = MapLayout.arrange(items)
+        for (i, item) in items.enumerated() where i % 3 == 0 {
+            start[item.id] = CGPoint(x: CGFloat((i * 7919) % 3000), y: CGFloat((i * 104_729) % 3000))
+        }
+        let once = MapLayout.cleanup(items, positions: start, pinned: [], zones: zones)
+        let twice = MapLayout.cleanup(items, positions: once, pinned: [], zones: zones)
+        XCTAssertEqual(once, twice)
+    }
 }
+
+final class MapSqueezeTests: XCTestCase {
+    func testSqueezeClosesWideGapsAndKeepsPins() {
+        let a = UUID(), b = UUID(), c = UUID()
+        let p = [a: CGPoint(x: 0, y: 0), b: CGPoint(x: 3000, y: 0), c: CGPoint(x: 3000, y: 4000)]
+        let out = MapLayout.squeeze(p, fixed: [a])
+        XCTAssertEqual(out[a], CGPoint(x: 0, y: 0))
+        // b's left edge now sits maxGap past a's right edge.
+        XCTAssertEqual(out[b]!.x - 98 - (0 + 98), MapLayout.maxGap, accuracy: 0.01)
+        XCTAssertEqual(out[c]!.y - 29 - (0 + 29), MapLayout.maxGap, accuracy: 0.01)
+        XCTAssertFalse(MapLayout.hasOverlap(out))
+        // Already compact: nothing moves.
+        XCTAssertEqual(MapLayout.squeeze(out, fixed: [a]), out)
+    }
+
+    func testSqueezeLeavesAGapWithPinsOnBothSides() {
+        let a = UUID(), b = UUID()
+        let p = [a: CGPoint(x: 0, y: 0), b: CGPoint(x: 3000, y: 0)]
+        XCTAssertEqual(MapLayout.squeeze(p, fixed: [a, b]), p)
+    }
+}
+

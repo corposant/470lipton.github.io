@@ -18,26 +18,31 @@ struct MapTab: View {
         let current = tags.contains { $0.tag == page } ? page : ""
         NavigationStack(path: $router.mapPath) {
             VStack(spacing: 0) {
-                // The page strip is part of the page (not an inset), so the nav bar can't cover it.
-                MapPageStrip(tags: tags, selected: current) { page = $0 }
+                // One slim row for the title and the tag pages, in place of the navigation
+                // bar, so the map gets as much of the screen as possible.
+                HStack(spacing: 4) {
+                    Text(AppTab.map.title)
+                        .font(.custom("Futura-Bold", size: 24, relativeTo: .title2))
+                        .tracking(1.5)
+                        .foregroundStyle(AppTab.map.accent)
+                        .lineLimit(1)
+                        .fixedSize()
+                        .padding(.leading, 16)
+                        .accessibilityAddTraits(.isHeader)
+                    MapPageStrip(tags: tags, selected: current, framed: false) { page = $0 }
+                }
+                .background(.ultraThinMaterial)
+                .overlay(alignment: .bottom) { Rectangle().fill(Theme.edge).frame(height: 1) }
                 MindMapView(doc: pages.doc(for: current),
                             seed: current.isEmpty ? nil : pages.doc(for: ""),
-                            page: current, showNogged: showNogged)
+                            page: current, showNogged: $showNogged)
                     .id(current) // fresh pan/zoom and centring per page
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .background { NogBackground() }
+            // Still named, for the back button on pages opened from the map.
             .nogTabTitle(.map)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        showNogged.toggle()
-                    } label: {
-                        Image(systemName: showNogged ? "checkmark.circle.fill" : "checkmark.circle")
-                    }
-                    .accessibilityLabel(showNogged ? "Hide done items" : "Show done items")
-                }
-            }
+            .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: UUID.self) { id in
                 ItemDetailView(id: id)
             }
@@ -60,7 +65,8 @@ struct MindMapView: View {
     /// The All page, used to seed a tag page's first layout.
     var seed: MapDocument? = nil
     var page: String = ""
-    let showNogged: Bool
+    /// Whether done nogs are on the map (the button with the wand and grid).
+    @Binding var showNogged: Bool
 
     // The view transform: a map point p appears on screen at offset + p * scale.
     @State private var scale: CGFloat = 1
@@ -74,6 +80,9 @@ struct MindMapView: View {
     @State private var viewMoved = false
     /// How far you can zoom out: always far enough to see the whole page (set by `fit`).
     @State private var zoomFloor: CGFloat = 0.25
+    /// Where the wand last put the chips on this page. If nothing has moved since,
+    /// another tap has nothing to do.
+    @State private var tidied: [UUID: CGPoint]?
     @State private var isScribbling = false
     /// Worked-out items, lines and zones, rebuilt only when the items change.
     @State private var cache = MapGraphCache()
@@ -890,6 +899,16 @@ struct MindMapView: View {
                 }
                 if !isScribbling && !locked {
                     wandButton(graph, size: size)
+                    mapButton(MapLayout.Style.grid.icon, tint: Theme.violet, label: "Grid", id: "grid") {
+                        rearrange(graph, style: .grid, in: size)
+                    }
+                    .accessibilityHint("Puts every nog in even rows and columns. Undo puts them back.")
+                }
+                if !isScribbling {
+                    mapButton(showNogged ? "checkmark.circle.fill" : "checkmark.circle", tint: Theme.blue,
+                              label: showNogged ? "Hide done nogs" : "Show done nogs", id: "done", active: showNogged) {
+                        withNogAnimation(.snappy) { showNogged.toggle() }
+                    }
                 }
                 if !isScribbling {
                     mapButton("viewfinder", tint: Theme.blue, label: "Fit to screen", id: "fit") {
@@ -915,7 +934,7 @@ struct MindMapView: View {
                 Text("Fixes overlaps, keeps your layout")
             }
             Section("Lay out as") {
-                ForEach(MapLayout.Style.allCases) { style in
+                ForEach(MapLayout.Style.wand) { style in
                     Button {
                         rearrange(graph, style: style, in: size)
                     } label: {
@@ -939,7 +958,7 @@ struct MindMapView: View {
         .accessibilityLabel("Tidy up")
         .accessibilityHint("Fixes overlaps and keeps your layout. More layouts in the actions.")
         .accessibilityActions {
-            ForEach(MapLayout.Style.allCases) { style in
+            ForEach(MapLayout.Style.wand) { style in
                 Button("Lay out as \(style.title)") { rearrange(graph, style: style, in: size) }
             }
         }
@@ -952,6 +971,14 @@ struct MindMapView: View {
         let items = graph.items, ids = graph.ids, sizes = chipSizes.sizes
         let current = doc.positions, pinned = doc.pinned
         let zones = graph.zoneGroups.map(\.members)
+        let onPage = Set(ids)
+        // Tapping again after the wand, with nothing moved since: it's already as tidy
+        // as the wand makes it, so don't shuffle things again.
+        if style == nil, let tidied, tidied == current.filter({ onPage.contains($0.key) }) {
+            withNogAnimation(.snappy) { notice = nil }
+            AccessibilityNotification.Announcement("Already tidy").post()
+            return
+        }
         Task {
             // Worked out off the main thread, so a big map doesn't freeze the screen.
             let targets = await Task.detached(priority: .userInitiated) { () -> [UUID: CGPoint] in
@@ -967,6 +994,9 @@ struct MindMapView: View {
             if style != nil {
                 change.pins = ids.filter { pinned.contains($0) }.map { .init(id: $0, pinned: false) }
             }
+            var settled = current.filter { onPage.contains($0.key) }
+            for id in moved { settled[id] = targets[id] }
+            tidied = settled
             guard !change.isEmpty else {
                 withNogAnimation(.snappy) { notice = nil }
                 AccessibilityNotification.Announcement("Already tidy").post()
@@ -1061,7 +1091,7 @@ struct MindMapView: View {
         guard #available(iOS 27.1, *) else { return 0 }
         let regions = (geo.reservedRegions(kind: .division) + geo.reservedRegions(kind: .occlusion)).filter(\.isActive)
         guard !regions.isEmpty else { return 0 }
-        let stackHeight: CGFloat = 4 * 46 + 3 * 10 + 32
+        let stackHeight: CGFloat = 6 * 46 + 5 * 10 + 32
         let w = geo.size.width, h = geo.size.height
         var lift: CGFloat = 0
         for region in regions {
@@ -1386,6 +1416,8 @@ struct MapPageStrip: View {
     @Environment(\.nogAccent) private var accent
     let tags: [(tag: String, count: Int)]
     let selected: String
+    /// With its own background and bottom edge. Off when it sits in a row that has them.
+    var framed = true
     let select: (String) -> Void
 
     var body: some View {
@@ -1405,11 +1437,11 @@ struct MapPageStrip: View {
                          isSelected: selected == entry.tag) { select(entry.tag) }
                 }
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, framed ? 16 : 12)
             .padding(.vertical, 8)
         }
-        .background(.ultraThinMaterial)
-        .overlay(alignment: .bottom) { Rectangle().fill(Theme.edge).frame(height: 1) }
+        .background { if framed { Rectangle().fill(.ultraThinMaterial) } }
+        .overlay(alignment: .bottom) { if framed { Rectangle().fill(Theme.edge).frame(height: 1) } }
         .nogFeedback(.selection, trigger: selected)
     }
 

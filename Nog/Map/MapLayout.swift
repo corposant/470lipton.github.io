@@ -323,14 +323,16 @@ extension MapLayout {
             return block(out)
         }
 
-        /// Two columns, rows as tall as their taller chip, centres spaced so nothing touches.
+        /// A grid about as wide as it is tall (see `blockColumns`), rows as tall as their
+        /// tallest chip, centres spaced so nothing touches. Never a long thin column.
         func shelf(_ items: [Item]) -> [UUID: CGPoint] {
             let column = (items.map { size($0.id).width }.max() ?? cell.width) + spacing.width
+            let columns = max(2, blockColumns(items.count))
             var out: [UUID: CGPoint] = [:]
             var y: CGFloat = 0
             var previousHeight: CGFloat?
-            for start in stride(from: 0, to: items.count, by: 2) {
-                let row = items[start..<min(start + 2, items.count)]
+            for start in stride(from: 0, to: items.count, by: columns) {
+                let row = items[start..<min(start + columns, items.count)]
                 let height = row.map { size($0.id).height }.max() ?? cell.height
                 if let previousHeight { y += previousHeight / 2 + spacing.height + height / 2 }
                 for (i, item) in row.enumerated() {
@@ -388,14 +390,17 @@ extension MapLayout {
                 }
             }
             if !loose.isEmpty { blocks.append(block(shelf(linkOrder(loose)))) }
-            if !blocks.isEmpty { groupBlocks.append(pack(blocks, maxWidth: 1100, gap: 90)) }
+            if !blocks.isEmpty {
+                let width = rowWidth(blocks.map(\.positions), sizes: sizes, least: 1100)
+                groupBlocks.append(pack(blocks, maxWidth: width, gap: 90))
+            }
         }
         // Anything not yet placed (e.g. caught in a parent loop) goes on a final shelf.
         roots = items.filter { !visited.contains($0.id) }
         if !roots.isEmpty { groupBlocks.append(block(shelf(roots))) }
 
         // Groups sit far enough apart that their tag zones (and the labels on top) never touch.
-        var all = pack(groupBlocks, maxWidth: 1700, gap: 200)
+        var all = pack(groupBlocks, maxWidth: rowWidth(groupBlocks.map(\.positions), sizes: sizes, least: 1700), gap: 160)
         // Centre on (0, 0).
         let cx = all.bounds.midX, cy = all.bounds.midY
         for (id, p) in all.positions { all.positions[id] = CGPoint(x: p.x - cx, y: p.y - cy) }
