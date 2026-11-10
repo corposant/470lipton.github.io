@@ -705,5 +705,6 @@ struct RootView: View {
         .tint(router.tab.accent)
         .tabBarMinimizeBehavior(.onScrollDown)
         .sheet(isPresented: $router.showSilenceSheet) { SilenceSheet() }
+        .sheet(isPresented: $router.showSettings) { SettingsView() }
     }
 }
