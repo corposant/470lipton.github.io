@@ -2,7 +2,7 @@ import AppIntents
 import SwiftUI
 
 /// The Agenda tab: only what has a time, from now through the coming week.
-/// Untimed and just-caught things live on the Nogs tab.
+/// Untimed and just-caught things live on the List tab.
 struct AgendaView: View {
     @Environment(Router.self) private var router
     @Environment(ItemStore.self) private var store
@@ -17,7 +17,7 @@ struct AgendaView: View {
             }
             .background { NogBackground() }
             .safeAreaInset(edge: .top) { SilenceBanner() }
-            .navigationTitle("Agenda")
+            .nogTabTitle(.agenda)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { showSettings = true } label: { Image(systemName: "gearshape") }
@@ -73,7 +73,7 @@ private struct AgendaList: View {
                 Section {
                     ContentUnavailableView("Nothing timed this week",
                                            systemImage: "calendar",
-                                           description: Text("Things with a time show up here. Untimed ones wait on the Nogs tab."))
+                                           description: Text("Things with a time show up here. Untimed ones wait on the List tab."))
                         .listRowBackground(Color.clear)
                 }
             }

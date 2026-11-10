@@ -1,11 +1,20 @@
 import AppIntents
 import SwiftUI
 
-/// The full overview (Nogs tab).
+/// The List tab (carton icon): everything, sorted by time, or as an outline of what's
+/// inside what.
 struct NogsTab: View {
+    enum Mode: String, CaseIterable {
+        case byTime = "By time", outline = "Outline"
+    }
+
     @Environment(Router.self) private var router
     @Environment(ItemStore.self) private var store
     @State private var search = ""
+    /// Which view of the list, remembered between launches.
+    @AppStorage("listMode") private var mode: Mode = .byTime
+    /// The outline shows finished items too when this is on.
+    @AppStorage("outlineShowsDone") private var outlineShowsDone = false
     @State private var showSettings = false
     /// Select mode: tap rows to pick several, then act on them from the bottom bar.
     @State private var editMode: EditMode = .inactive
@@ -22,12 +31,31 @@ struct NogsTab: View {
         @Bindable var router = router
         NavigationStack(path: $router.path) {
             // Re-render each minute and as nogs start, so "in 5 min" / "nogging now" stay current.
-            TimelineView(MinuteSchedule.forItems(store.items.values)) { context in
-                ItemListView(now: context.date, search: search, selection: $selection)
+            Group {
+                // A search always lists matching items, whichever view you're on.
+                if mode == .outline && search.isEmpty {
+                    OutlineView(showNogged: outlineShowsDone)
+                } else {
+                    TimelineView(MinuteSchedule.forItems(store.items.values)) { context in
+                        ItemListView(now: context.date, search: search, selection: $selection)
+                    }
+                }
             }
             .background { NogBackground() }
-            .safeAreaInset(edge: .top) { SilenceBanner() }
-            .navigationTitle(isSelecting ? (selection.isEmpty ? "Select nogs" : "\(selection.count) selected") : "NOG")
+            .safeAreaInset(edge: .top) {
+                VStack(spacing: 8) {
+                    SilenceBanner()
+                    if !isSelecting {
+                        Picker("View", selection: $mode) {
+                            ForEach(Mode.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                        }
+                        .pickerStyle(.segmented)
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 4)
+                    }
+                }
+            }
+            .nogTabTitle(.nogs, title: isSelecting ? (selection.isEmpty ? "Select nogs" : "\(selection.count) selected") : nil)
             .searchable(text: $search, placement: .navigationBarDrawer(displayMode: .automatic))
             .environment(\.editMode, $editMode)
             .toolbar {
@@ -41,6 +69,19 @@ struct NogsTab: View {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button("Done") { stopSelecting() }
                             .fontWeight(.semibold)
+                    }
+                } else if mode == .outline {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            outlineShowsDone.toggle()
+                        } label: {
+                            Image(systemName: outlineShowsDone ? "checkmark.circle.fill" : "checkmark.circle")
+                        }
+                        .accessibilityLabel(outlineShowsDone ? "Hide done items" : "Show done items")
+                    }
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button { showSettings = true } label: { Image(systemName: "gearshape") }
+                            .accessibilityLabel("Settings")
                     }
                 } else {
                     ToolbarItem(placement: .topBarTrailing) {

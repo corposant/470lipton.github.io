@@ -591,7 +591,7 @@ final class Router {
     var tab: AppTab = .capture
     var capturePath: [UUID] = []
     var agendaPath: [UUID] = []
-    /// The Nogs tab's stack.
+    /// The List tab's stack.
     var path: [UUID] = []
     var mapPath: [UUID] = []
     /// Bumped to ask the capture field to take focus.
@@ -622,7 +622,7 @@ final class Router {
         }
     }
 
-    /// From a notification or Siri: show the item in the Nogs tab.
+    /// From a notification or Siri: show the item in the List tab.
     func open(_ id: UUID) {
         tab = .nogs
         path = [id]

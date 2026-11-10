@@ -11,12 +11,8 @@ struct NogApp: App {
     @AppStorage(ThemeMode.key) private var themeMode: ThemeMode = .auto
 
     init() {
-        // Futura for navigation titles (falls back to the system font if ever missing).
-        let large = UIFont(name: "Futura-Bold", size: 32) ?? .systemFont(ofSize: 30, weight: .bold)
-        let inline = UIFont(name: "Futura-Medium", size: 17) ?? .systemFont(ofSize: 16, weight: .semibold)
-        let appearance = UINavigationBar.appearance()
-        appearance.largeTitleTextAttributes = [.font: large, .kern: 2.5]
-        appearance.titleTextAttributes = [.font: inline, .kern: 1.2]
+        // Futura navigation titles that scale with text size. Each tab also colours its own.
+        NogTitleFont.applyDefault()
     }
 
     var body: some Scene {

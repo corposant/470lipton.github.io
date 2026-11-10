@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import XCTest
 @testable import Nog
 
@@ -19,7 +20,7 @@ final class ContrastTests: XCTestCase {
     func testTextColoursOnTheBase() {
         let text: [(String, Color)] = [
             ("muted", Theme.muted), ("pink", Theme.pink), ("violet", Theme.violet),
-            ("blue", Theme.blue), ("panelLabel", Theme.panelLabel), ("lcd", Theme.lcd),
+            ("blue", Theme.blue), ("teal", Theme.teal), ("panelLabel", Theme.panelLabel), ("lcd", Theme.lcd),
             ("done", StatusDial.tint(.done)), ("alarm", NogKind.alarm.tint),
         ]
         for scheme in [ColorScheme.light, .dark] {
@@ -40,6 +41,38 @@ final class ContrastTests: XCTestCase {
                 XCTAssertGreaterThanOrEqual(r, 4.5, "tag \(String(pair.light, radix: 16)) in \(scheme) mode is \(r):1")
             }
         }
+    }
+}
+
+/// Each tab's title matches its tab bar label, in title case, and each tab has its own colour.
+final class TabThemeTests: XCTestCase {
+    private let tabs: [AppTab] = [.capture, .agenda, .nogs, .map]
+
+    func testTitles() {
+        XCTAssertEqual(tabs.map(\.title), ["New Nog", "Agenda", "List", "Map"])
+        for tab in tabs {
+            XCTAssertNotEqual(tab.title, tab.title.uppercased(), "\(tab.title) shouldn't be all caps")
+        }
+    }
+
+    func testAccentsDiffer() {
+        var env = EnvironmentValues()
+        for scheme in [ColorScheme.light, .dark] {
+            env.colorScheme = scheme
+            let resolved = tabs.map { tab -> [Float] in
+                let c = tab.accent.resolve(in: env)
+                return [c.red, c.green, c.blue]
+            }
+            XCTAssertEqual(Set(resolved.map { $0.map { Int($0 * 255) } }).count, tabs.count)
+        }
+    }
+
+    func testTitleFontsScaleWithTextSize() {
+        let normal = UITraitCollection(preferredContentSizeCategory: .large)
+        let big = UITraitCollection(preferredContentSizeCategory: .accessibilityExtraLarge)
+        XCTAssertGreaterThan(NogTitleFont.large(big).pointSize, NogTitleFont.large(normal).pointSize)
+        XCTAssertGreaterThan(NogTitleFont.inline(big).pointSize, NogTitleFont.inline(normal).pointSize)
+        XCTAssertLessThanOrEqual(NogTitleFont.large(big).pointSize, 52)
     }
 }
 

@@ -61,7 +61,7 @@ struct CaptureHomeView: View {
                 }
             }
             .safeAreaInset(edge: .top) { SilenceBanner() }
-            .navigationTitle("New Nog")
+            .nogTabTitle(.capture)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button { showSettings = true } label: { Image(systemName: "gearshape") }
@@ -674,26 +674,28 @@ private struct CaptureParentPicker: View {
     }
 }
 
-/// New Nog · Agenda · Nogs · Map
+/// New Nog · Agenda · List · Map. Each tab has its own accent colour (see TabTheme.swift).
 struct RootView: View {
     @Environment(Router.self) private var router
 
     var body: some View {
         @Bindable var router = router
         TabView(selection: $router.tab) {
-            Tab("New Nog", systemImage: "plus.circle", value: AppTab.capture) {
-                CaptureHomeView()
+            Tab(AppTab.capture.title, systemImage: "plus.circle", value: AppTab.capture) {
+                CaptureHomeView().nogTabTheme(.capture)
             }
-            Tab("Agenda", systemImage: "calendar", value: AppTab.agenda) {
-                AgendaView()
+            Tab(AppTab.agenda.title, systemImage: "calendar", value: AppTab.agenda) {
+                AgendaView().nogTabTheme(.agenda)
             }
-            Tab("Nogs", image: "TabCarton", value: AppTab.nogs) {
-                NogsTab()
+            Tab(AppTab.nogs.title, image: "TabCarton", value: AppTab.nogs) {
+                NogsTab().nogTabTheme(.nogs)
             }
-            Tab("Map", systemImage: "point.3.connected.trianglepath.dotted", value: AppTab.map) {
-                MapTab()
+            Tab(AppTab.map.title, systemImage: "point.3.connected.trianglepath.dotted", value: AppTab.map) {
+                MapTab().nogTabTheme(.map)
             }
         }
+        // The selected tab lights up in that tab's colour.
+        .tint(router.tab.accent)
         .tabBarMinimizeBehavior(.onScrollDown)
         .sheet(isPresented: $router.showSilenceSheet) { SilenceSheet() }
     }
