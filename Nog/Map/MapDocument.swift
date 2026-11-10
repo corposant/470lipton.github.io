@@ -54,6 +54,9 @@ final class MapDocument {
     /// Bumped by each placement, so a slower, older one is dropped.
     @ObservationIgnored private var generation = 0
 
+    /// True while new chips are being given spots, so the map can say it's working.
+    private(set) var isPlacing = false
+
     /// Chips placed by hand. Tidy up never moves them (full layouts do, and unpin them).
     private(set) var pinned: Set<UUID> = []
 
@@ -156,12 +159,18 @@ final class MapDocument {
         let mine = generation
         let onPage = Set(ids)
         let placed = positions.filter { onPage.contains($0.key) }
+        let newItems = items.filter { positions[$0.id] == nil }
+        // Only worth a "working on it" note for a big batch; one new chip is instant.
+        if missing.count > MapLayout.bulkPlacement { isPlacing = true }
         let result = await Task.detached(priority: .userInitiated) { () -> [UUID: CGPoint] in
-            placed.isEmpty
-                ? MapLayout.arrange(items, sizes: sizes)
-                : MapLayout.place(missing: missing, edges: edges, pinned: placed, sizes: sizes)
+            if placed.isEmpty { return MapLayout.arrange(items, sizes: sizes) }
+            if missing.count > MapLayout.bulkPlacement {
+                return MapLayout.placeBeside(newItems, existing: placed, sizes: sizes)
+            }
+            return MapLayout.place(missing: missing, edges: edges, pinned: placed, sizes: sizes)
         }.value
         guard mine == generation else { return }
+        isPlacing = false
         var added = false
         for id in missing where positions[id] == nil {
             guard let p = result[id] else { continue }

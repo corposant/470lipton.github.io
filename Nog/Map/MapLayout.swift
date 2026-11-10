@@ -63,46 +63,88 @@ enum MapLayout {
         }
         guard !free.isEmpty, iterations > 0 else { return positions }
 
-        // Relax only the free nodes.
-        let freeSet = Set(free)
+        // Relax only the free nodes. Arrays rather than dictionaries, and repulsion only
+        // from nodes within a few spacings (found through a grid), so a page with
+        // hundreds of items takes a moment instead of minutes. Far-off nodes barely
+        // push anyway, and the pull toward the centre keeps everything together.
+        let order = ids.filter { positions[$0] != nil }
+        var index: [UUID: Int] = [:]
+        for (i, id) in order.enumerated() { index[id] = i }
+        var pts = order.map { positions[$0] ?? .zero }
+        let isFree = order.map { pinned[$0] == nil }
+        let links: [[Int]] = order.map { id in (neighbours[id] ?? []).compactMap { index[$0] } }
+        let jitter = order.map { Double(seed($0) % 7 + 1) * 0.01 }
         let k = Double(spacing)
+        let reach = k * 3.5
+        // Fewer rounds on a big page: each one is more work, and it settles anyway.
+        let rounds = order.count > 150 ? min(iterations, 120) : iterations
         var temperature = k
-        for _ in 0..<iterations {
-            var force: [UUID: CGVector] = [:]
-            for a in free {
-                guard let pa = positions[a] else { continue }
+        var force = [CGVector](repeating: .zero, count: pts.count)
+        for _ in 0..<rounds {
+            var grid: [GridKey: [Int]] = [:]
+            for i in pts.indices { grid[GridKey(pts[i], cell: CGSize(width: reach, height: reach)), default: []].append(i) }
+            for a in pts.indices where isFree[a] {
+                let pa = pts[a]
                 var fx = 0.0, fy = 0.0
-                for b in ids where b != a {
-                    guard let pb = positions[b] else { continue }
-                    var dx = pa.x - pb.x, dy = pa.y - pb.y
-                    var d = sqrt(dx * dx + dy * dy)
-                    if d < 0.01 { dx = 0.01 * Double(seed(a) % 7 + 1); dy = 0.01; d = 0.02 }
-                    let repulse = k * k / d
-                    fx += dx / d * repulse
-                    fy += dy / d * repulse
+                let home = GridKey(pa, cell: CGSize(width: reach, height: reach))
+                for gx in (home.x - 1)...(home.x + 1) {
+                    for gy in (home.y - 1)...(home.y + 1) {
+                        for b in grid[GridKey(x: gx, y: gy)] ?? [] where b != a {
+                            let pb = pts[b]
+                            var dx = Double(pa.x - pb.x), dy = Double(pa.y - pb.y)
+                            var d = (dx * dx + dy * dy).squareRoot()
+                            guard d < reach else { continue }
+                            if d < 0.01 { dx = jitter[a]; dy = 0.01; d = 0.02 }
+                            let repulse = k * k / d
+                            fx += dx / d * repulse
+                            fy += dy / d * repulse
+                        }
+                    }
                 }
-                for b in neighbours[a] ?? [] {
-                    guard let pb = positions[b] else { continue }
-                    let dx = pa.x - pb.x, dy = pa.y - pb.y
-                    let d = max(0.01, sqrt(dx * dx + dy * dy))
+                for b in links[a] {
+                    let pb = pts[b]
+                    let dx = Double(pa.x - pb.x), dy = Double(pa.y - pb.y)
+                    let d = max(0.01, (dx * dx + dy * dy).squareRoot())
                     let attract = d * d / k
                     fx -= dx / d * attract
                     fy -= dy / d * attract
                 }
                 // Gentle pull toward the centre keeps islands from drifting away.
-                fx -= pa.x * 0.02
-                fy -= pa.y * 0.02
+                fx -= Double(pa.x) * 0.02
+                fy -= Double(pa.y) * 0.02
                 force[a] = CGVector(dx: fx, dy: fy)
             }
-            for id in freeSet {
-                guard let f = force[id], let p = positions[id] else { continue }
-                let magnitude = max(0.01, sqrt(f.dx * f.dx + f.dy * f.dy))
+            for i in pts.indices where isFree[i] {
+                let f = force[i]
+                let magnitude = max(0.01, (f.dx * f.dx + f.dy * f.dy).squareRoot())
                 let step = min(magnitude, temperature)
-                positions[id] = CGPoint(x: p.x + f.dx / magnitude * step, y: p.y + f.dy / magnitude * step)
+                pts[i] = CGPoint(x: pts[i].x + f.dx / magnitude * step, y: pts[i].y + f.dy / magnitude * step)
             }
             temperature = max(1, temperature * 0.97)
         }
+        for (i, id) in order.enumerated() { positions[id] = pts[i] }
         return positions
+    }
+
+    /// A square of the grid used to find nearby chips quickly.
+    struct GridKey: Hashable {
+        let x: Int
+        let y: Int
+
+        init(x: Int, y: Int) {
+            self.x = x
+            self.y = y
+        }
+
+        init(_ p: CGPoint, cell: CGSize) {
+            // A stray infinite or NaN position mustn't crash the conversion to Int.
+            func bucket(_ v: CGFloat, _ size: CGFloat) -> Int {
+                let b = (v / size).rounded(.down)
+                return b.isFinite ? Int(max(-1_000_000, min(1_000_000, b))) : 0
+            }
+            x = bucket(p.x, cell.width)
+            y = bucket(p.y, cell.height)
+        }
     }
 
     private static func seed(_ id: UUID) -> Int {
@@ -365,17 +407,34 @@ extension MapLayout {
     /// of a pair takes the whole push. Deterministic.
     static func separate(_ positions: [UUID: CGPoint], sizes: [UUID: CGSize] = [:], fixed: Set<UUID> = [],
                          gap: CGSize = spacing, iterations: Int = 150) -> [UUID: CGPoint] {
-        var p = positions
-        let keys = p.keys.sorted { $0.uuidString < $1.uuidString }
-        let dims = Dictionary(uniqueKeysWithValues: keys.map { ($0, MapLayout.size($0, in: sizes)) })
+        let keys = positions.keys.sorted { $0.uuidString < $1.uuidString }
+        guard keys.count > 1 else { return positions }
+        var p = keys.map { positions[$0] ?? .zero }
+        let dims = keys.map { MapLayout.size($0, in: sizes) }
+        let isFixed = keys.map { fixed.contains($0) }
+        // Two chips can only crowd each other when their centres are closer than the
+        // widest (and tallest) chip plus the gap, so with grid squares that size, each
+        // chip only needs checking against the squares around its own. That keeps a
+        // page of hundreds of chips quick instead of comparing every pair.
+        let square = CGSize(width: (dims.map(\.width).max() ?? cell.width) + gap.width,
+                            height: (dims.map(\.height).max() ?? cell.height) + gap.height)
         for _ in 0..<iterations {
+            var grid: [GridKey: [Int]] = [:]
+            let homes = p.map { GridKey($0, cell: square) }
+            for i in p.indices { grid[homes[i], default: []].append(i) }
             var moved = false
-            for i in keys.indices {
-                for j in keys.indices where j > i {
-                    let ka = keys[i], kb = keys[j]
-                    let fa = fixed.contains(ka), fb = fixed.contains(kb)
+            for i in p.indices {
+                var near: [Int] = []
+                for gx in (homes[i].x - 1)...(homes[i].x + 1) {
+                    for gy in (homes[i].y - 1)...(homes[i].y + 1) {
+                        for j in grid[GridKey(x: gx, y: gy)] ?? [] where j > i { near.append(j) }
+                    }
+                }
+                near.sort()
+                for j in near {
+                    let fa = isFixed[i], fb = isFixed[j]
                     if fa && fb { continue }
-                    guard let a = p[ka], let b = p[kb], let sa = dims[ka], let sb = dims[kb] else { continue }
+                    let a = p[i], b = p[j], sa = dims[i], sb = dims[j]
                     let ox = (sa.width + sb.width) / 2 + gap.width - abs(a.x - b.x)
                     let oy = (sa.height + sb.height) / 2 + gap.height - abs(a.y - b.y)
                     guard ox > 0.01, oy > 0.01 else { continue }
@@ -385,18 +444,20 @@ extension MapLayout {
                     let shareB: CGFloat = 1 - shareA
                     if ox < oy {
                         let dir: CGFloat = a.x <= b.x ? -1 : 1
-                        p[ka] = CGPoint(x: a.x + dir * ox * shareA, y: a.y)
-                        p[kb] = CGPoint(x: b.x - dir * ox * shareB, y: b.y)
+                        p[i] = CGPoint(x: a.x + dir * ox * shareA, y: a.y)
+                        p[j] = CGPoint(x: b.x - dir * ox * shareB, y: b.y)
                     } else {
                         let dir: CGFloat = a.y <= b.y ? -1 : 1
-                        p[ka] = CGPoint(x: a.x, y: a.y + dir * oy * shareA)
-                        p[kb] = CGPoint(x: b.x, y: b.y - dir * oy * shareB)
+                        p[i] = CGPoint(x: a.x, y: a.y + dir * oy * shareA)
+                        p[j] = CGPoint(x: b.x, y: b.y - dir * oy * shareB)
                     }
                 }
             }
             if !moved { break }
         }
-        return p
+        var out: [UUID: CGPoint] = [:]
+        for (i, id) in keys.enumerated() { out[id] = p[i] }
+        return out
     }
 
     /// Places `missing` near what they're connected to, then pushes only them clear of
@@ -405,6 +466,29 @@ extension MapLayout {
                       sizes: [UUID: CGSize] = [:]) -> [UUID: CGPoint] {
         let laidOut = layout(ids: Array(pinned.keys) + ids.filter { pinned[$0] == nil }, edges: edges, pinned: pinned)
         return separate(laidOut, sizes: sizes, fixed: Set(pinned.keys))
+    }
+
+    /// More new chips than this at once (an import, say) are laid out as their own tidy
+    /// block beside the map, instead of being squeezed in one by one.
+    static let bulkPlacement = 24
+
+    /// Lays out many new items as one tidy block (see `arrange`) and puts it to the right
+    /// of the chips already on the map, level with their middle. Returns spots for `items` only.
+    static func placeBeside(_ items: [Item], existing: [UUID: CGPoint], sizes: [UUID: CGSize] = [:]) -> [UUID: CGPoint] {
+        let block = arrange(items, sizes: sizes)
+        func bounds(_ p: [UUID: CGPoint]) -> CGRect {
+            var r = CGRect.null
+            for (id, q) in p {
+                let s = size(id, in: sizes)
+                r = r.union(CGRect(x: q.x - s.width / 2, y: q.y - s.height / 2, width: s.width, height: s.height))
+            }
+            return r
+        }
+        let old = bounds(existing), new = bounds(block)
+        guard !old.isNull, !new.isNull else { return block }
+        // Far enough that the tag zones around each side don't touch.
+        let dx = old.maxX + 260 - new.minX, dy = old.midY - new.midY
+        return block.mapValues { CGPoint(x: $0.x + dx, y: $0.y + dy) }
     }
 
     /// True if any two chips overlap (ignoring the gap).

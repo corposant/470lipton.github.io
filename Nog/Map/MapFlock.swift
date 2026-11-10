@@ -32,6 +32,8 @@ struct MapFlock {
     private static let separationStrength: CGFloat = 2600
     private static let cohesionStrength: CGFloat = 2.5
     private static let alignmentStrength: CGFloat = 1.5
+    /// Above this many flying chips, separation (which compares every pair) is skipped.
+    private static let separationLimit = 120
     /// From this share of the flight on, chips are eased onto their spots.
     private static let landing: Double = 0.7
 
@@ -82,6 +84,7 @@ struct MapFlock {
             sums[b.group] = s
         }
 
+        let separates = order.count <= Self.separationLimit
         var next = boids
         for id in order {
             guard var b = boids[id] else { continue }
@@ -93,8 +96,9 @@ struct MapFlock {
                                  dy: (desired.dy - b.velocity.dy) * Self.steerGain)
 
             if flocking > 0 {
-                // Separation: push off chips that are too close.
-                for otherID in order where otherID != id {
+                // Separation: push off chips that are too close. Every chip checks every
+                // other, so on a very big page it's left out.
+                for otherID in (separates ? order : []) where otherID != id {
                     guard let o = boids[otherID] else { continue }
                     let dx = b.position.x - o.position.x, dy = b.position.y - o.position.y
                     let reach = b.radius + o.radius
