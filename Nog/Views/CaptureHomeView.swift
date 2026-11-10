@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The Capture tab: one text box for the thought, sub-items as lines under it, and a
+/// The Fresh Nog tab: one text box for the thought, sub-items as lines under it, and a
 /// tray of options riding on the keyboard (when, Note/Nog/Alarm, tags, sub-items,
 /// parent). Typed text still works ("tomorrow 9am #home"); the tray shows what it
 /// understood, and anything picked there wins.
@@ -60,7 +60,7 @@ struct CaptureHomeView: View {
                 }
             }
             .safeAreaInset(edge: .top) { SilenceBanner() }
-            .navigationTitle("Capture")
+            .navigationTitle("Fresh Nog")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button { showSettings = true } label: { Image(systemName: "gearshape") }
@@ -502,7 +502,7 @@ struct CaptureHomeView: View {
 /// The card an open tray panel sits in, with three ways out: the Done button
 /// (Escape on a hardware keyboard), a swipe down on its top edge, and the
 /// VoiceOver escape gesture (two-finger scrub). Tapping outside is handled by
-/// the Capture screen.
+/// the Fresh Nog screen.
 private struct TrayPanelCard<Content: View>: View {
     let title: String
     let close: () -> Void
@@ -612,7 +612,7 @@ struct RootView: View {
     var body: some View {
         @Bindable var router = router
         TabView(selection: $router.tab) {
-            Tab("Capture", systemImage: "plus.circle", value: AppTab.capture) {
+            Tab("Fresh Nog", systemImage: "plus.circle", value: AppTab.capture) {
                 CaptureHomeView()
             }
             Tab("Agenda", systemImage: "calendar", value: AppTab.agenda) {
