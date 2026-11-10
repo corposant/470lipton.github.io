@@ -146,9 +146,7 @@ open Nog.xcodeproj
 
 In Xcode:
 
-1. Click the **Nog** project → **Nog** target → **Signing & Capabilities** and pick your **Team**.
-   If it says the bundle identifier is unavailable, change `NOG_BUNDLE_ID` at the top of `project.yml` (one line; the widget follows) and run `./update.sh`.
-   To avoid re-picking the team after each `xcodegen`, paste your Team ID into `DEVELOPMENT_TEAM` in `project.yml`.
+1. Signing is set up in `project.yml`: bundle ID `com.ticknor.nog` and Scott's team (`DEVELOPMENT_TEAM`). Building it under another team means changing those two lines and running `./update.sh`.
 2. Plug in your iPhone (or use Wi-Fi pairing) and select it as the run destination.
 3. On the iPhone, the first time: **Settings → Privacy & Security → Developer Mode → On** (it restarts).
 4. Press **⌘R**. Allow notifications when asked.
@@ -157,15 +155,22 @@ Run the tests with **⌘U**.
 
 **Getting updates:** run `./update.sh` in the Nog folder. It pulls the latest code and re-runs `xcodegen`, which you need whenever new files are added. If Xcode asks, choose **Read From Disk**.
 
-**Free developer account (current setup):** iCloud sync is switched off in `project.yml`, so items live on the phone (Files → On My iPhone → Nog). Everything else works: notifications, AlarmKit alarms, Live Activities, Siri, widgets, and on-device Apple Intelligence. Two limits of a free account: the app stops opening after **7 days** (just press ⌘R again; your data stays), and you can have at most 3 sideloaded apps. **When you go paid**, uncomment the `entitlements:` block in `project.yml` and run `xcodegen`. Nog moves your items into iCloud Drive on its next launch. If you change the bundle identifier, change the container ID to match (`iCloud.<your bundle id>`).
+**iCloud sync:** still switched off in `project.yml`, so items live on the phone (Files → On My iPhone → Nog). To turn it on, uncomment the three iCloud lines under `entitlements:` and run `./update.sh`. Nog moves your items into iCloud Drive on its next launch. The container is `iCloud.com.ticknor.nog`.
 
 **Widgets and the App Group:** the Nogitivity widgets share data with the app through an App Group (`group.<your bundle id>`), which `project.yml` adds to both targets. Xcode's automatic signing registers it on the first build with a paid account. If your team can't use App Groups, delete the two `com.apple.security.application-groups` entitlements in `project.yml` and re-run `xcodegen`: everything else still works, and the widgets just say "Open Nog once".
 
 **Free vs paid developer account:** with a free (personal team) account the app stops opening after **7 days** and you have to press ⌘R again. With the paid program ($99/yr) it lasts a year and you can use TestFlight. To check which you have, go to developer.apple.com/account. If you see a **Membership** section with a renewal date, you're on the paid program.
 
-### Optional: Time Sensitive notifications
+### Time Sensitive notifications
 
-These let nogs break through Focus modes. In **Signing & Capabilities → + Capability → Time Sensitive Notifications**. Then on the phone: **Settings → Notifications → Nog → Time Sensitive → On**. The code already marks nogs as time-sensitive.
+These let nogs break through Focus modes. The capability is in `project.yml`. On the phone: **Settings → Notifications → Nog → Time Sensitive → On**.
+
+### TestFlight and the App Store
+
+1. In App Store Connect, create the app with bundle ID `com.ticknor.nog`.
+2. In Xcode pick **Any iOS Device (arm64)**, then **Product → Archive**, then **Distribute App → App Store Connect**. Raise `CURRENT_PROJECT_VERSION` in `project.yml` before each upload.
+3. The app's privacy manifests are `Nog/PrivacyInfo.xcprivacy` and `NogWidgets/PrivacyInfo.xcprivacy`. The App Store privacy label is **Data Not Collected**.
+4. The privacy policy and support pages are `privacy.html` and `support.html` at the top of this repo, served by GitHub Pages.
 
 ## How the repeating nogs work
 
