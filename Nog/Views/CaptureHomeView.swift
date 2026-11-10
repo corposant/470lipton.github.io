@@ -1,3 +1,4 @@
+import AppIntents
 import SwiftUI
 
 /// The New Nog tab: one text box for the thought, sub-nogs as lines under it, and a
@@ -17,6 +18,8 @@ struct CaptureHomeView: View {
     @State private var showHowTo = false
     @State private var showParentPicker = false
     @State private var confirmation: (text: String, id: UUID)?
+    /// Apple's Siri tip ("Say 'Take a Nog'"); hidden for good once dismissed.
+    @AppStorage("siriTip.capture") private var showSiriTip = true
     @FocusState private var focus: Field?
 
     private enum Field: Hashable { case title, subItem, tag }
@@ -42,7 +45,10 @@ struct CaptureHomeView: View {
                     composer
                     if showSubItems || !draft.subItems.isEmpty { subItemList }
                     readout
-                    if draft.isEmpty && focus == nil { hint }
+                    if draft.isEmpty && focus == nil {
+                        hint
+                        SiriTipView(intent: CaptureIntent(), isVisible: $showSiriTip)
+                    }
                 }
                 .padding(.horizontal, 18)
                 .padding(.top, 4)

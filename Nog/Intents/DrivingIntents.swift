@@ -1,7 +1,7 @@
 import AppIntents
 
 // Hands-free Nog: everything here runs without opening the app, so it works by voice
-// in CarPlay ("Hey Siri, what's nogging in Nog?"), on AirPods, and from Shortcuts.
+// in CarPlay ("Hey Siri, what's next in Nog?"), on AirPods, and from Shortcuts.
 
 /// Which part of your nogs Siri reads out.
 enum NogListChoice: String, AppEnum {
@@ -9,11 +9,18 @@ enum NogListChoice: String, AppEnum {
 
     static var typeDisplayRepresentation: TypeDisplayRepresentation = "Nog List"
     static var caseDisplayRepresentations: [NogListChoice: DisplayRepresentation] = [
-        .now: "Nogging now",
-        .today: "Today",
-        .agenda: "Agenda",
-        .loose: "Loose nogs",
-        .doing: "Nogitivity",
+        // Plain words first; the in-app names ("Nogging now", "Loose nogs",
+        // "Nogitivity") still work as synonyms.
+        .now: DisplayRepresentation(title: "what's next",
+                                    synonyms: ["next", "now", "right now", "nogging now", "what's due"]),
+        .today: DisplayRepresentation(title: "today",
+                                      synonyms: ["today's list", "the rest of today", "my day"]),
+        .agenda: DisplayRepresentation(title: "this week",
+                                       synonyms: ["agenda", "my agenda", "the week", "schedule", "my schedule", "what's coming up"]),
+        .loose: DisplayRepresentation(title: "unscheduled",
+                                      synonyms: ["loose nogs", "loose", "no time", "anytime", "someday"]),
+        .doing: DisplayRepresentation(title: "what I'm doing",
+                                      synonyms: ["what I'm working on", "working on", "current", "Nogitivity"]),
     ]
 
     var section: NogBriefing.Section {
@@ -27,7 +34,7 @@ enum NogListChoice: String, AppEnum {
     }
 }
 
-/// "What's nogging in Nog?" / "Read my agenda in Nog".
+/// "What's next in Nog?" / "Read this week in Nog".
 struct ReadNogsIntent: AppIntent {
     static var title: LocalizedStringResource = "Read My Nogs"
     static var description = IntentDescription("Hear what's nogging, what's left today, your agenda, loose nogs, or what you're working on.")
@@ -50,7 +57,7 @@ struct MarkNoggedIntent: AppIntent {
     static var description = IntentDescription("Mark a Nog item as done. It stops nogging you.")
     static var openAppWhenRun = false
 
-    @Parameter(title: "Item")
+    @Parameter(title: "Item", requestValueDialog: IntentDialog("Which one is done?"))
     var item: ReminderEntity
 
     @MainActor
@@ -70,11 +77,12 @@ enum SilenceLengthChoice: String, AppEnum {
 
     static var typeDisplayRepresentation: TypeDisplayRepresentation = "Silence Length"
     static var caseDisplayRepresentations: [SilenceLengthChoice: DisplayRepresentation] = [
-        .oneHour: "an hour",
-        .twoHours: "two hours",
-        .fiveHours: "five hours",
-        .twelveHours: "twelve hours",
-        .untilResumed: "until I turn it back on",
+        .oneHour: DisplayRepresentation(title: "an hour", synonyms: ["one hour", "1 hour", "a bit", "a while"]),
+        .twoHours: DisplayRepresentation(title: "two hours", synonyms: ["2 hours", "a couple of hours", "a couple hours"]),
+        .fiveHours: DisplayRepresentation(title: "five hours", synonyms: ["5 hours"]),
+        .twelveHours: DisplayRepresentation(title: "twelve hours", synonyms: ["12 hours", "the night", "overnight", "all day"]),
+        .untilResumed: DisplayRepresentation(title: "until I turn it back on",
+                                             synonyms: ["until I turn it on", "until I say so", "indefinitely"]),
     ]
 
     var minutes: Int? {

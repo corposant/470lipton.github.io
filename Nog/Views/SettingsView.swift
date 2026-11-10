@@ -1,5 +1,6 @@
 import ActivityKit
 import AlarmKit
+import AppIntents
 import SwiftUI
 import UIKit
 import UserNotifications
@@ -540,20 +541,49 @@ private struct PermissionsPage: View {
     }
 }
 
+/// Every phrase here is one Siri knows (see NogShortcuts), so nobody has to
+/// remember them or guess. Start each with "Hey Siri".
 private struct SiriPage: View {
+    @AppStorage("siriTip.capture") private var showSiriTip = true
+
     var body: some View {
         List {
+            group("Add something", footer: "Siri asks what you want to add.", [
+                "Take a Nog",
+                "Add something to Nog",
+                "Take a note in Nog",
+            ])
+            group("Hear your list", footer: "You can also say today, this week, unscheduled, or what I'm doing.", [
+                "What's next in Nog",
+                "Read my Nog",
+                "Read this week in Nog",
+            ])
+            group("Finish or start", footer: "Say the item's name, or leave it out and Siri asks which one.", [
+                "Mark done in Nog",
+                "Finish call mom in Nog",
+                "Start something in Nog",
+                "Work on write report in Nog",
+            ])
+            group("Quiet things down", footer: "Also for two hours, five hours, twelve hours, or until I turn it back on.", [
+                "Pause Nog for an hour",
+                "Silence Nog",
+                "Turn Nog back on",
+            ])
+            group("With Apple Intelligence", footer: "Any item with sub-nogs works as a list for Siri.", [
+                "Remind me in Nog to call mom tomorrow at 3",
+                "Add milk to my Groceries list in Nog",
+                "Mark this as done",
+            ])
             Section {
-                phrase("Remind me in Nog to call mom tomorrow at 3")
-                phrase("Add milk to my Groceries list in Nog")
-                phrase("Mark this as done")
-                phrase("Set the due date for this to Friday")
-                phrase("Start write report in Nog")
-                phrase("Nog me")
-            } header: {
-                SectionLabel(title: "Try saying")
+                ShortcutsLink()
+                    .shortcutsLinkStyle(.automaticOutline)
+                    .frame(maxWidth: .infinity)
+                    .listRowBackground(Color.clear)
+                if !showSiriTip {
+                    Button("Show the Siri tip on New Nog again") { showSiriTip = true }
+                }
             } footer: {
-                Text("Any item with sub-nogs works as a list for Siri. Assign “Quick Capture” to the Action Button in iOS Settings → Action Button → Shortcut.")
+                Text("If Siri doesn't understand, open Nog once so Siri learns its phrases, then try again. Assign “Quick Capture” to the Action Button in iOS Settings → Action Button → Shortcut.")
             }
             .listRowBackground(Theme.glass)
         }
@@ -561,7 +591,16 @@ private struct SiriPage: View {
         .navigationTitle("Siri & Shortcuts")
     }
 
-    private func phrase(_ text: String) -> some View {
-        Label("“\(text)”", systemImage: "quote.bubble").foregroundStyle(.primary)
+    private func group(_ title: String, footer: String, _ phrases: [String]) -> some View {
+        Section {
+            ForEach(phrases, id: \.self) { text in
+                Label("“\(text)”", systemImage: "quote.bubble").foregroundStyle(.primary)
+            }
+        } header: {
+            SectionLabel(title: title)
+        } footer: {
+            Text(footer)
+        }
+        .listRowBackground(Theme.glass)
     }
 }

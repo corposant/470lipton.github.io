@@ -31,6 +31,12 @@ targets:
       path: Nog/Info.plist
       properties:
         CFBundleDisplayName: Nog
+        # Other ways Siri may hear "Nog" (a short, unusual word), so phrases like
+        # "Take a Nog" still match when Siri hears "Nog app", "Nogg" or "Knog".
+        INAlternativeAppNames:
+          - INAlternativeAppName: Nog app
+          - INAlternativeAppName: Nogg
+          - INAlternativeAppName: Knog
         UILaunchScreen: {}
         UIApplicationSupportsIndirectInputEvents: true
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
