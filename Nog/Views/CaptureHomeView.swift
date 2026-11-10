@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The Capture tab: one text box for the thought, sub-items as lines under it, and a
+/// The Fresh Nog tab: one text box for the thought, sub-items as lines under it, and a
 /// tray of options riding on the keyboard (when, Note/Nog/Alarm, tags, sub-items,
 /// parent). Typed text still works ("tomorrow 9am #home"); the tray shows what it
 /// understood, and anything picked there wins.
@@ -14,6 +14,7 @@ struct CaptureHomeView: View {
     @State private var newTag = ""
     @State private var showSettings = false
     @State private var showKindHelp = false
+    @State private var showHowTo = false
     @State private var showParentPicker = false
     @State private var confirmation: (text: String, id: UUID)?
     @FocusState private var focus: Field?
@@ -60,7 +61,7 @@ struct CaptureHomeView: View {
                 }
             }
             .safeAreaInset(edge: .top) { SilenceBanner() }
-            .navigationTitle("Capture")
+            .navigationTitle("Fresh Nog")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button { showSettings = true } label: { Image(systemName: "gearshape") }
@@ -80,6 +81,7 @@ struct CaptureHomeView: View {
             }
             .sheet(isPresented: $showSettings) { SettingsView() }
             .sheet(isPresented: $showKindHelp) { NogKindSheet() }
+            .sheet(isPresented: $showHowTo) { HowToNogSheet() }
             .sheet(isPresented: $showParentPicker) { CaptureParentPicker(selection: $draft.parentID) }
             // The keyboard opens only when you tap the box (or ask for Quick Capture).
             .onChange(of: router.captureFocusRequest) { focus = .title }
@@ -195,9 +197,17 @@ struct CaptureHomeView: View {
     }
 
     private var hint: some View {
-        Text("Type anything: a to-do, an idea, \"lunch next tues\", \"call mum tomorrow 9am #family\". Use the tray below for when, how it gets you, tags and sub-items.")
-            .font(.callout)
-            .foregroundStyle(Theme.muted)
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Type anything, like \"call mum tomorrow 9am #family !2h\". Dates, #tags and !shortcuts work anywhere in the line, or use the tray below.")
+                .font(.callout)
+                .foregroundStyle(Theme.muted)
+            Button { showHowTo = true } label: {
+                Label("How to Nog", systemImage: "questionmark.circle")
+                    .font(.callout.weight(.medium))
+                    .foregroundStyle(Theme.violet)
+            }
+            .accessibilityHint("Shows everything you can type")
+        }
     }
 
     static func summary(_ result: CaptureResult, subItems: Int, parent: String?) -> String {
@@ -502,7 +512,7 @@ struct CaptureHomeView: View {
 /// The card an open tray panel sits in, with three ways out: the Done button
 /// (Escape on a hardware keyboard), a swipe down on its top edge, and the
 /// VoiceOver escape gesture (two-finger scrub). Tapping outside is handled by
-/// the Capture screen.
+/// the Fresh Nog screen.
 private struct TrayPanelCard<Content: View>: View {
     let title: String
     let close: () -> Void
@@ -612,7 +622,7 @@ struct RootView: View {
     var body: some View {
         @Bindable var router = router
         TabView(selection: $router.tab) {
-            Tab("Capture", systemImage: "plus.circle", value: AppTab.capture) {
+            Tab("Fresh Nog", systemImage: "plus.circle", value: AppTab.capture) {
                 CaptureHomeView()
             }
             Tab("Agenda", systemImage: "calendar", value: AppTab.agenda) {

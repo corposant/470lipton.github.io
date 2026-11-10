@@ -105,7 +105,7 @@ struct ItemListView: View {
         if all.isEmpty {
             ContentUnavailableView("Nothing captured yet",
                                    systemImage: "tray",
-                                   description: Text("Capture something on the Capture tab. Everything nogs you until it's done."))
+                                   description: Text("Add something on the Fresh Nog tab. Everything nogs you until it's done."))
         } else if !query.isEmpty {
             let results = all
                 .filter { $0.title.lowercased().contains(query) || $0.body.lowercased().contains(query)

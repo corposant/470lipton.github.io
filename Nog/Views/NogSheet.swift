@@ -70,7 +70,7 @@ struct NogSheet: View {
         NavigationStack {
             Form {
                 if let item {
-                    // Note · Nog · Alarm, the same cards as on Capture, with what will happen.
+                    // Note · Nog · Alarm, the same cards as on Fresh Nog, with what will happen.
                     Section {
                         KindPicker(selected: NogKind.of(item.reminder)) { setKind($0) }
                         Text(NogKind.promise(for: item.reminder))
