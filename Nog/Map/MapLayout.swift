@@ -155,9 +155,9 @@ enum MapLayout {
 /// Stable colours for tags (zones on the map, dots in the outline).
 enum TagPalette {
     static let colors: [(light: UInt32, dark: UInt32)] = [
-        (0xB8236A, 0xFF5FB0), // pink
-        (0x6A48D1, 0xA17BFF), // violet
-        (0x0F62B0, 0x4FB3FF), // blue
+        (0xA8265C, 0xFF74C8), // pink
+        (0x6440BE, 0xBC9BFF), // violet
+        (0x1D5CA3, 0x62C9FF), // blue
         (0x086C77, 0x4FE0E0), // cyan
         (0x8F5500, 0xFFB65C), // amber
         (0x137046, 0x6FE3A8), // mint
