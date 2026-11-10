@@ -44,13 +44,17 @@ As you type, a line above the capture field shows how Nog understood it. A day w
 - **Ring like an alarm.** Flip it on per item, or type `!alarm`, and that item's nogs become real AlarmKit alarms. They break through Silent mode and Focus, take over the Lock Screen and your Watch, with **Stop** (silence this ring; nogs continue) and **Done** (finish the item). Regular nogs take over again after the scheduled alarms run out.
 - **Break it down.** On-device Apple Intelligence (Foundation Models) suggests 3–7 concrete first steps for any item, and you pick which ones become sub-items. It runs only on Apple Intelligence devices, and nothing leaves the phone.
 
-## Three tabs
+## Four tabs
 
-- **Capture** (where Nog opens): one text box. Below it, **Just caught** (your latest captures) and **Next nogs** (the soonest few). Nothing else.
-- **Nogs**: the full overview, with the sections below.
-- **Map**: see your data. The Map and the Outline are two views of the same structure.
-  - **Map mode:** every item is a node. **Tap a node to select it**: it lights up and its details slide up from the bottom; tap it again to open it. **Only a selected node can be dragged** (a drag anywhere else pans), so nothing moves by accident. To file it, hold it over another node until that one glows, then let go. Every move and filing shows an Undo, and VoiceOver users get Move, File into… and Take out actions on each node. A node with things connected under it *is* a folder, shown with a folder icon. Long-press a node to take it out of its folder, open it, or start it. Solid lines show what's filed where; dashed lines show `[[links]]`. Each #tag gets a coloured zone. Tap the wand to **tidy up**: overlaps go, stray sub-items come back to their folder, and anything you placed by hand stays put. Touch and hold the wand for whole-page layouts: Stars, Mind map, By tag or Web. Chips flock to their new spots (or simply appear there with Reduce Motion or Low stimulation), and Undo puts everything back. Tap ✏︎ to scribble with finger or Pencil. Positions and scribbles are saved in `_nogmap.json` next to your items, so they sync too.
-  - **Outline mode:** each folder is a collapsible section, sub-folders collapse inside it, and anything not connected sits under **Unfiled**. What you've collapsed is remembered.
+Each tab has its own colour (New Nog pink, Agenda violet, List blue, Map teal), used for its title, its buttons and a soft haze in the background. The colour is only a hint: every tab is also named in its title and on the tab bar. Titles are Futura and grow with your text size.
+
+- **New Nog** (where Nog opens): one text box for the thought, with its options in a tray on the keyboard.
+- **Agenda**: only what has a time, from now through the coming week.
+- **List**: everything, in two views you switch between at the top.
+  - **By time:** the full overview, with the sections below.
+  - **Outline:** each folder is a collapsible section, sub-folders collapse inside it, and anything not connected sits under **Unfiled**. What you've collapsed is remembered. The ✓ button shows or hides finished items.
+- **Map**: see your data as a mind map.
+  Every item is a node. **Tap a node to select it**: it lights up and its details slide up from the bottom; tap it again to open it. **Only a selected node can be dragged** (a drag anywhere else pans), so nothing moves by accident. To file it, hold it over another node until that one glows, then let go. Every move and filing shows an Undo, and VoiceOver users get Move, File into… and Take out actions on each node. A node with things connected under it *is* a folder, shown with a folder icon. Long-press a node to take it out of its folder, open it, or start it. Solid lines show what's filed where; dashed lines show `[[links]]`. Each #tag gets a coloured zone. Tap the wand to **tidy up**: overlaps go, stray sub-items come back to their folder, and anything you placed by hand stays put. Touch and hold the wand for whole-page layouts: Stars, Mind map, By tag or Web. Chips flock to their new spots (or simply appear there with Reduce Motion or Low stimulation), and Undo puts everything back. Tap ✏︎ to scribble with finger or Pencil. Positions and scribbles are saved in `_nogmap.json` next to your items, so they sync too.
 
 ## The list
 

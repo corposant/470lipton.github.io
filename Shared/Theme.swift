@@ -327,9 +327,16 @@ extension View {
     }
 }
 
-/// Charcoal with a blue haze top-right, a pink haze lower-left and a faint display grid.
+extension EnvironmentValues {
+    /// The accent of the tab a view sits in (see `nogTabTheme`). NogBackground tints its
+    /// top haze with it; nil (widgets, sheets) keeps the usual blue.
+    @Entry var nogAccent: Color? = nil
+}
+
+/// Charcoal with a haze top-right in the tab's accent (blue by default), a pink haze lower-left and a faint display grid.
 struct NogBackground: View {
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.nogAccent) private var accent
     @Environment(\.colorSchemeContrast) private var contrast
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @AppStorage(Calm.lowStimulationKey) private var lowStimulation = false
@@ -347,7 +354,7 @@ struct NogBackground: View {
 
     private var haze: some View {
         ZStack {
-            RadialGradient(colors: [Theme.blue.opacity(scheme == .dark ? 0.12 : 0.10), .clear],
+            RadialGradient(colors: [(accent ?? Theme.blue).opacity(scheme == .dark ? 0.12 : 0.10), .clear],
                            center: UnitPoint(x: 0.9, y: 0.05), startRadius: 0, endRadius: 420)
             RadialGradient(colors: [Theme.pink.opacity(scheme == .dark ? 0.08 : 0.07), .clear],
                            center: UnitPoint(x: 0.05, y: 0.65), startRadius: 0, endRadius: 380)
