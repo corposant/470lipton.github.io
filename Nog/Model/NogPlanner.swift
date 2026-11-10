@@ -17,6 +17,8 @@ struct PlannedNotification: Hashable {
     var body: String
     var trigger: Trigger
     var category: String = NogPlanner.categoryNog
+    /// A "coming up" note before the nogs start, not a nog itself.
+    var isHeadsUp = false
 
     var fireDate: Date? {
         if case .at(let date) = trigger { return date }
@@ -39,6 +41,8 @@ enum NogPlanner {
     static let prefix = "nog."
     static let categoryNog = "NOG"
     static let categoryDoing = "NOG_DOING"
+    /// "Open Nog to keep nogging": no buttons, and nothing about the item in it.
+    static let categoryPause = "NOG_PAUSE"
     static let defaultBudget = 60
 
     /// The notification category for an item's nogs: "NOG", or e.g. "NOG_S30_M510" when it has
@@ -93,7 +97,7 @@ enum NogPlanner {
             func oneShot(_ date: Date, body: String = body, kind: String = "at") -> PlannedNotification {
                 PlannedNotification(identifier: "\(base).\(kind).\(Int(date.timeIntervalSince1970)).\(titleTag)",
                                     itemID: item.id, title: item.title, body: body, trigger: .at(date),
-                                    category: category)
+                                    category: category, isHeadsUp: kind == "heads")
             }
 
             // Heads-up before a dated nog starts.
@@ -140,6 +144,39 @@ enum NogPlanner {
             .sorted { ($0.fireDate ?? .distantPast) < ($1.fireDate ?? .distantPast) }
             .prefix(remaining)
         return kept + extra
+    }
+
+    /// One-shot nogs run out: iOS keeps at most 64 pending, so an item on exact times (quiet hours,
+    /// a timed silence, alarms, or a start still to come) only has its next few hours lined up, and
+    /// only the app can line up more. If the app isn't opened or woken by then, the nogs would stop
+    /// without a word. This is a last notification, just after the earliest point where an item that
+    /// should keep nogging has nothing more scheduled, asking you to open Nog so they carry on.
+    /// nil when nothing runs out (every repeating item has a forever-repeating trigger).
+    static func pauseNotice(for plan: [PlannedNotification], items: [Item], now: Date,
+                            policy: NogPolicy = .standard, calendar: Calendar = .current) -> PlannedNotification? {
+        let byID = Dictionary(items.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+        var lastByItem: [UUID: Date] = [:]
+        var repeatingForever = Set<UUID>()
+        for p in plan where !p.isHeadsUp {
+            switch p.trigger {
+            case .every: repeatingForever.insert(p.itemID)
+            case .at(let date): lastByItem[p.itemID] = max(lastByItem[p.itemID] ?? date, date)
+            }
+        }
+        // Items that would keep nogging after their last scheduled one-shot.
+        let runsOut = lastByItem.filter { id, _ in
+            !repeatingForever.contains(id) && byID[id]?.effectiveReminder(policy: policy)?.repeatMinutes != nil
+        }
+        guard let earliest = runsOut.min(by: { $0.value < $1.value }),
+              let when = policy.nextAllowed(after: earliest.value.addingTimeInterval(60), calendar: calendar),
+              when > now else { return nil }
+        return PlannedNotification(
+            identifier: "\(prefix)pause.\(Int(when.timeIntervalSince1970))",
+            itemID: earliest.key,
+            title: "Open Nog to keep nogging",
+            body: "Nog has run out of nogs lined up ahead. Open the app and they'll carry on.",
+            trigger: .at(when),
+            category: categoryPause)
     }
 
     /// FNV-1a — stable across launches (unlike Swift's hashValue).

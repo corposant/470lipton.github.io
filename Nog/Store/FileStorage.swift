@@ -25,6 +25,9 @@ final class FileStorage: @unchecked Sendable {
         var items: [Item]
         /// IDs that exist in the folder, including ones still downloading.
         var presentIDs: Set<UUID>
+        /// False when the folder itself couldn't be listed (iCloud mid-switch, a permissions hiccup).
+        /// Then the snapshot says nothing about what exists, and must not be read as "everything was deleted".
+        var folderReadable = true
     }
 
     private let queue = DispatchQueue(label: "io.nogapp.nog.files", qos: .userInitiated)
@@ -74,7 +77,13 @@ final class FileStorage: @unchecked Sendable {
     static func readAllNow(in folder: URL, coordinated: Bool) -> Snapshot {
         let fm = FileManager.default
         let keys: Set<URLResourceKey> = [.isUbiquitousItemKey, .ubiquitousItemDownloadingStatusKey]
-        let urls = (try? fm.contentsOfDirectory(at: folder, includingPropertiesForKeys: Array(keys))) ?? []
+        let urls: [URL]
+        do {
+            urls = try fm.contentsOfDirectory(at: folder, includingPropertiesForKeys: Array(keys))
+        } catch {
+            print("Nog: couldn't list \(folder.lastPathComponent): \(error)")
+            return Snapshot(items: [], presentIDs: [], folderReadable: false)
+        }
         var items: [Item] = []
         var present = Set<UUID>()
 

@@ -114,7 +114,9 @@ final class ItemStore {
             folder = cloud
             // Anything captured while we were switching goes to the new folder too.
             let snapshot = await storage.readAll(in: cloud, coordinated: true)
-            for item in items.values where !snapshot.presentIDs.contains(item.id) { write(item) }
+            if snapshot.folderReadable {
+                for item in items.values where !snapshot.presentIDs.contains(item.id) { write(item) }
+            }
         }
         await reloadFromDisk()
         startWatching()
@@ -159,6 +161,8 @@ final class ItemStore {
         let snapshot = await storage.readAll(in: readFolder, coordinated: isUsingICloud)
         // The folder changed (or a switch started) while we were reading: this snapshot is stale.
         guard !isSwitchingFolder, readFolder == folder else { return }
+        // Couldn't even list the folder: keep everything as it is and try again next time.
+        guard snapshot.folderReadable else { return }
         let now = Date.now
         func isRecent(_ date: Date?) -> Bool { date.map { now.timeIntervalSince($0) < 60 } ?? false }
 

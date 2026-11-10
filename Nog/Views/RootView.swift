@@ -217,6 +217,7 @@ struct ItemRow: View {
     let item: Item
     let now: Date
     var stats: ChildStats? = nil
+    @State private var confirmDelete = false
 
     var body: some View {
         HStack(spacing: 8) {
@@ -248,8 +249,15 @@ struct ItemRow: View {
                 }
             }
         }
-        .swipeActions(edge: .trailing) {
-            Button("Delete", role: .destructive) { store.delete(item.id) }
+        // No full swipe here: a long swipe shouldn't delete anything by accident.
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            // Not role: .destructive, which would slide the row away before you've confirmed.
+            Button {
+                confirmDelete = true
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+            .tint(.red)
             if item.status == .open || item.status == .someday {
                 let snooze = NogSettings.snoozeLength(for: item)
                 Button {
@@ -268,6 +276,11 @@ struct ItemRow: View {
             } else if item.isDoing {
                 Button("+10 min") { store.extend(item.id, minutes: 10) }.tint(Theme.pink)
             }
+        }
+        .confirmationDialog("Delete this item?", isPresented: $confirmDelete, titleVisibility: .visible) {
+            Button("Delete", role: .destructive) { store.delete(item.id) }
+        } message: {
+            Text("“\(item.title.isEmpty ? "Untitled" : item.title)” and its notes will be removed. Sub-items stay, unfiled.")
         }
     }
 

@@ -89,9 +89,15 @@ final class NotificationScheduler {
         registerCategories(items: items)
         let policy = NogSettings.policy
         let ringing = await AlarmScheduler.shared.sync(items: items, policy: policy)
-        let plan = NogPlanner.plan(items: items, now: .now, policy: policy, alarmDates: ringing)
+        let now = Date.now
+        // One slot stays free for the "open Nog to keep nogging" notice.
+        let plan = NogPlanner.plan(items: items, now: now, budget: NogPlanner.defaultBudget - 1,
+                                   policy: policy, alarmDates: ringing)
         var desired: [String: PlannedNotification] = [:]
         for p in plan { desired[p.identifier] = p }
+        if let pause = NogPlanner.pauseNotice(for: plan, items: items, now: now, policy: policy) {
+            desired[pause.identifier] = pause
+        }
 
         let pending = await center.pendingNotificationRequests()
         var pendingIDs = Set(pending.map(\.identifier).filter { $0.hasPrefix(NogPlanner.prefix) })
@@ -140,7 +146,7 @@ final class NotificationScheduler {
 
     private func request(for planned: PlannedNotification) -> UNNotificationRequest {
         let content = UNMutableNotificationContent()
-        if NogSettings.showTitles {
+        if NogSettings.showTitles || planned.category == NogPlanner.categoryPause {
             content.title = planned.title
             content.body = planned.body
         } else {
