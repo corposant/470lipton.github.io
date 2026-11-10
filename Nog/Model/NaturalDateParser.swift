@@ -105,10 +105,8 @@ private struct Parser {
         // A recurring item starts on its first matching day, at the time given (9 AM by default).
         var recurrence: Recurrence?
         if var rule {
-            var first = start ?? {
-                let nine = calendar.date(bySettingHour: 9, minute: 0, second: 0, of: now) ?? now
-                return nine > now ? nine : calendar.date(byAdding: .day, value: 1, to: nine) ?? nine
-            }()
+            let nine = calendar.date(bySettingHour: 9, minute: 0, second: 0, of: now) ?? now
+            var first = start ?? (nine > now ? nine : calendar.date(byAdding: .day, value: 1, to: nine) ?? nine)
             if monthlyFromStart { rule = .monthly(day: calendar.component(.day, from: first)) }
             if yearlyFromStart {
                 let c = calendar.dateComponents([.month, .day], from: first)

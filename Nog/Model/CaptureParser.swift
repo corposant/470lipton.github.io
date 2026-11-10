@@ -101,9 +101,9 @@ enum CaptureParser {
 
         // "when I get home": a place instead of a time.
         var place: PlaceTrigger?
-        if let (found, rest) = PlacePhraseParser.extract(from: words, known: defaults.places) {
-            place = found
-            words = rest
+        if let found = PlacePhraseParser.extract(from: words, known: defaults.places) {
+            place = found.0
+            words = found.1
         }
         let natural = NaturalDateParser.parse(words.joined(separator: " "), now: now, calendar: calendar)
         let title = natural.title

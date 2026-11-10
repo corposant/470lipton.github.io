@@ -286,9 +286,10 @@ struct NogSheet: View {
     /// "When I get home": a saved place, arriving or leaving.
     private func placeSection(_ item: Item) -> some View {
         let places = PlaceBook.shared.places
-        let names = places.map(\.name) + (item.place.map { p in
-            places.contains { $0.name.caseInsensitiveCompare(p.name) == .orderedSame } ? [] : [p.name]
-        } ?? [])
+        var names: [String] = places.map(\.name)
+        if let p = item.place, !places.contains(where: { $0.name.caseInsensitiveCompare(p.name) == .orderedSame }) {
+            names.append(p.name)
+        }
         return Section {
             Picker("Remind me at", selection: Binding<String?>(
                 get: { item.place?.name },
