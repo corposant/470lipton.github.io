@@ -25,6 +25,7 @@ struct DoingLiveActivity: Widget {
                         .font(.nogLabel)
                         .tracking(1.5)
                         .foregroundStyle(Theme.blue)
+                        .accessibilityLabel("Doing")
                 }
                 DynamicIslandExpandedRegion(.trailing) {
                     DoingTimer(context: context)
@@ -41,11 +42,15 @@ struct DoingLiveActivity: Widget {
                 }
             } compactLeading: {
                 Image(systemName: "play.fill").foregroundStyle(Theme.blue)
+                    .accessibilityLabel("Doing \(context.attributes.title)")
             } compactTrailing: {
                 CompactTimer(context: context)
             } minimal: {
                 Image(systemName: context.isStale ? "bell" : "timer")
                     .foregroundStyle(context.isStale ? Theme.pink : Theme.blue)
+                    .accessibilityLabel(context.isStale
+                        ? "Time's up for \(context.attributes.title)"
+                        : "Doing \(context.attributes.title)")
             }
             .keylineTint(Theme.blue)
         }
@@ -87,20 +92,27 @@ private struct DoingActivityView: View {
                         .font(.nogLabel)
                         .tracking(1.8)
                         .foregroundStyle(Theme.blue)
+                        .accessibilityLabel("Nogitivity")
                     Spacer()
                     if let end = context.state.endsAt {
-                        Text("\(Int(end.timeIntervalSince(context.state.startedAt) / 60)) MIN BOX")
+                        let minutes = Int(end.timeIntervalSince(context.state.startedAt) / 60)
+                        Text("\(minutes) MIN BOX")
                             .font(.nogMeta)
                             .foregroundStyle(Theme.muted)
+                            .accessibilityLabel("\(minutes) minute timebox")
                     }
                 }
                 HStack(alignment: .center) {
                     Text(context.attributes.title)
                         .font(.headline)
                         .lineLimit(2)
+                        .minimumScaleFactor(0.8)
                     Spacer(minLength: 12)
+                    // Grows with text size (at most 1.6×), shrinks back if the card runs out of room.
                     DoingTimer(context: context)
-                        .font(.nogReadout(32))
+                        .nogReadout(32)
+                        .minimumScaleFactor(0.6)
+                        .lineLimit(1)
                         .multilineTextAlignment(.trailing)
                 }
                 if let end = context.state.endsAt, !context.isStale {
@@ -110,6 +122,7 @@ private struct DoingActivityView: View {
                         EmptyView()
                     }
                     .tint(Theme.violet)
+                    .accessibilityHidden(true) // the timer already says how long is left
                 }
                 DoingButtons(itemID: context.attributes.itemID)
             }
@@ -126,11 +139,14 @@ private struct DoingTimer: View {
         if let end = context.state.endsAt {
             if context.isStale {
                 Text("TIME'S UP").foregroundStyle(Theme.pink)
+                    .accessibilityLabel("Time's up. Mark it done, add time, or stop.")
             } else {
                 Text(timerInterval: context.state.startedAt...end, countsDown: true)
+                    .accessibilityLabel(Text("Time left ") + Text(timerInterval: context.state.startedAt...end, countsDown: true))
             }
         } else {
             Text(context.state.startedAt, style: .timer)
+                .accessibilityLabel(Text("Time spent ") + Text(context.state.startedAt, style: .timer))
         }
     }
 }
@@ -166,10 +182,13 @@ private struct DoingButtons: View {
                 Text("+10 min")
             }
             .buttonStyle(OutlineButtonStyle(tint: Theme.pink))
+            .accessibilityLabel("Add 10 minutes")
             Button(intent: StopDoingIntent(itemID: itemID.uuidString)) {
                 Image(systemName: "stop.fill").font(.caption)
             }
             .buttonStyle(OutlineButtonStyle(tint: Theme.muted, expands: false))
+            .accessibilityLabel("Stop")
+            .accessibilityHint("Stops the timer without finishing. The nog stays open.")
         }
     }
 }
