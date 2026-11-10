@@ -403,14 +403,27 @@ extension Calendar.RecurrenceRule {
 // MARK: - Spotlight semantic index
 
 /// Keeps Spotlight's semantic index (which Siri searches) in step with Nog.
-/// Only items that changed since the last pass are re-indexed.
+/// Only items that changed since the last pass are re-indexed. What was indexed is
+/// remembered across launches, so a cold launch doesn't re-index every item, and items
+/// deleted while the app was closed (say, on another device) are still taken out.
 @MainActor
 enum SpotlightIndexer {
+    /// Bump when `ReminderEntity`'s indexed contents change, to re-index everything once.
+    private static let version = 1
+
     /// id → `updated` at the time it was indexed
-    private static var indexed: [UUID: Date] = [:]
+    private static var indexed: [UUID: Date] = loadIndexed()
+
+    private static var fileURL: URL {
+        URL.applicationSupportDirectory.appending(path: "spotlight-indexed-v\(version).json")
+    }
 
     static func update(_ store: ItemStore) async {
-        let changed = store.items.values.filter { indexed[$0.id] != $0.updated }
+        // Item files keep milliseconds, so an item read back after a relaunch can differ
+        // from the in-memory time it was indexed at by less than that.
+        let changed = store.items.values.filter { item in
+            indexed[item.id].map { abs($0.timeIntervalSince(item.updated)) >= 0.001 } ?? true
+        }
         let removed = Set(indexed.keys).subtracting(store.items.keys)
         guard !changed.isEmpty || !removed.isEmpty else { return }
         do {
@@ -423,8 +436,27 @@ enum SpotlightIndexer {
             }
             for item in changed { indexed[item.id] = item.updated }
             for id in removed { indexed[id] = nil }
+            saveIndexed()
         } catch {
             print("Nog: Spotlight indexing failed: \(error)")
         }
+    }
+
+    private static func loadIndexed() -> [UUID: Date] {
+        guard let data = try? Data(contentsOf: fileURL),
+              let stored = try? JSONDecoder().decode([String: Double].self, from: data) else { return [:] }
+        var result: [UUID: Date] = [:]
+        for (key, seconds) in stored {
+            if let id = UUID(uuidString: key) { result[id] = Date(timeIntervalSinceReferenceDate: seconds) }
+        }
+        return result
+    }
+
+    private static func saveIndexed() {
+        var stored: [String: Double] = [:]
+        for (id, date) in indexed { stored[id.uuidString] = date.timeIntervalSinceReferenceDate }
+        guard let data = try? JSONEncoder().encode(stored) else { return }
+        try? FileManager.default.createDirectory(at: URL.applicationSupportDirectory, withIntermediateDirectories: true)
+        try? data.write(to: fileURL, options: .atomic)
     }
 }

@@ -65,6 +65,16 @@ struct Item: Identifiable, Hashable {
     var outgoingLinkTitles: [String] { LinkParser.links(in: body) }
 }
 
+extension Item {
+    /// True when something its notifications or alarms are built from differs: the title
+    /// (their text and identifiers), status, reminder, or the Doing session. Notes, tags,
+    /// estimates and time spent don't change any nog.
+    func changesNogs(from other: Item) -> Bool {
+        title != other.title || status != other.status || reminder != other.reminder
+            || doingSince != other.doingSince || timeboxMinutes != other.timeboxMinutes
+    }
+}
+
 // MARK: - Tags
 
 extension Item {

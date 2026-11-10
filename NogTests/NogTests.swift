@@ -176,6 +176,59 @@ final class ItemStoreTests: XCTestCase {
     }
 }
 
+final class IncrementalReadTests: XCTestCase {
+    func testOnlyChangedFilesAreReadAgain() throws {
+        let folder = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let items = (0..<3).map { Item(title: "Item \($0)") }
+        for item in items {
+            try ItemFile.encode(item).write(to: folder.appending(path: "\(item.id.uuidString).md"), atomically: true, encoding: .utf8)
+        }
+        var cache = FileStorage.FileCache()
+
+        let first = FileStorage.readAllNow(in: folder, coordinated: false, cache: &cache)
+        XCTAssertEqual(first.filesRead, 3)
+        XCTAssertEqual(first.items.count, 3)
+
+        let unchanged = FileStorage.readAllNow(in: folder, coordinated: false, cache: &cache)
+        XCTAssertEqual(unchanged.filesRead, 0)
+        XCTAssertEqual(Set(unchanged.items.map(\.id)), Set(items.map(\.id)))
+
+        var edited = items[1]
+        edited.title = "Item one, renamed"
+        let url = folder.appending(path: "\(edited.id.uuidString).md")
+        try ItemFile.encode(edited).write(to: url, atomically: true, encoding: .utf8)
+        // Make sure the edit doesn't land in the same instant as the first write.
+        try FileManager.default.setAttributes([.modificationDate: Date.now.addingTimeInterval(5)], ofItemAtPath: url.path)
+
+        let afterEdit = FileStorage.readAllNow(in: folder, coordinated: false, cache: &cache)
+        XCTAssertEqual(afterEdit.filesRead, 1)
+        XCTAssertEqual(afterEdit.items.first { $0.id == edited.id }?.title, "Item one, renamed")
+
+        try FileManager.default.removeItem(at: folder.appending(path: "\(items[0].id.uuidString).md"))
+        let afterDelete = FileStorage.readAllNow(in: folder, coordinated: false, cache: &cache)
+        XCTAssertEqual(afterDelete.items.count, 2)
+        XCTAssertEqual(afterDelete.filesRead, 0)
+    }
+
+    func testOnlyNogFieldsTriggerRescheduling() {
+        let item = Item(title: "Water plants", reminder: Reminder(start: .now, repeatMinutes: 30))
+        var notes = item
+        notes.body = "the ferns too"
+        notes.tags = ["home"]
+        notes.estimateMinutes = 10
+        XCTAssertFalse(notes.changesNogs(from: item))
+
+        var renamed = item
+        renamed.title = "Water the plants"
+        XCTAssertTrue(renamed.changesNogs(from: item))
+
+        var moved = item
+        moved.reminder?.repeatMinutes = 60
+        XCTAssertTrue(moved.changesNogs(from: item))
+    }
+}
+
 final class NaturalDateParserTests: XCTestCase {
     // Thursday, 5 Nov 2026, 10:00 UTC
     var calendar: Calendar = {

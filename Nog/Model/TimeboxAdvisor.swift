@@ -16,13 +16,22 @@ struct TimeboxSuggestion: Equatable {
 /// similar items, and how urgent or overdue it is.
 enum TimeboxAdvisor {
     static func suggest(for item: Item, among all: [Item], defaultMinutes: Int, now: Date) -> TimeboxSuggestion {
+        suggest(for: item, history: history(in: all), defaultMinutes: defaultMinutes, now: now)
+    }
+
+    /// The finished items worth learning from. Work it out once when suggesting for many items.
+    static func history(in all: [Item]) -> [Item] {
+        all.filter { $0.status == .done && $0.timeSpent >= 60 }
+    }
+
+    static func suggest(for item: Item, history finished: [Item], defaultMinutes: Int, now: Date) -> TimeboxSuggestion {
         // 1. Your own estimate for this item
         if let estimate = item.estimateMinutes, estimate > 0 {
             return TimeboxSuggestion(minutes: estimate, reason: "your estimate")
         }
 
         // 2. History: how long similar finished items took
-        let history = all.filter { $0.id != item.id && $0.status == .done && $0.timeSpent >= 60 }
+        let history = finished.filter { $0.id != item.id }
         let tags = Set(item.tags.map { $0.lowercased() })
         if !tags.isEmpty {
             var best: (tag: String, items: [Item])?

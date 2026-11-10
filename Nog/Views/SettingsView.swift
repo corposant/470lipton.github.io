@@ -30,6 +30,9 @@ struct SettingsView: View {
                 behavior
                 system
                 about
+                #if DEBUG
+                developer
+                #endif
             }
             .nogListStyle()
             .navigationTitle("Control Panel")
@@ -213,6 +216,22 @@ struct SettingsView: View {
         }
         .listRowBackground(Theme.glass)
     }
+
+    #if DEBUG
+    // MARK: Developer (debug builds only)
+
+    private var developer: some View {
+        Section {
+            Button("Add 300 test items") { store.addTestItems() }
+            Button("Remove test items", role: .destructive) { store.removeTestItems() }
+        } header: {
+            SectionLabel(title: "Developer")
+        } footer: {
+            Text("Debug builds only. Test items are tagged #perftest.")
+        }
+        .listRowBackground(Theme.glass)
+    }
+    #endif
 
     // MARK: About
 

@@ -37,27 +37,25 @@ struct NogApp: App {
                 }
                 .task {
                     await NotificationScheduler.shared.requestAuthorization()
-                    await store.connectToICloud()
-                    await store.syncNow()
+                    // Launch also makes the scene active, which refreshes too; the two share one run.
+                    await store.refresh()
                 }
         }
         .onChange(of: scenePhase) { _, phase in
             switch phase {
             case .active:
-                Task {
-                    // iCloud was unavailable earlier (signing in, offline at launch): try again.
-                    if StorageMode.current == .iCloud && !store.isUsingICloud {
-                        await store.connectToICloud()
-                    }
-                    await store.reloadFromDisk()
-                    await store.syncNow()
-                }
+                store.pauseWatching(false)
+                Task { await store.refresh() }
                 QuickActions.update()
             case .background:
                 // Keep the app icon's menu current ("Resume nogs", or silence that has run out).
                 QuickActions.update()
                 BackgroundRefresh.schedule()
-                Task { await store.flush() }
+                store.pauseWatching(true)
+                Task {
+                    await store.syncIfPending()
+                    await store.flush()
+                }
             default:
                 break
             }

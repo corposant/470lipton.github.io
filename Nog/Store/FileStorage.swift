@@ -28,9 +28,26 @@ final class FileStorage: @unchecked Sendable {
         /// False when the folder itself couldn't be listed (iCloud mid-switch, a permissions hiccup).
         /// Then the snapshot says nothing about what exists, and must not be read as "everything was deleted".
         var folderReadable = true
+        /// How many files actually had to be read (the rest hadn't changed).
+        var filesRead = 0
+    }
+
+    /// What each file held when it was last read, keyed by path.
+    struct FileCache {
+        struct Stamp: Equatable {
+            var modified: Date
+            var size: Int
+        }
+        struct Entry {
+            var stamp: Stamp
+            var item: Item
+        }
+        var entries: [String: Entry] = [:]
     }
 
     private let queue = DispatchQueue(label: "io.nogapp.nog.files", qos: .userInitiated)
+    /// Only touched on `queue`.
+    private var cache = FileCache()
 
     // MARK: Writes
 
@@ -68,15 +85,29 @@ final class FileStorage: @unchecked Sendable {
 
     // MARK: Reads
 
+    /// Reads every item, re-reading only files that changed since the last read.
     func readAll(in folder: URL, coordinated: Bool) async -> Snapshot {
         await withCheckedContinuation { c in
-            queue.async { c.resume(returning: Self.readAllNow(in: folder, coordinated: coordinated)) }
+            queue.async { c.resume(returning: Self.readAllNow(in: folder, coordinated: coordinated, cache: &self.cache)) }
         }
     }
 
+    /// The same, waiting on the calling thread (launch, before the first frame).
+    func readAllSync(in folder: URL, coordinated: Bool) -> Snapshot {
+        queue.sync { Self.readAllNow(in: folder, coordinated: coordinated, cache: &cache) }
+    }
+
+    /// One-off read with nothing remembered (tests).
     static func readAllNow(in folder: URL, coordinated: Bool) -> Snapshot {
+        var scratch = FileCache()
+        return readAllNow(in: folder, coordinated: coordinated, cache: &scratch)
+    }
+
+    static func readAllNow(in folder: URL, coordinated: Bool, cache: inout FileCache) -> Snapshot {
         let fm = FileManager.default
-        let keys: Set<URLResourceKey> = [.isUbiquitousItemKey, .ubiquitousItemDownloadingStatusKey]
+        let keys: Set<URLResourceKey> = [.isUbiquitousItemKey, .ubiquitousItemDownloadingStatusKey,
+                                         .ubiquitousItemHasUnresolvedConflictsKey,
+                                         .contentModificationDateKey, .fileSizeKey]
         let urls: [URL]
         do {
             urls = try fm.contentsOfDirectory(at: folder, includingPropertiesForKeys: Array(keys))
@@ -86,6 +117,8 @@ final class FileStorage: @unchecked Sendable {
         }
         var items: [Item] = []
         var present = Set<UUID>()
+        var listed = Set<String>()
+        var filesRead = 0
 
         for url in urls {
             let name = url.lastPathComponent
@@ -99,20 +132,41 @@ final class FileStorage: @unchecked Sendable {
             guard url.pathExtension == "md" else { continue }
             if let id = UUID(uuidString: url.deletingPathExtension().lastPathComponent) { present.insert(id) }
 
+            let values = try? url.resourceValues(forKeys: keys)
+            var hasConflicts = false
             if coordinated {
-                let values = try? url.resourceValues(forKeys: keys)
                 if values?.isUbiquitousItem == true,
                    let status = values?.ubiquitousItemDownloadingStatus, status != .current {
                     try? fm.startDownloadingUbiquitousItem(at: url)
                     if status == .notDownloaded { continue } // we'll reload when it arrives
                 }
-                resolveConflicts(at: url)
+                hasConflicts = values?.ubiquitousItemHasUnresolvedConflicts == true
             }
-            guard let text = read(url, coordinated: coordinated), let item = ItemFile.decode(text) else { continue }
+
+            // Unchanged since we last read it (same modification date and size): reuse that.
+            let path = url.path
+            listed.insert(path)
+            let stamp = values.flatMap { v in v.contentModificationDate.map { FileCache.Stamp(modified: $0, size: v.fileSize ?? -1) } }
+            if !hasConflicts, let stamp, let cached = cache.entries[path], cached.stamp == stamp {
+                present.insert(cached.item.id)
+                items.append(cached.item)
+                continue
+            }
+
+            if coordinated { resolveConflicts(at: url) }
+            filesRead += 1
+            guard let text = read(url, coordinated: coordinated), let item = ItemFile.decode(text) else {
+                cache.entries[path] = nil
+                continue
+            }
             present.insert(item.id)
             items.append(item)
+            // The stamp was taken before reading, so an edit landing mid-read just means one extra read next time.
+            cache.entries[path] = hasConflicts ? nil : stamp.map { FileCache.Entry(stamp: $0, item: item) }
         }
-        return Snapshot(items: items, presentIDs: present)
+        // Forget files that are gone (or belong to a folder we no longer use).
+        cache.entries = cache.entries.filter { listed.contains($0.key) }
+        return Snapshot(items: items, presentIDs: present, filesRead: filesRead)
     }
 
     private static func read(_ url: URL, coordinated: Bool) -> String? {
