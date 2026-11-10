@@ -58,6 +58,20 @@ extension MapLayout {
     /// nothing moves at all. Items without a position are left out.
     static func cleanup(_ items: [Item], positions: [UUID: CGPoint], pinned: Set<UUID>,
                         sizes: [UUID: CGSize] = [:], zones: [Set<UUID>] = []) -> [UUID: CGPoint] {
+        // One pass can leave work for the next (a sub-nog pulled back next to its folder
+        // gets pushed out again by a neighbour, say), so repeat until nothing changes.
+        // Then tidying a tidied map moves nothing.
+        var p = tidyPass(items, positions: positions, pinned: pinned, sizes: sizes, zones: zones)
+        for _ in 0..<6 {
+            let next = tidyPass(items, positions: p, pinned: pinned, sizes: sizes, zones: zones)
+            if next == p { break }
+            p = next
+        }
+        return p
+    }
+
+    private static func tidyPass(_ items: [Item], positions: [UUID: CGPoint], pinned: Set<UUID>,
+                                 sizes: [UUID: CGSize], zones: [Set<UUID>]) -> [UUID: CGPoint] {
         let ids = Set(items.map(\.id))
         var p = positions.filter { ids.contains($0.key) }
         let fixed = pinned.intersection(p.keys)

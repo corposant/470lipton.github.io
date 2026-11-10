@@ -386,6 +386,20 @@ final class MapBigPageTests: XCTestCase {
         let before = extent(start), after = extent(out)
         XCTAssertLessThanOrEqual(after.width * after.height, before.width * before.height * 1.5)
     }
+
+    func testTidyingTwiceMovesNothingTheSecondTime() {
+        let items = bigPage(300)
+        let graph = MapGraph(all: Dictionary(uniqueKeysWithValues: items.map { ($0.id, $0) }), page: "", showNogged: true)
+        let zones = graph.zoneGroups.map(\.members)
+        // Start from a mess: the tidy layout, with every third chip thrown somewhere else.
+        var start = MapLayout.arrange(items)
+        for (i, item) in items.enumerated() where i % 3 == 0 {
+            start[item.id] = CGPoint(x: CGFloat((i * 7919) % 3000), y: CGFloat((i * 104_729) % 3000))
+        }
+        let once = MapLayout.cleanup(items, positions: start, pinned: [], zones: zones)
+        let twice = MapLayout.cleanup(items, positions: once, pinned: [], zones: zones)
+        XCTAssertEqual(once, twice)
+    }
 }
 
 final class MapSqueezeTests: XCTestCase {

@@ -74,6 +74,9 @@ struct MindMapView: View {
     @State private var viewMoved = false
     /// How far you can zoom out: always far enough to see the whole page (set by `fit`).
     @State private var zoomFloor: CGFloat = 0.25
+    /// Where the wand last put the chips on this page. If nothing has moved since,
+    /// another tap has nothing to do.
+    @State private var tidied: [UUID: CGPoint]?
     @State private var isScribbling = false
     /// Worked-out items, lines and zones, rebuilt only when the items change.
     @State private var cache = MapGraphCache()
@@ -952,6 +955,14 @@ struct MindMapView: View {
         let items = graph.items, ids = graph.ids, sizes = chipSizes.sizes
         let current = doc.positions, pinned = doc.pinned
         let zones = graph.zoneGroups.map(\.members)
+        let onPage = Set(ids)
+        // Tapping again after the wand, with nothing moved since: it's already as tidy
+        // as the wand makes it, so don't shuffle things again.
+        if style == nil, let tidied, tidied == current.filter({ onPage.contains($0.key) }) {
+            withNogAnimation(.snappy) { notice = nil }
+            AccessibilityNotification.Announcement("Already tidy").post()
+            return
+        }
         Task {
             // Worked out off the main thread, so a big map doesn't freeze the screen.
             let targets = await Task.detached(priority: .userInitiated) { () -> [UUID: CGPoint] in
@@ -967,6 +978,9 @@ struct MindMapView: View {
             if style != nil {
                 change.pins = ids.filter { pinned.contains($0) }.map { .init(id: $0, pinned: false) }
             }
+            var settled = current.filter { onPage.contains($0.key) }
+            for id in moved { settled[id] = targets[id] }
+            tidied = settled
             guard !change.isEmpty else {
                 withNogAnimation(.snappy) { notice = nil }
                 AccessibilityNotification.Announcement("Already tidy").post()
