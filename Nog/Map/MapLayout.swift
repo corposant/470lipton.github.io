@@ -181,20 +181,27 @@ enum MapPage {
 // MARK: - Smart arrangement
 
 extension MapLayout {
-    /// Room each node needs (a chip plus breathing space).
+    /// Room a standard chip needs, used until a chip has been measured.
     static let cell = CGSize(width: 196, height: 58)
     /// Clear space kept between chips, so titles never touch.
     static let spacing = CGSize(width: 28, height: 22)
-    /// Distance from one chip's centre to the next on a shelf.
+    /// Distance from one standard chip's centre to the next on a shelf.
     static let pitch = CGSize(width: cell.width + spacing.width, height: cell.height + spacing.height)
+
+    /// A chip's size: as measured on screen when we have it (long titles, large text),
+    /// otherwise the standard cell.
+    static func size(_ id: UUID, in sizes: [UUID: CGSize]) -> CGSize {
+        guard let s = sizes[id], s.width > 1, s.height > 1 else { return cell }
+        return CGSize(width: max(s.width, 40), height: max(s.height, 24))
+    }
 
     /// A deliberate, tidy arrangement:
     /// - each project is a star: sub-items in a ring around it, their own sub-items fanned outward;
-    /// - loose items sit on a two-column shelf;
-    /// - things sharing a tag are gathered into one group, groups packed in rows;
-    /// - a final pass nudges apart anything still overlapping.
+    /// - loose items sit on a two-column shelf, with notes that [[link]] to each other side by side;
+    /// - things with the same tags are gathered into one group; groups sharing a tag sit next to each other;
+    /// - a final pass nudges apart anything still overlapping, using each chip's real size.
     /// Deterministic: the same items always give the same picture. Centred on (0, 0).
-    static func arrange(_ items: [Item]) -> [UUID: CGPoint] {
+    static func arrange(_ items: [Item], sizes: [UUID: CGSize] = [:]) -> [UUID: CGPoint] {
         let ids = Set(items.map(\.id))
         var children: [UUID: [Item]] = [:]
         for item in items {
@@ -203,6 +210,15 @@ extension MapLayout {
             }
         }
         for key in children.keys { children[key]?.sort { $0.created < $1.created } }
+
+        // Who links to whom (either direction), to keep linked notes together.
+        var linked: [UUID: Set<UUID>] = [:]
+        for edge in edges(for: items) where edge.kind == .link {
+            linked[edge.from, default: []].insert(edge.to)
+            linked[edge.to, default: []].insert(edge.from)
+        }
+
+        func size(_ id: UUID) -> CGSize { MapLayout.size(id, in: sizes) }
 
         var visited = Set<UUID>()
         var weights: [UUID: Int] = [:]
@@ -224,7 +240,8 @@ extension MapLayout {
                 guard !kids.isEmpty, depth < 8 else { return }
                 let total = Double(kids.reduce(0) { $0 + weight($1.id) })
                 // Radius big enough that the kids' chips fit along the arc.
-                let radius = max(depth == 0 ? 210 : 180, Double(kids.count) * 210 / max(spread, 0.7))
+                let arc = kids.reduce(0.0) { $0 + Double(size($1.id).width) + 14 }
+                let radius = max(depth == 0 ? 210 : 180, arc / max(spread, 0.7))
                 var a = angle - spread / 2
                 for kid in kids {
                     let share = spread * Double(weight(kid.id)) / total
@@ -238,23 +255,14 @@ extension MapLayout {
             return out
         }
 
-        // Roots: items whose parent isn't on this page. Anything stuck in a parent loop
-        // is picked up afterwards as its own root.
-        var roots = items.filter { $0.parentID.map { !ids.contains($0) } ?? true }
-            .sorted { $0.created < $1.created }
-
-        // Group roots by tag (first tag alphabetically), untagged last.
-        func groupKey(_ item: Item) -> String {
-            item.tags.map { $0.lowercased() }.sorted().first ?? "\u{FFFF}"
-        }
-
         struct Block { var positions: [UUID: CGPoint]; var bounds: CGRect }
         func block(_ positions: [UUID: CGPoint]) -> Block {
-            let xs = positions.values.map(\.x), ys = positions.values.map(\.y)
-            let rect = CGRect(x: (xs.min() ?? 0) - cell.width / 2, y: (ys.min() ?? 0) - cell.height / 2,
-                              width: (xs.max() ?? 0) - (xs.min() ?? 0) + cell.width,
-                              height: (ys.max() ?? 0) - (ys.min() ?? 0) + cell.height)
-            return Block(positions: positions, bounds: rect)
+            var rect = CGRect.null
+            for (id, p) in positions {
+                let s = size(id)
+                rect = rect.union(CGRect(x: p.x - s.width / 2, y: p.y - s.height / 2, width: s.width, height: s.height))
+            }
+            return Block(positions: positions, bounds: rect.isNull ? .zero : rect)
         }
 
         /// Shelf-packs blocks into rows no wider than `maxWidth`; returns one combined block.
@@ -273,6 +281,56 @@ extension MapLayout {
             return block(out)
         }
 
+        /// Two columns, rows as tall as their taller chip, centres spaced so nothing touches.
+        func shelf(_ items: [Item]) -> [UUID: CGPoint] {
+            let column = (items.map { size($0.id).width }.max() ?? cell.width) + spacing.width
+            var out: [UUID: CGPoint] = [:]
+            var y: CGFloat = 0
+            var previousHeight: CGFloat?
+            for start in stride(from: 0, to: items.count, by: 2) {
+                let row = items[start..<min(start + 2, items.count)]
+                let height = row.map { size($0.id).height }.max() ?? cell.height
+                if let previousHeight { y += previousHeight / 2 + spacing.height + height / 2 }
+                for (i, item) in row.enumerated() {
+                    out[item.id] = CGPoint(x: CGFloat(i) * column, y: y)
+                }
+                previousHeight = height
+            }
+            return out
+        }
+
+        /// Loose items in order, but each followed by the notes it links with (and theirs).
+        func linkOrder(_ loose: [Item]) -> [Item] {
+            let byID = Dictionary(loose.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+            var seen = Set<UUID>()
+            var out: [Item] = []
+            for item in loose where !seen.contains(item.id) {
+                var queue = [item]
+                seen.insert(item.id)
+                while !queue.isEmpty {
+                    let next = queue.removeFirst()
+                    out.append(next)
+                    let neighbours = (linked[next.id] ?? []).compactMap { byID[$0] }
+                        .filter { !seen.contains($0.id) }
+                        .sorted { $0.created < $1.created }
+                    for n in neighbours { seen.insert(n.id); queue.append(n) }
+                }
+            }
+            return out
+        }
+
+        // Roots: items whose parent isn't on this page. Anything stuck in a parent loop
+        // is picked up afterwards as its own root.
+        var roots = items.filter { $0.parentID.map { !ids.contains($0) } ?? true }
+            .sorted { $0.created < $1.created }
+
+        // Group roots by their whole set of tags ("admin", "admin+travel", "travel"), so
+        // sorted groups that share a tag land next to each other. Untagged last.
+        func groupKey(_ item: Item) -> String {
+            let tags = Set(item.tags.map { $0.lowercased() }).sorted()
+            return tags.isEmpty ? "\u{FFFF}" : tags.joined(separator: "+")
+        }
+
         var groups: [String: [Item]] = [:]
         for root in roots { groups[groupKey(root), default: []].append(root) }
         var groupBlocks: [Block] = []
@@ -287,59 +345,80 @@ extension MapLayout {
                     blocks.append(block(star(root.id)))
                 }
             }
-            if !loose.isEmpty {
-                var shelf: [UUID: CGPoint] = [:]
-                for (i, item) in loose.enumerated() {
-                    shelf[item.id] = CGPoint(x: CGFloat(i % 2) * pitch.width, y: CGFloat(i / 2) * pitch.height)
-                }
-                blocks.append(block(shelf))
-            }
+            if !loose.isEmpty { blocks.append(block(shelf(linkOrder(loose)))) }
             if !blocks.isEmpty { groupBlocks.append(pack(blocks, maxWidth: 1100, gap: 90)) }
         }
         // Anything not yet placed (e.g. caught in a parent loop) goes on a final shelf.
         roots = items.filter { !visited.contains($0.id) }
-        if !roots.isEmpty {
-            var shelf: [UUID: CGPoint] = [:]
-            for (i, item) in roots.enumerated() {
-                shelf[item.id] = CGPoint(x: CGFloat(i % 2) * pitch.width, y: CGFloat(i / 2) * pitch.height)
-            }
-            groupBlocks.append(block(shelf))
-        }
+        if !roots.isEmpty { groupBlocks.append(block(shelf(roots))) }
 
         // Groups sit far enough apart that their tag zones (and the labels on top) never touch.
         var all = pack(groupBlocks, maxWidth: 1700, gap: 200)
         // Centre on (0, 0).
         let cx = all.bounds.midX, cy = all.bounds.midY
         for (id, p) in all.positions { all.positions[id] = CGPoint(x: p.x - cx, y: p.y - cy) }
-        return separate(all.positions)
+        return separate(all.positions, sizes: sizes)
     }
 
-    /// Nudges apart any nodes whose chips overlap or crowd each other.
-    static func separate(_ positions: [UUID: CGPoint], iterations: Int = 150) -> [UUID: CGPoint] {
+    /// Nudges apart any chips that overlap or crowd each other, using each chip's size
+    /// and keeping `gap` clear between them. Chips in `fixed` never move: the other one
+    /// of a pair takes the whole push. Deterministic.
+    static func separate(_ positions: [UUID: CGPoint], sizes: [UUID: CGSize] = [:], fixed: Set<UUID> = [],
+                         gap: CGSize = spacing, iterations: Int = 150) -> [UUID: CGPoint] {
         var p = positions
         let keys = p.keys.sorted { $0.uuidString < $1.uuidString }
-        let w = pitch.width, h = pitch.height
+        let dims = Dictionary(uniqueKeysWithValues: keys.map { ($0, MapLayout.size($0, in: sizes)) })
         for _ in 0..<iterations {
             var moved = false
             for i in keys.indices {
                 for j in keys.indices where j > i {
-                    guard let a = p[keys[i]], let b = p[keys[j]] else { continue }
-                    let ox = w - abs(a.x - b.x), oy = h - abs(a.y - b.y)
-                    guard ox > 0, oy > 0 else { continue }
+                    let ka = keys[i], kb = keys[j]
+                    let fa = fixed.contains(ka), fb = fixed.contains(kb)
+                    if fa && fb { continue }
+                    guard let a = p[ka], let b = p[kb], let sa = dims[ka], let sb = dims[kb] else { continue }
+                    let ox = (sa.width + sb.width) / 2 + gap.width - abs(a.x - b.x)
+                    let oy = (sa.height + sb.height) / 2 + gap.height - abs(a.y - b.y)
+                    guard ox > 0.01, oy > 0.01 else { continue }
                     moved = true
+                    // Each takes half the push, or the movable one takes all of it.
+                    let shareA: CGFloat = fa ? 0 : (fb ? 1 : 0.5)
+                    let shareB: CGFloat = 1 - shareA
                     if ox < oy {
-                        let push = ox / 2 * (a.x <= b.x ? -1 : 1)
-                        p[keys[i]] = CGPoint(x: a.x + push, y: a.y)
-                        p[keys[j]] = CGPoint(x: b.x - push, y: b.y)
+                        let dir: CGFloat = a.x <= b.x ? -1 : 1
+                        p[ka] = CGPoint(x: a.x + dir * ox * shareA, y: a.y)
+                        p[kb] = CGPoint(x: b.x - dir * ox * shareB, y: b.y)
                     } else {
-                        let push = oy / 2 * (a.y <= b.y ? -1 : 1)
-                        p[keys[i]] = CGPoint(x: a.x, y: a.y + push)
-                        p[keys[j]] = CGPoint(x: b.x, y: b.y - push)
+                        let dir: CGFloat = a.y <= b.y ? -1 : 1
+                        p[ka] = CGPoint(x: a.x, y: a.y + dir * oy * shareA)
+                        p[kb] = CGPoint(x: b.x, y: b.y - dir * oy * shareB)
                     }
                 }
             }
             if !moved { break }
         }
         return p
+    }
+
+    /// Places `missing` near what they're connected to, then pushes only them clear of
+    /// everything else. The chips already in `pinned` stay exactly where they are.
+    static func place(missing ids: [UUID], edges: [Edge], pinned: [UUID: CGPoint],
+                      sizes: [UUID: CGSize] = [:]) -> [UUID: CGPoint] {
+        let laidOut = layout(ids: Array(pinned.keys) + ids.filter { pinned[$0] == nil }, edges: edges, pinned: pinned)
+        return separate(laidOut, sizes: sizes, fixed: Set(pinned.keys))
+    }
+
+    /// True if any two chips overlap (ignoring the gap).
+    static func hasOverlap(_ positions: [UUID: CGPoint], sizes: [UUID: CGSize] = [:]) -> Bool {
+        let keys = Array(positions.keys)
+        for i in keys.indices {
+            for j in keys.indices where j > i {
+                guard let a = positions[keys[i]], let b = positions[keys[j]] else { continue }
+                let sa = size(keys[i], in: sizes), sb = size(keys[j], in: sizes)
+                if abs(a.x - b.x) < (sa.width + sb.width) / 2 - 0.5 && abs(a.y - b.y) < (sa.height + sb.height) / 2 - 0.5 {
+                    return true
+                }
+            }
+        }
+        return false
     }
 }
