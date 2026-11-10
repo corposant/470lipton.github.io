@@ -43,10 +43,10 @@ extension MapLayout {
     /// Lays out every item on the page in `style`. Centred on (0, 0).
     static func layOut(_ style: Style, items: [Item], sizes: [UUID: CGSize] = [:]) -> [UUID: CGPoint] {
         switch style {
-        case .stars: arrange(items, sizes: sizes)
-        case .mindMap: mindMap(items, sizes: sizes)
-        case .byTag: byTag(items, sizes: sizes)
-        case .web: web(items, sizes: sizes)
+        case .stars: squeeze(arrange(items, sizes: sizes), sizes: sizes)
+        case .mindMap: squeeze(mindMap(items, sizes: sizes), sizes: sizes)
+        case .byTag: squeeze(byTag(items, sizes: sizes), sizes: sizes)
+        case .web: squeeze(web(items, sizes: sizes), sizes: sizes)
         }
     }
 
@@ -90,7 +90,57 @@ extension MapLayout {
         // 2. No overlaps, then zones apart, then overlaps again (moving a zone can cause some).
         p = separate(p, sizes: sizes, fixed: fixed)
         p = separateZones(p, zones: zones, sizes: sizes, fixed: fixed)
-        return separate(p, sizes: sizes, fixed: fixed)
+        p = separate(p, sizes: sizes, fixed: fixed)
+        // 3. Close up any wide empty stretches, so the map never sprawls.
+        return squeeze(p, sizes: sizes, fixed: fixed)
+    }
+
+    /// The most empty space allowed between neighbouring chips across the map: room for
+    /// two tag zone borders and a zone title, and not much more.
+    static let maxGap: CGFloat = 160
+
+    /// Closes up empty stretches wider than `maxGap`, across and down. Everything on one
+    /// side of an empty stretch slides over as a whole, so nothing ends up overlapping
+    /// and the arrangement on each side stays exactly as it was. The side without pinned
+    /// chips is the one that moves; a stretch with pinned chips on both sides stays.
+    static func squeeze(_ positions: [UUID: CGPoint], sizes: [UUID: CGSize] = [:], fixed: Set<UUID> = [],
+                        maxGap: CGFloat = MapLayout.maxGap) -> [UUID: CGPoint] {
+        var p = positions
+        guard p.count > 1 else { return p }
+        for across in [true, false] {
+            // Each round closes one stretch, so this ends; the cap is only a safety net.
+            for _ in 0..<p.count {
+                let spans = p.map { entry -> (id: UUID, lo: CGFloat, hi: CGFloat) in
+                    let s = size(entry.key, in: sizes)
+                    let c = across ? entry.value.x : entry.value.y
+                    let half = (across ? s.width : s.height) / 2
+                    return (entry.key, c - half, c + half)
+                }
+                .sorted { ($0.lo, $0.id.uuidString) < ($1.lo, $1.id.uuidString) }
+                var reach = spans[0].hi
+                var move: (ids: [UUID], by: CGFloat)?
+                for i in spans.indices.dropFirst() {
+                    let gap = spans[i].lo - reach
+                    if gap > maxGap {
+                        let before = spans[..<i].map(\.id), after = spans[i...].map(\.id)
+                        let close = gap - maxGap
+                        if !after.contains(where: { fixed.contains($0) }) {
+                            move = (after, -close)
+                        } else if !before.contains(where: { fixed.contains($0) }) {
+                            move = (before, close)
+                        }
+                        if move != nil { break }
+                    }
+                    reach = max(reach, spans[i].hi)
+                }
+                guard let move else { break }
+                for id in move.ids {
+                    guard let q = p[id] else { continue }
+                    p[id] = across ? CGPoint(x: q.x + move.by, y: q.y) : CGPoint(x: q.x, y: q.y + move.by)
+                }
+            }
+        }
+        return p
     }
 
     /// Moves tag zones that share no items off each other, the smaller zone moving.
@@ -109,8 +159,22 @@ extension MapLayout {
             }
             return r.isNull ? nil : r.insetBy(dx: -pad.width, dy: -pad.height)
         }
-        let sorted = zones.filter { !$0.isEmpty }
+        // A zone whose chips are scattered all over the map (sub-nogs whose tags differ
+        // from their folder's, say) wraps a huge box that overlaps everything. Shoving it
+        // would fling chips far away and still not separate anything, so it stays put.
+        func isCompact(_ members: Set<UUID>) -> Bool {
+            guard let r = rect(members) else { return false }
+            let chips = members.reduce(CGFloat(0)) { sum, id in
+                let s = size(id, in: sizes)
+                return sum + (s.width + spacing.width) * (s.height + spacing.height)
+            }
+            return r.width * r.height <= chips * 4 + pad.width * pad.height * 8
+        }
+        let sorted = zones.filter { !$0.isEmpty && isCompact($0) }
             .sorted { ($0.count, $0.map(\.uuidString).min() ?? "") < ($1.count, $1.map(\.uuidString).min() ?? "") }
+        // How far one zone may travel in all: tidying nudges, it doesn't relocate.
+        let maxTravel = pitch.width * 3
+        var travelled = [CGFloat](repeating: 0, count: sorted.count)
         for _ in 0..<iterations {
             var moved = false
             for i in sorted.indices {
@@ -128,6 +192,9 @@ extension MapLayout {
                     } else {
                         shift.dy = (rs.midY <= rb.midY ? -1 : 1) * (overlap.height + 1)
                     }
+                    let distance = abs(shift.dx) + abs(shift.dy)
+                    guard travelled[i] + distance <= maxTravel else { continue }
+                    travelled[i] += distance
                     for id in movable {
                         if let q = p[id] { p[id] = CGPoint(x: q.x + shift.dx, y: q.y + shift.dy) }
                     }
@@ -157,6 +224,14 @@ extension MapLayout {
         var roots = items.filter { $0.parentID.map { !ids.contains($0) } ?? true }
             .sorted { $0.created < $1.created }
         if roots.isEmpty, let first = items.min(by: { $0.created < $1.created }) { roots = [first] } // all in a loop
+        // With several roots, lone nogs (no folder, no sub-nogs) aren't branches of
+        // anything: stacked down the sides they made one endless column. They go in a
+        // compact grid underneath instead, and only real projects branch out.
+        var loose: [Item] = []
+        if roots.count > 1 {
+            loose = roots.filter { (children[$0.id] ?? []).isEmpty }
+            roots = roots.filter { !(children[$0.id] ?? []).isEmpty }
+        }
 
         let rowGap = spacing.height, columnGap: CGFloat = 64
         func size(_ id: UUID) -> CGSize { MapLayout.size(id, in: sizes) }
@@ -224,7 +299,9 @@ extension MapLayout {
             centre(Array(Set(out.keys).subtracting(before)))
         }
 
-        if roots.count == 1, let root = roots.first {
+        if roots.isEmpty {
+            // Nothing but lone nogs: just the grid below.
+        } else if roots.count == 1, let root = roots.first {
             // One project: it's the centre.
             visited.insert(root.id)
             out[root.id] = .zero
@@ -236,6 +313,25 @@ extension MapLayout {
             let sides = split(roots)
             layOutSide(sides.right, startX: { columnGap / 2 + size($0.id).width / 2 }, direction: 1)
             layOutSide(sides.left, startX: { -(columnGap / 2 + size($0.id).width / 2) }, direction: -1)
+        }
+
+        // The lone nogs, in a grid centred underneath.
+        if !loose.isEmpty {
+            let columns = blockColumns(loose.count)
+            let column = (loose.map { size($0.id).width }.max() ?? cell.width) + spacing.width
+            let bottom = out.map { $0.value.y + size($0.key).height / 2 }.max()
+            var y = bottom.map { $0 + 120 } ?? 0
+            var previous: CGFloat?
+            for start in stride(from: 0, to: loose.count, by: columns) {
+                let row = loose[start..<min(start + columns, loose.count)]
+                let height = row.map { size($0.id).height }.max() ?? cell.height
+                if let previous { y += previous / 2 + spacing.height + height / 2 } else { y += height / 2 }
+                for (i, item) in row.enumerated() {
+                    visited.insert(item.id)
+                    out[item.id] = CGPoint(x: (CGFloat(i) - CGFloat(columns - 1) / 2) * column, y: y)
+                }
+                previous = height
+            }
         }
 
         // Anything caught in a parent loop goes in a column underneath.
@@ -264,7 +360,7 @@ extension MapLayout {
         var blocks: [[UUID: CGPoint]] = []
         for k in groups.keys.sorted() {
             let members = outlineOrder(groups[k] ?? [])
-            let columns = max(1, min(4, Int(Double(members.count).squareRoot().rounded(.up))))
+            let columns = blockColumns(members.count)
             let width = (members.map { size($0.id, in: sizes).width }.max() ?? cell.width) + spacing.width
             var block: [UUID: CGPoint] = [:]
             var y: CGFloat = 0
@@ -278,7 +374,8 @@ extension MapLayout {
             }
             blocks.append(block)
         }
-        return separate(packBlocks(blocks, sizes: sizes, maxWidth: 1500, gap: 180), sizes: sizes)
+        return separate(packBlocks(blocks, sizes: sizes, maxWidth: rowWidth(blocks, sizes: sizes, least: 1500), gap: 140),
+                        sizes: sizes)
     }
 
     /// Folders followed by what's inside them, oldest first at each level.
@@ -315,6 +412,25 @@ extension MapLayout {
     }
 
     // MARK: Helpers
+
+    /// Columns for a block of `count` chips: about as wide as it is tall on screen
+    /// (chips are wide and short), never a long thin column.
+    static func blockColumns(_ count: Int) -> Int {
+        max(1, min(8, Int((Double(count).squareRoot() * 0.85).rounded(.up))))
+    }
+
+    /// How wide a row of blocks may get before the next row starts: enough that the
+    /// whole page comes out roughly square, rather than a tall tower of blocks.
+    static func rowWidth(_ blocks: [[UUID: CGPoint]], sizes: [UUID: CGSize], least: CGFloat) -> CGFloat {
+        let area = blocks.reduce(CGFloat(0)) { sum, block in
+            sum + block.keys.reduce(CGFloat(0)) { s, id in
+                let c = size(id, in: sizes)
+                return s + (c.width + spacing.width) * (c.height + spacing.height)
+            }
+        }
+        // Blocks don't tile perfectly, so allow for some slack between them.
+        return max(least, (area * 1.8).squareRoot())
+    }
 
     /// Shelf-packs blocks (each in its own coordinates) into rows, then centres the lot on (0, 0).
     static func packBlocks(_ blocks: [[UUID: CGPoint]], sizes: [UUID: CGSize], maxWidth: CGFloat, gap: CGFloat) -> [UUID: CGPoint] {
