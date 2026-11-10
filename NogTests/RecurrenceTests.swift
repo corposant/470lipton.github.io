@@ -103,3 +103,34 @@ final class RecurrenceTests: XCTestCase {
         XCTAssertEqual(Recurrence(.weeks(2)).summary, "every other week")
     }
 }
+
+/// "When I get home", "when I leave work".
+final class PlacePhraseTests: XCTestCase {
+    func extract(_ text: String, known: [String] = []) -> (PlaceTrigger, String)? {
+        let words = text.split(separator: " ").map(String.init)
+        return PlacePhraseParser.extract(from: words, known: known).map { ($0.0, $0.1.joined(separator: " ")) }
+    }
+
+    func testFindsPlaces() {
+        XCTAssertEqual(extract("take out bins when I get home")?.0, PlaceTrigger(name: "Home"))
+        XCTAssertEqual(extract("take out bins when I get home")?.1, "take out bins")
+        XCTAssertEqual(extract("print forms when I get to work")?.0, PlaceTrigger(name: "Work"))
+        XCTAssertEqual(extract("buy milk when I leave work")?.0, PlaceTrigger(name: "Work", leaving: true))
+        XCTAssertEqual(extract("return book when I'm at the library")?.0, PlaceTrigger(name: "The library"))
+        XCTAssertEqual(extract("hug when I arrive at mum's", known: ["Mum's"])?.0, PlaceTrigger(name: "Mum's"))
+    }
+
+    func testLeavesOtherWhensAlone() {
+        XCTAssertNil(extract("call me when I get paid"))
+        XCTAssertNil(extract("ask when the party is"))
+        XCTAssertNil(extract("text Sam when I get a chance"))
+    }
+
+    func testCaptureWaitsForThePlace() {
+        let defaults = CaptureDefaults(firstDelayMinutes: 15, repeatMinutes: 8, places: ["Home"])
+        let result = CaptureParser.parse("bins when I get home", defaults: defaults, now: .now)
+        XCTAssertEqual(result.title, "Bins")
+        XCTAssertEqual(result.place, PlaceTrigger(name: "Home"))
+        XCTAssertNil(result.reminder)
+    }
+}

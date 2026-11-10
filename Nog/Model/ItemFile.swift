@@ -47,6 +47,10 @@ enum ItemFile {
         if let rec = item.recurrence { lines.append("repeats: \(rec.encoded)") }
         if let last = item.lastDone { lines.append("last_done: \(iso(last))") }
         if item.timesDone > 0 { lines.append("times_done: \(item.timesDone)") }
+        if let place = item.place {
+            lines.append("place: \(oneLine(place.name))")
+            if place.leaving { lines.append("place_leaving: true") }
+        }
         lines.append("---")
         return lines.joined(separator: "\n") + "\n" + item.body
     }
@@ -116,6 +120,9 @@ enum ItemFile {
         item.recurrence = fields["repeats"].flatMap(Recurrence.init(encoded:))
         item.lastDone = fields["last_done"].flatMap(date)
         item.timesDone = fields["times_done"].flatMap { Int($0) }.map { max(0, $0) } ?? 0
+        if let name = fields["place"], !name.isEmpty {
+            item.place = PlaceTrigger(name: name, leaving: fields["place_leaving"] == "true")
+        }
         return item
     }
 

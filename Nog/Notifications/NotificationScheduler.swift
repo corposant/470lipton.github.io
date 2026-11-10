@@ -1,3 +1,4 @@
+import CoreLocation
 import AppIntents
 import Foundation
 import UserNotifications
@@ -90,11 +91,14 @@ final class NotificationScheduler {
         let policy = NogSettings.policy
         let ringing = await AlarmScheduler.shared.sync(items: items, policy: policy)
         let now = Date.now
-        // One slot stays free for the "open Nog to keep nogging" notice.
-        let plan = NogPlanner.plan(items: items, now: now, budget: NogPlanner.defaultBudget - 1,
+        // Places first (they wait for you, not the clock); one slot stays free for the
+        // "open Nog to keep nogging" notice.
+        let places = NogPlanner.placeNotifications(items: items, places: PlaceBook.shared.places,
+                                                   limit: PlaceBook.maxWatched)
+        let plan = NogPlanner.plan(items: items, now: now, budget: NogPlanner.defaultBudget - 1 - places.count,
                                    policy: policy, alarmDates: ringing)
         var desired: [String: PlannedNotification] = [:]
-        for p in plan { desired[p.identifier] = p }
+        for p in plan + places { desired[p.identifier] = p }
         if let pause = NogPlanner.pauseNotice(for: plan, items: items, now: now, policy: policy) {
             desired[pause.identifier] = pause
         }
@@ -173,6 +177,12 @@ final class NotificationScheduler {
             trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
         case .every(let seconds):
             trigger = UNTimeIntervalNotificationTrigger(timeInterval: max(60, seconds), repeats: true)
+        case .place(let latitude, let longitude, let radius, let leaving):
+            let region = CLCircularRegion(center: CLLocationCoordinate2D(latitude: latitude, longitude: longitude),
+                                          radius: radius, identifier: planned.identifier)
+            region.notifyOnEntry = !leaving
+            region.notifyOnExit = leaving
+            trigger = UNLocationNotificationTrigger(region: region, repeats: false)
         }
         return UNNotificationRequest(identifier: planned.identifier, content: content, trigger: trigger)
     }

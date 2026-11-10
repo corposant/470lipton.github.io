@@ -7,6 +7,8 @@ struct CaptureDefaults: Equatable {
     var escalateAfter: Int? = nil
     /// Hush: no sound, no Time Sensitive.
     var silent = false
+    /// Saved place names, so "when I get to Mum's" finds Mum's.
+    var places: [String] = []
 }
 
 struct CaptureResult: Equatable {
@@ -16,6 +18,8 @@ struct CaptureResult: Equatable {
     var estimateMinutes: Int? = nil
     /// Comes back after it's done ("every morning", "every Tuesday").
     var recurrence: Recurrence? = nil
+    /// "when I get home"
+    var place: PlaceTrigger? = nil
 }
 
 /// Turns a quick-capture line into an item. Everything gets the default nog
@@ -95,10 +99,20 @@ enum CaptureParser {
             words.append(word)
         }
 
+        // "when I get home": a place instead of a time.
+        var place: PlaceTrigger?
+        if let (found, rest) = PlacePhraseParser.extract(from: words, known: defaults.places) {
+            place = found
+            words = rest
+        }
         let natural = NaturalDateParser.parse(words.joined(separator: " "), now: now, calendar: calendar)
         let title = natural.title
         if noReminder {
-            return CaptureResult(title: title, reminder: nil, tags: tags, estimateMinutes: estimate)
+            return CaptureResult(title: title, reminder: nil, tags: tags, estimateMinutes: estimate, place: place)
+        }
+        // At a place and no time given: it waits for the place, then nogs from there.
+        if place != nil, natural.start == nil, delayOverride == nil {
+            return CaptureResult(title: title, reminder: nil, tags: tags, estimateMinutes: estimate, place: place)
         }
         let effective = profile.map {
             CaptureDefaults(firstDelayMinutes: $0.firstDelayMinutes, repeatMinutes: $0.repeatMinutes,
@@ -117,7 +131,7 @@ enum CaptureParser {
                                 curve: curveOverride ?? effective.curve, alarm: alarm, silent: effective.silent,
                                 escalateAfter: effective.escalateAfter)
         return CaptureResult(title: title, reminder: reminder, tags: tags, estimateMinutes: estimate,
-                             recurrence: natural.recurrence)
+                             recurrence: natural.recurrence, place: place)
     }
 
     /// "8m" → 8, "2h" → 120, "1d" → 1440, "15" → 15. Anything else → nil.

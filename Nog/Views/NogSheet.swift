@@ -85,6 +85,7 @@ struct NogSheet: View {
                     }
                     .listRowBackground(Theme.glass)
 
+                    placeSection(item)
                     if let reminder = item.reminder {
                         familySection(item, reminder)
                         profileSection(reminder)
@@ -267,6 +268,50 @@ struct NogSheet: View {
     nonisolated static func nextMark(after now: Date) -> Date {
         let step: TimeInterval = 300
         return Date(timeIntervalSinceReferenceDate: (now.timeIntervalSinceReferenceDate / step).rounded(.up) * step)
+    }
+
+    // MARK: Where
+
+    /// "When I get home": a saved place, arriving or leaving.
+    private func placeSection(_ item: Item) -> some View {
+        let places = PlaceBook.shared.places
+        let names = places.map(\.name) + (item.place.map { p in
+            places.contains { $0.name.caseInsensitiveCompare(p.name) == .orderedSame } ? [] : [p.name]
+        } ?? [])
+        return Section {
+            Picker("Remind me at", selection: Binding<String?>(
+                get: { item.place?.name },
+                set: { name in
+                    guard var current = store.items[id] else { return }
+                    current.place = name.map { PlaceTrigger(name: $0, leaving: current.place?.leaving ?? false) }
+                    store.update(current)
+                })) {
+                Text("No place").tag(String?.none)
+                ForEach(names, id: \.self) { Text($0).tag(String?.some($0)) }
+            }
+            if let place = item.place {
+                Picker("When I", selection: Binding(
+                    get: { place.leaving },
+                    set: { leaving in
+                        guard var current = store.items[id] else { return }
+                        current.place?.leaving = leaving
+                        store.update(current)
+                    })) {
+                    Text("Arrive").tag(false)
+                    Text("Leave").tag(true)
+                }
+                .pickerStyle(.segmented)
+            }
+        } header: {
+            SectionLabel(title: "Where")
+        } footer: {
+            if places.isEmpty {
+                Text("Save places like Home or Work in Settings › Places, then type “when I get home” or pick one here.")
+            } else {
+                Text("Reminds you when you get there (or leave), then keeps reminding until it's done.")
+            }
+        }
+        .listRowBackground(Theme.glass)
     }
 
     // MARK: Comes back

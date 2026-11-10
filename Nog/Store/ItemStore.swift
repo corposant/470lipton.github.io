@@ -1,3 +1,4 @@
+import UserNotifications
 import Foundation
 import Observation
 
@@ -272,6 +273,7 @@ final class ItemStore {
                         parentID: parent, tags: parsed.tags, reminder: reminder)
         item.estimateMinutes = parsed.estimateMinutes
         item.recurrence = reminder == nil ? nil : parsed.recurrence
+        item.place = parsed.place
         insert(item)
         return item
     }
@@ -579,6 +581,8 @@ final class ItemStore {
         syncDebounce = nil
         let signpost = Perf.signposter.beginInterval("Sync")
         defer { Perf.signposter.endInterval("Sync", signpost) }
+        PlaceBook.shared.restoreIfEmpty(from: self)
+        await nogFromPlaceArrivals()
         let all = Array(items.values)
         WidgetSync.publish(all)
         if nogs { await NotificationScheduler.shared.sync(items: all) }
@@ -607,6 +611,25 @@ final class ItemStore {
         await NotificationScheduler.shared.sync(items: all)
         await SpotlightIndexer.update(self)
         updateShortcutsIfTitlesChanged()
+    }
+
+    /// A place nog went off ("You're at Home"): from then on the item nogs like any other until
+    /// it's done, starting one gap later (you've just been told).
+    private func nogFromPlaceArrivals() async {
+        let delivered = await UNUserNotificationCenter.current().deliveredNotifications()
+        let arrived = Set(delivered
+            .filter { $0.request.identifier.hasPrefix(NogPlanner.placePrefix) }
+            .compactMap { ($0.request.content.userInfo[NotificationScheduler.itemIDKey] as? String)
+                .flatMap(UUID.init(uuidString:)) })
+        for id in arrived {
+            guard var item = items[id], item.isOpen, item.place != nil else { continue }
+            var reminder = item.reminder ?? NogSettings.defaultReminderFromNow
+            let gap = reminder.repeatMinutes ?? NogSettings.repeatMinutes ?? NogSettings.defaultRepeat
+            reminder.start = Date.now.addingTimeInterval(TimeInterval(gap * 60))
+            item.reminder = reminder
+            item.place = nil
+            update(item)
+        }
     }
 
     /// Siri learns current item titles for "Start …" / "Mark … done"; only tell it when they change.

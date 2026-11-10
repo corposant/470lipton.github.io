@@ -561,15 +561,30 @@ private struct NextNogCard: View {
                 // A one-off that has already gone off.
                 PanelLabel(text: "Nogged you at \(reminder.start.formatted(date: .omitted, time: .shortened))")
                 rhythmRow("no repeat · tap to pick a new time", reminder: reminder)
+            } else if let place = item.place {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        PanelLabel(text: "Waiting for a place", tint: Theme.violet)
+                        Text("Reminds you \(place.phrase), then keeps reminding until it's done.")
+                        if PlaceBook.place(named: place.name) == nil {
+                            Text("Nog doesn't know where \(place.name) is yet. Add it in Settings › Places.")
+                                .font(.subheadline)
+                                .foregroundStyle(Theme.pink)
+                        }
+                    }
+                    Spacer()
+                    Button("Change…", action: edit)
+                        .buttonStyle(OutlineButtonStyle(tint: Theme.violet, expands: false))
+                }
             } else {
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
-                        PanelLabel(text: "Not nogging")
-                        Text("No reminder on this one.")
+                        PanelLabel(text: "No reminder")
+                        Text("This one never reminds you.")
                             .foregroundStyle(Theme.muted)
                     }
                     Spacer()
-                    Button("Nog me…", action: edit)
+                    Button("Remind me…", action: edit)
                         .buttonStyle(OutlineButtonStyle(tint: Theme.pink, expands: false))
                 }
             }

@@ -18,6 +18,8 @@ struct Item: Identifiable, Hashable {
     /// A recurring item: when it was last done, and how many times.
     var lastDone: Date?
     var timesDone: Int = 0
+    /// "When I get home": reminds you at a saved place (Settings › Places).
+    var place: PlaceTrigger?
 
     // Doing (the ▶︎ button)
     /// When the current working session started (status == .doing).
@@ -78,7 +80,7 @@ extension Item {
     /// estimates and time spent don't change any nog.
     func changesNogs(from other: Item) -> Bool {
         title != other.title || status != other.status || reminder != other.reminder
-            || recurrence != other.recurrence
+            || recurrence != other.recurrence || place != other.place
             || doingSince != other.doingSince || timeboxMinutes != other.timeboxMinutes
     }
 }
