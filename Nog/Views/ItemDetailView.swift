@@ -533,7 +533,9 @@ private struct NextNogCard: View {
     let edit: () -> Void
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 30)) { context in
+        // The countdown ("in 12 min") changes on the minute counted back from the next nog.
+        let next = item.reminder.flatMap { NogSettings.policy.deliveryDates(for: $0, after: .now, limit: 1).first }
+        TimelineView(MinuteSchedule(anchor: next, moments: next.map { [$0] } ?? [])) { context in
             content(now: context.date)
         }
     }

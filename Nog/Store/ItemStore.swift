@@ -15,6 +15,13 @@ final class ItemStore {
     private let schedulesNotifications: Bool
     private let storage = FileStorage()
     @ObservationIgnored private var syncDebounce: Task<Void, Never>?
+    /// The waiting sync also needs to reschedule nogs (not just widgets and Spotlight).
+    @ObservationIgnored private var pendingSyncIncludesNogs = false
+    /// Titles Siri last learned, so it's only told again when they change.
+    @ObservationIgnored private var shortcutTitles: Set<String>?
+    @ObservationIgnored private var isWatchingPaused = false
+    @ObservationIgnored private var refreshing: Task<Void, Never>?
+    @ObservationIgnored private var hasConnected = false
     @ObservationIgnored private var reloadDebounce: Task<Void, Never>?
     @ObservationIgnored private var recentlyWritten: [UUID: Date] = [:]
     @ObservationIgnored private var recentlyDeleted: [UUID: Date] = [:]
@@ -36,7 +43,8 @@ final class ItemStore {
 
     /// Fast, synchronous load of whatever is already on disk.
     func load() {
-        let snapshot = FileStorage.readAllNow(in: folder, coordinated: false)
+        // Through `storage`, so later reloads only re-read files that changed.
+        let snapshot = storage.readAllSync(in: folder, coordinated: false)
         items = Dictionary(snapshot.items.map { ($0.id, $0) }, uniquingKeysWith: { a, b in a.updated >= b.updated ? a : b })
     }
 
@@ -122,6 +130,26 @@ final class ItemStore {
         startWatching()
     }
 
+    /// Catches up with the disk (connecting to iCloud first if that hasn't worked yet) and
+    /// reschedules. Launch and "app became active" both ask at once; overlapping calls share one run.
+    func refresh() async {
+        if let refreshing { return await refreshing.value }
+        let task = Task { @MainActor [weak self] in
+            guard let self else { return }
+            // First time, or iCloud was unavailable earlier (signing in, offline at launch): (re)connect.
+            if !self.hasConnected || (StorageMode.current == .iCloud && !self.isUsingICloud) {
+                self.hasConnected = true
+                await self.connectToICloud() // reloads from disk itself
+            } else {
+                await self.reloadFromDisk()
+            }
+            await self.syncNow()
+        }
+        refreshing = task
+        await task.value
+        refreshing = nil
+    }
+
     /// Settings → Storage. Switching to on-phone copies every item to the phone
     /// (the iCloud copies stay put); switching back merges, keeping the newest edits.
     func setStorage(_ mode: StorageMode) async {
@@ -150,6 +178,7 @@ final class ItemStore {
     private func stopWatching() {
         query?.stop()
         query = nil
+        isWatchingPaused = false
         for observer in queryObservers { NotificationCenter.default.removeObserver(observer) }
         queryObservers = []
     }
@@ -158,7 +187,10 @@ final class ItemStore {
     func reloadFromDisk() async {
         guard !isSwitchingFolder else { return }
         let readFolder = folder
+        let signpost = Perf.signposter.beginInterval("Reload from disk")
         let snapshot = await storage.readAll(in: readFolder, coordinated: isUsingICloud)
+        Perf.signposter.endInterval("Reload from disk", signpost,
+                                    "\(snapshot.filesRead) of \(snapshot.presentIDs.count) files read")
         // The folder changed (or a switch started) while we were reading: this snapshot is stale.
         guard !isSwitchingFolder, readFolder == folder else { return }
         // Couldn't even list the folder: keep everything as it is and try again next time.
@@ -195,6 +227,15 @@ final class ItemStore {
         }
         query.start()
         self.query = query
+        isWatchingPaused = false
+    }
+
+    /// In the background nothing is on screen, so iCloud changes wait until the app is back
+    /// (becoming active reloads anyway).
+    func pauseWatching(_ paused: Bool) {
+        guard let query, paused != isWatchingPaused else { return }
+        isWatchingPaused = paused
+        if paused { query.disableUpdates() } else { query.enableUpdates() }
     }
 
     private func scheduleReload() {
@@ -288,7 +329,10 @@ final class ItemStore {
                 return
             }
         }
-        scheduleSync()
+        // Typing (title or notes) waits for a longer pause, so a sentence is one sync, not ten.
+        // Notes, tags and estimates don't change any nog, so those skip rescheduling entirely.
+        let isTyping = old.title != item.title || old.body != item.body
+        scheduleSync(nogs: item.changesNogs(from: old), after: isTyping ? .seconds(2) : .milliseconds(400))
     }
 
     /// A reminder that's new, moved, or revived with a start that's already
@@ -472,28 +516,60 @@ final class ItemStore {
     // MARK: - Notifications
 
     /// Debounced: lots of edits in a row produce one reschedule.
-    func scheduleSync() {
+    /// `nogs: false` when nothing a nog is built from changed (notes, tags): widgets and
+    /// Spotlight still update, but notifications and alarms are left alone.
+    func scheduleSync(nogs: Bool = true, after delay: Duration = .milliseconds(400)) {
         guard schedulesNotifications else { return }
+        pendingSyncIncludesNogs = pendingSyncIncludesNogs || nogs
         syncDebounce?.cancel()
         syncDebounce = Task { [weak self] in
-            try? await Task.sleep(for: .milliseconds(400))
+            try? await Task.sleep(for: delay)
             guard !Task.isCancelled, let self else { return }
-            WidgetSync.publish(Array(self.items.values))
-            await NotificationScheduler.shared.sync(items: Array(self.items.values))
-            await SpotlightIndexer.update(self)
-            // Siri learns current item titles for "Start …" / "Mark … done".
-            NogShortcuts.updateAppShortcutParameters()
+            await self.runPendingSync()
         }
+    }
+
+    private func runPendingSync() async {
+        let nogs = pendingSyncIncludesNogs
+        pendingSyncIncludesNogs = false
+        syncDebounce = nil
+        let signpost = Perf.signposter.beginInterval("Sync")
+        defer { Perf.signposter.endInterval("Sync", signpost) }
+        let all = Array(items.values)
+        WidgetSync.publish(all)
+        if nogs { await NotificationScheduler.shared.sync(items: all) }
+        await SpotlightIndexer.update(self)
+        updateShortcutsIfTitlesChanged()
+    }
+
+    /// Runs a sync that's still waiting out its debounce (the app is going to the background).
+    func syncIfPending() async {
+        guard syncDebounce != nil else { return }
+        syncDebounce?.cancel()
+        await runPendingSync()
     }
 
     /// Reschedule right now and wait for it (used when the app is woken in the background).
     func syncNow() async {
         guard schedulesNotifications else { return }
         syncDebounce?.cancel()
-        DoingActivities.shared.reconcile(Array(items.values))
-        WidgetSync.publish(Array(items.values))
-        await NotificationScheduler.shared.sync(items: Array(items.values))
+        syncDebounce = nil
+        pendingSyncIncludesNogs = false
+        let signpost = Perf.signposter.beginInterval("Sync")
+        defer { Perf.signposter.endInterval("Sync", signpost) }
+        let all = Array(items.values)
+        DoingActivities.shared.reconcile(all)
+        WidgetSync.publish(all)
+        await NotificationScheduler.shared.sync(items: all)
         await SpotlightIndexer.update(self)
+        updateShortcutsIfTitlesChanged()
+    }
+
+    /// Siri learns current item titles for "Start …" / "Mark … done"; only tell it when they change.
+    private func updateShortcutsIfTitlesChanged() {
+        let titles = Set(items.values.map(\.title))
+        guard titles != shortcutTitles else { return }
+        shortcutTitles = titles
         NogShortcuts.updateAppShortcutParameters()
     }
 

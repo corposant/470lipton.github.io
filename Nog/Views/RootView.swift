@@ -21,8 +21,8 @@ struct NogsTab: View {
     var body: some View {
         @Bindable var router = router
         NavigationStack(path: $router.path) {
-            // Re-render every 30s so "in 5 min" / "nogging now" stay current.
-            TimelineView(.periodic(from: .now, by: 30)) { context in
+            // Re-render each minute and as nogs start, so "in 5 min" / "nogging now" stay current.
+            TimelineView(MinuteSchedule.forItems(store.items.values)) { context in
                 ItemListView(now: context.date, search: search, selection: $selection)
             }
             .background { NogBackground() }

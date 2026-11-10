@@ -5,13 +5,14 @@ import SwiftUI
 /// Untimed and just-caught things live on the Nogs tab.
 struct AgendaView: View {
     @Environment(Router.self) private var router
+    @Environment(ItemStore.self) private var store
     @State private var showSettings = false
 
     var body: some View {
         @Bindable var router = router
         NavigationStack(path: $router.agendaPath) {
-            // Re-render every 30s so times and "nogging now" stay current.
-            TimelineView(.periodic(from: .now, by: 30)) { context in
+            // Re-render each minute and as nogs start, so times and "nogging now" stay current.
+            TimelineView(MinuteSchedule.forItems(store.items.values)) { context in
                 AgendaList(now: context.date)
             }
             .background { NogBackground() }
