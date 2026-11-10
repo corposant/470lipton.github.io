@@ -184,9 +184,9 @@ struct SettingsView: View {
                     detail: timebox > 0 ? "\(IntervalFormat.amount(timebox)) box" : "open-ended")
             }
             NavigationLink {
-                CaptureCheatSheet()
+                HowToNogView()
             } label: {
-                row("Capture shortcuts", "text.cursor", Theme.violet, detail: nil)
+                row("How to Nog", "questionmark.circle", Theme.violet, detail: nil)
             }
         } header: {
             SectionLabel(title: "Behavior")
@@ -517,46 +517,6 @@ private struct PermissionsPage: View {
         case .ephemeral: return "Temporary"
         case .notDetermined: return "Not asked yet"
         @unknown default: return "Unknown"
-        }
-    }
-}
-
-private struct CaptureCheatSheet: View {
-    var body: some View {
-        List {
-            Section {
-                line("lunch next tues", "Lunch, Tuesday 12:00")
-                line("call mom tomorrow at 3", "tomorrow 3 PM")
-                line("dentist nov 12 at 2:30pm", "a date and time")
-                line("stretch in 20 min", "relative time")
-                line("pills every 4 hours", "sets the repeat")
-            } header: {
-                SectionLabel(title: "Plain English")
-            }
-            .listRowBackground(Theme.glass)
-            Section {
-                line("!8m  !2h  !1d", "repeat every 8 min / 2 h / 1 day")
-                line("!once  !norepeat", "remind once, no repeat")
-                line("!off", "no reminder (just an idea)")
-                line("!log  !steady", "gaps double each time, or stay the same")
-                line("!alarm", "ring like a real alarm")
-                line("!whisper  !easing  !unhinged", "use a nog profile")
-                line("@30m  @2h  @now", "when to start nogging")
-                line("~30m  ~2h", "how long it'll take (▶︎ timebox)")
-                line("#tag", "add a tag")
-            } header: {
-                SectionLabel(title: "Tokens")
-            }
-            .listRowBackground(Theme.glass)
-        }
-        .nogListStyle()
-        .navigationTitle("Capture shortcuts")
-    }
-
-    private func line(_ syntax: String, _ meaning: String) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(syntax).nogReadout(15)
-            Text(meaning).font(.caption).foregroundStyle(.secondary)
         }
     }
 }

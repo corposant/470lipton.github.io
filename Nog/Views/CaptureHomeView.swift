@@ -14,6 +14,7 @@ struct CaptureHomeView: View {
     @State private var newTag = ""
     @State private var showSettings = false
     @State private var showKindHelp = false
+    @State private var showHowTo = false
     @State private var showParentPicker = false
     @State private var confirmation: (text: String, id: UUID)?
     @FocusState private var focus: Field?
@@ -80,6 +81,7 @@ struct CaptureHomeView: View {
             }
             .sheet(isPresented: $showSettings) { SettingsView() }
             .sheet(isPresented: $showKindHelp) { NogKindSheet() }
+            .sheet(isPresented: $showHowTo) { HowToNogSheet() }
             .sheet(isPresented: $showParentPicker) { CaptureParentPicker(selection: $draft.parentID) }
             // The keyboard opens only when you tap the box (or ask for Quick Capture).
             .onChange(of: router.captureFocusRequest) { focus = .title }
@@ -194,57 +196,17 @@ struct CaptureHomeView: View {
         }
     }
 
-    /// Usage help shown on an empty Fresh Nog: real examples of what the field understands.
-    /// Every example here must parse as described (see `CaptureParser`, `NaturalDateParser`).
     private var hint: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Type anything: a to-do, an idea, a plan. Add any of these, anywhere in the line, or use the tray below.")
-            hintGroup("Tags", [
-                ("call mum #family", "adds the tag family"),
-                ("taxes #money #admin", "as many tags as you like"),
-            ])
-            hintGroup("When", [
-                ("lunch next tues", "Tuesday at 12:00"),
-                ("call mom tomorrow at 3", "tomorrow, 3 PM"),
-                ("dentist nov 12 at 2:30pm", "a date and time"),
-                ("standup tomorrow morning", "tomorrow, 9 AM"),
-                ("report by eod", "end of today"),
-                ("stretch in 20 min", "20 minutes from now"),
-                ("@30m  @2h  @1d  @now", "start nogging after 30 min, 2 h, a day, or now"),
-            ])
-            hintGroup("How often", [
-                ("pills every 4 hours", "nogs every 4 hours"),
-                ("water plants hourly", "every hour (or daily, weekly)"),
-                ("!8m  !2h  !1d", "repeat every 8 min, 2 h, a day"),
-                ("!once", "remind once, no repeat"),
-                ("!log", "gaps double each time: 8, 16, 32 min…"),
-                ("!steady", "same gap every time"),
-                ("!off", "no reminder, just keep the idea"),
-            ])
-            hintGroup("How it gets you", [
-                ("!whi  !eas  !unh", "Whisper, Easing or Unhinged profile (full names work too)"),
-                ("!alarm", "rings like a real alarm"),
-            ])
-            hintGroup("Other", [
-                ("~30m  ~2h", "how long it'll take, for the ▶︎ timebox"),
-            ])
-            Text("Mix them: \"pay rent fri 9am !1d #money ~10m\"")
-        }
-        .font(.callout)
-        .foregroundStyle(Theme.muted)
-    }
-
-    private func hintGroup(_ title: String, _ examples: [(String, String)]) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title).font(.footnote.weight(.semibold)).textCase(.uppercase)
-                .accessibilityAddTraits(.isHeader)
-            ForEach(examples, id: \.0) { syntax, meaning in
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(syntax).nogReadout(14).foregroundStyle(.primary)
-                    Text(meaning).font(.caption)
-                }
-                .accessibilityElement(children: .combine)
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Type anything, like \"call mum tomorrow 9am #family !2h\". Dates, #tags and !shortcuts work anywhere in the line, or use the tray below.")
+                .font(.callout)
+                .foregroundStyle(Theme.muted)
+            Button { showHowTo = true } label: {
+                Label("How to Nog", systemImage: "questionmark.circle")
+                    .font(.callout.weight(.medium))
+                    .foregroundStyle(Theme.violet)
             }
+            .accessibilityHint("Shows everything you can type")
         }
     }
 
