@@ -192,11 +192,11 @@ private struct ItemEditor: View {
         }
     }
 
-    /// "~15 min · caught Tue"
+    /// "~15 min · Tue"
     private var metaLine: String {
         var parts: [String] = []
         if let estimate = item.estimateMinutes { parts.append("~" + IntervalFormat.amount(estimate)) }
-        parts.append("caught " + Self.dayWord(item.created))
+        parts.append(Self.dayWord(item.created).capitalized)
         return parts.joined(separator: " · ")
     }
 
