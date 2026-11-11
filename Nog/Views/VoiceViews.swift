@@ -140,6 +140,7 @@ struct RecorderPanel: View {
         // A short sheet is Liquid Glass on its own; the nog stays visible above it.
         .presentationDetents(typeSize.isAccessibilitySize ? [.large] : [.height(400)])
         .presentationDragIndicator(.visible)
+        .tint(Theme.pink)
         // A swipe down mustn't silently drop or keep a recording: Save or the bin decides.
         .interactiveDismissDisabled(recorder.isLive || recorder.state == .asking)
         .task {
@@ -164,10 +165,7 @@ struct RecorderPanel: View {
                 Circle().fill(Theme.pink).frame(width: 9, height: 9)
                     .nogGlow(color: Theme.pink, radius: 4)
                     .opacity(recorder.state == .recording ? 1 : 0.3)
-                Text(statusWord)
-                    .font(.nogLabel)
-                    .tracking(2)
-                    .foregroundStyle(recorder.state == .recording ? Theme.pink : Theme.muted)
+                PanelLabel(text: statusWord, tint: recorder.state == .recording ? Theme.pink : Theme.panelLabel)
                 Spacer()
             }
             .accessibilityElement(children: .combine)
@@ -175,19 +173,12 @@ struct RecorderPanel: View {
 
             // The readout: a recessed well with lit digits and the waveform under them.
             VStack(spacing: 10) {
-                HStack(alignment: .firstTextBaseline, spacing: 0) {
-                    Text(VoiceNote.clock(recorder.elapsed.rounded(.down), padded: true))
-                        .nogReadout(50)
-                    Text(String(format: ".%d", Int(recorder.elapsed * 10) % 10))
-                        .nogReadout(28)
-                        .opacity(0.65)
-                }
-                .foregroundStyle(Theme.lcd)
-                .nogGlow(color: Theme.blue.opacity(0.5), radius: 8)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel("Time")
-                .accessibilityValue(Duration.seconds(Int(recorder.elapsed))
-                    .formatted(.units(allowed: [.minutes, .seconds], width: .wide)))
+                // The same lit digits as the reminder tuner and the Doing timer.
+                GlowReadout(text: VoiceNote.clock(recorder.elapsed.rounded(.down), padded: true)
+                    + String(format: ".%d", Int(recorder.elapsed * 10) % 10), size: 44)
+                    .accessibilityLabel("Time")
+                    .accessibilityValue(Duration.seconds(Int(recorder.elapsed))
+                        .formatted(.units(allowed: [.minutes, .seconds], width: .wide)))
 
                 Waveform(levels: recorder.levels, paused: recorder.state == .paused)
                     .frame(height: 64)
@@ -196,21 +187,15 @@ struct RecorderPanel: View {
             .padding(.horizontal, 14)
             .padding(.vertical, 12)
             .frame(maxWidth: .infinity)
-            .background(Color.black.opacity(0.32), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(Theme.edge, lineWidth: 1))
+            .recessedWell(cornerRadius: 14)
 
             HStack {
                 Button {
                     if recorder.elapsed < 3 { discard() } else { confirmDiscard = true }
                 } label: {
-                    Image(systemName: "trash")
-                        .nogFont(19, weight: .medium)
-                        .foregroundStyle(Theme.muted)
-                        .nogFrame(width: 56, height: 56)
-                        .contentShape(Circle())
+                    CircleOutlineIcon(systemName: "trash", tint: Theme.muted, size: 48)
                 }
                 .buttonStyle(.plain)
-                .glassEffect(.regular.interactive(), in: .circle)
                 .accessibilityLabel("Discard recording")
                 .confirmationDialog("Discard this recording?", isPresented: $confirmDiscard, titleVisibility: .visible) {
                     Button("Discard", role: .destructive, action: discard)
@@ -220,11 +205,12 @@ struct RecorderPanel: View {
 
                 Button(action: recorder.togglePause) {
                     ZStack {
-                        Circle().strokeBorder(.primary.opacity(0.85), lineWidth: 3)
-                        Circle().fill(Color(red: 1, green: 0.23, blue: 0.42)).padding(8)
+                        Circle().strokeBorder(Theme.synth, lineWidth: 2)
+                        Circle().fill(Theme.pink).padding(8)
+                        // Base colour on pink: readable in both themes.
                         Image(systemName: recorder.state == .paused ? "mic.fill" : "pause.fill")
                             .nogFont(24, weight: .bold)
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Theme.base)
                     }
                     .nogFrame(width: 80, height: 80)
                     .nogGlow(color: Theme.pink.opacity(0.45), radius: 12)
@@ -235,18 +221,13 @@ struct RecorderPanel: View {
                 .accessibilityLabel(recorder.state == .paused ? "Resume recording" : "Pause recording")
                 .frame(maxWidth: .infinity)
 
+                // Same button as SAVE on New Nog.
                 Button(action: save) {
                     Text("SAVE")
-                        .font(.nogTitle(13))
-                        .tracking(2)
-                        .foregroundStyle(.primary)
-                        .padding(.horizontal, 20)
-                        .frame(minHeight: 56)
-                        .contentShape(Capsule())
                 }
-                .buttonStyle(.plain)
-                .glassEffect(.regular.tint(Theme.violet.opacity(0.45)).interactive(), in: .capsule)
+                .buttonStyle(GradientOutlineButtonStyle())
                 .disabled(!recorder.isLive)
+                .opacity(recorder.isLive ? 1 : 0.45)
                 .accessibilityLabel("Save recording")
                 .frame(maxWidth: .infinity)
             }
@@ -275,6 +256,7 @@ struct RecorderPanel: View {
             }
             .buttonStyle(OutlineButtonStyle(expands: false))
             Button("Close") { dismiss() }
+                .buttonStyle(OutlineButtonStyle(tint: Theme.muted, expands: false))
         }
         .frame(maxHeight: .infinity)
     }
@@ -287,6 +269,7 @@ struct RecorderPanel: View {
                 .font(.headline)
                 .multilineTextAlignment(.center)
             Button("Close") { dismiss() }
+                .buttonStyle(OutlineButtonStyle(tint: Theme.muted, expands: false))
         }
         .frame(maxHeight: .infinity)
     }
@@ -378,6 +361,8 @@ struct VoiceNogSheet: View {
                     }
                 }
         }
+        .tint(Theme.pink)
+        .presentationDragIndicator(.visible)
     }
 
     private func cancel() {
