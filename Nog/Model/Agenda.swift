@@ -1,7 +1,7 @@
 import Foundation
 
 /// The Agenda tab's content: only things with a time, from now through the coming week.
-/// (Untimed and just-caught items live on the List tab.)
+/// (Untimed items live on the List tab.)
 enum Agenda {
     struct Entry: Identifiable, Equatable {
         let item: Item

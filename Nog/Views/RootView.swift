@@ -162,15 +162,7 @@ struct ItemListView: View {
         } else {
             let doing = all.filter(\.isDoing)
                 .sorted { ($0.doingSince ?? .distantPast) < ($1.doingSince ?? .distantPast) }
-            // The latest few captures (from the last day and a half) get their own spot at the
-            // top, and aren't repeated in the sections below.
-            let justCaught = Array(all
-                .filter { $0.status == .open || $0.status == .someday }
-                .filter { $0.created > now.addingTimeInterval(-36 * 3600) }
-                .sorted { $0.created > $1.created }
-                .prefix(3))
-            let caughtIDs = Set(justCaught.map(\.id))
-            let open = all.filter { $0.isOpen && !caughtIDs.contains($0.id) }
+            let open = all.filter(\.isOpen)
             let due = open.filter { $0.reminder?.isActive(at: now) == true }
                 .sorted { $0.reminder!.start < $1.reminder!.start }
             let upcoming = open.filter { $0.reminder.map { !$0.isActive(at: now) } ?? false }
@@ -181,7 +173,7 @@ struct ItemListView: View {
                 .sorted { $0.created < $1.created }
             let ideas = open.filter { $0.reminder == nil && $0.place == nil }
                 .sorted { $0.updated > $1.updated }
-            let someday = all.filter { $0.status == .someday && !caughtIDs.contains($0.id) }
+            let someday = all.filter { $0.status == .someday }
                 .sorted { $0.updated > $1.updated }
             let done = all.filter { $0.status == .done }
                 .sorted { ($0.completed ?? $0.updated) > ($1.completed ?? $1.updated) }
@@ -199,7 +191,6 @@ struct ItemListView: View {
                         SectionLabel(title: "Doing", tint: Theme.blue)
                     }
                 }
-                section("Just caught", justCaught, stats: stats)
                 section("Now", due, stats: stats)
                 section("Later today", laterToday, stats: stats)
                 section("Upcoming", onDeck, stats: stats)
