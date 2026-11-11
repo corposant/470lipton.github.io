@@ -59,7 +59,9 @@ struct NogsTab: View {
                 }
             }
             .nogTabTitle(.nogs, title: isSelecting ? (selection.isEmpty ? "Select nogs" : "\(selection.count) selected") : nil)
-            .searchable(text: $search, placement: .navigationBarDrawer(displayMode: .automatic))
+            // Search sits at the bottom, within thumb reach, leaving the top to the
+            // By time / Week / Outline switch.
+            .searchable(text: $search, placement: .toolbar, prompt: "Search")
             .environment(\.editMode, $editMode)
             .toolbar {
                 if isSelecting {
