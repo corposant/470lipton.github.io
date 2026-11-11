@@ -191,16 +191,16 @@ struct AdaptiveLineLimit: ViewModifier {
 
 // MARK: - Building blocks
 
-/// "DOING NOW 02 ─ ›› ›› ›› ◀●" label: a short trail, then three little fish
-/// following a big one. The same mark on every heading, so it reads as a motif,
-/// not a leftover line that shrinks as the title grows. Drawn still, never
-/// animated: a page can carry a dozen headings and they shouldn't all be moving.
+/// "DOING NOW 02 ───🚀" label: a hairline trail with a tiny rocket at its tip. The
+/// same mark on every heading, so it reads as a motif, not a leftover line that
+/// shrinks as the title grows. Drawn still, never animated: a page can carry a
+/// dozen headings and they shouldn't all be moving.
 struct SectionLabel: View {
     let title: String
     var count: Int? = nil
     var tint: Color = Theme.muted
-    /// The lead fish's height; the trail and the little fish scale with it.
-    @ScaledMetric(relativeTo: .caption) private var fishHeight: CGFloat = 9
+    @ScaledMetric(relativeTo: .caption) private var trailLength: CGFloat = 44
+    @ScaledMetric(relativeTo: .caption) private var rocketHeight: CGFloat = 8
 
     var body: some View {
         HStack(spacing: 8) {
@@ -213,7 +213,7 @@ struct SectionLabel: View {
                     .font(.nogMeta)
                     .foregroundStyle(Theme.muted)
             }
-            HeadingSchool(height: fishHeight, tint: tint)
+            HeadingRocket(trailLength: trailLength, height: rocketHeight, tint: tint)
             Spacer(minLength: 0)
         }
         .textCase(nil)
@@ -223,50 +223,63 @@ struct SectionLabel: View {
     }
 }
 
-/// A fading trail, three small fish, and the big fish leading them. Decoration only.
-private struct HeadingSchool: View {
+/// A trail that brightens toward a little rocket flying right. Decoration only.
+private struct HeadingRocket: View {
+    let trailLength: CGFloat
     let height: CGFloat
     let tint: Color
 
     var body: some View {
-        let small = height * 0.55
-        HStack(spacing: height * 0.33) {
+        HStack(spacing: 0) {
             LinearGradient(colors: [.clear, Theme.edgeStrong], startPoint: .leading, endPoint: .trailing)
-                .frame(width: height * 1.5, height: 1)
-            ForEach(0..<3, id: \.self) { _ in fish(small) }
-            fish(height).padding(.leading, height * 0.2)
+                .frame(width: trailLength, height: 1)
+            ZStack {
+                RocketFlame().fill(Theme.pink.opacity(0.7))
+                RocketShape().fill(tint, style: FillStyle(eoFill: true))
+            }
+            .frame(width: height * 1.9, height: height)
         }
         .accessibilityHidden(true)
     }
+}
 
-    private func fish(_ h: CGFloat) -> some View {
-        FishShape()
-            .fill(tint, style: FillStyle(eoFill: true))
-            .frame(width: h * 1.8, height: h)
+/// A side-on rocket pointing right: nose, body, two fins, a porthole cut out.
+private struct RocketShape: Shape {
+    func path(in r: CGRect) -> Path {
+        let w = r.width, h = r.height, x = r.minX, y = r.minY
+        var p = Path()
+        // Body, ending in a rounded nose.
+        p.move(to: CGPoint(x: x + 0.25 * w, y: y + 0.28 * h))
+        p.addLine(to: CGPoint(x: x + 0.66 * w, y: y + 0.28 * h))
+        p.addQuadCurve(to: CGPoint(x: x + w, y: y + 0.5 * h), control: CGPoint(x: x + 0.92 * w, y: y + 0.28 * h))
+        p.addQuadCurve(to: CGPoint(x: x + 0.66 * w, y: y + 0.72 * h), control: CGPoint(x: x + 0.92 * w, y: y + 0.72 * h))
+        p.addLine(to: CGPoint(x: x + 0.25 * w, y: y + 0.72 * h))
+        p.closeSubpath()
+        // Fins, swept back.
+        p.move(to: CGPoint(x: x + 0.25 * w, y: y + 0.28 * h))
+        p.addLine(to: CGPoint(x: x + 0.46 * w, y: y + 0.28 * h))
+        p.addLine(to: CGPoint(x: x + 0.18 * w, y: y))
+        p.closeSubpath()
+        p.move(to: CGPoint(x: x + 0.25 * w, y: y + 0.72 * h))
+        p.addLine(to: CGPoint(x: x + 0.46 * w, y: y + 0.72 * h))
+        p.addLine(to: CGPoint(x: x + 0.18 * w, y: y + h))
+        p.closeSubpath()
+        // Porthole (even-odd fill makes it a hole).
+        let port = 0.22 * h
+        p.addEllipse(in: CGRect(x: x + 0.64 * w - port / 2, y: y + 0.5 * h - port / 2, width: port, height: port))
+        return p
     }
 }
 
-/// A side-on fish swimming right: forked tail, round body, an eye cut out.
-private struct FishShape: Shape {
+/// The little flame out the back of the rocket.
+private struct RocketFlame: Shape {
     func path(in r: CGRect) -> Path {
-        let h = r.height
-        func pt(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: r.minX + x * h, y: r.minY + y * h) }
+        let w = r.width, h = r.height, x = r.minX, y = r.minY
         var p = Path()
-        // Tail.
-        p.move(to: pt(0, 0.1))
-        p.addLine(to: pt(0.42, 0.5))
-        p.addLine(to: pt(0, 0.9))
+        p.move(to: CGPoint(x: x + 0.26 * w, y: y + 0.36 * h))
+        p.addLine(to: CGPoint(x: x, y: y + 0.5 * h))
+        p.addLine(to: CGPoint(x: x + 0.26 * w, y: y + 0.64 * h))
         p.closeSubpath()
-        // Body, from the tail's root round to the snout and back.
-        p.move(to: pt(0.3, 0.5))
-        p.addQuadCurve(to: pt(1.35, 0.12), control: pt(0.75, 0.02))
-        p.addQuadCurve(to: pt(1.8, 0.5), control: pt(1.75, 0.25))
-        p.addQuadCurve(to: pt(1.35, 0.88), control: pt(1.75, 0.75))
-        p.addQuadCurve(to: pt(0.3, 0.5), control: pt(0.75, 0.98))
-        p.closeSubpath()
-        // Eye (even-odd fill makes it a hole).
-        let eye = 0.14 * h
-        p.addEllipse(in: CGRect(x: r.minX + 1.45 * h - eye / 2, y: r.minY + 0.42 * h - eye / 2, width: eye, height: eye))
         return p
     }
 }
