@@ -49,6 +49,8 @@ struct CaptureHomeView: View {
 
     var body: some View {
         @Bindable var router = router
+        // Parsed once per change, shared by the readout and the tray.
+        let result = draft.resolved(defaults: defaults, now: .now)
         NavigationStack(path: $router.capturePath) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
@@ -58,7 +60,7 @@ struct CaptureHomeView: View {
                     }
                     if showSubItems || !draft.subItems.isEmpty { subItemList }
                     saveButton
-                    readout
+                    readout(result)
                     if !justNogged.isEmpty { pile }
                     if draft.isEmpty && focus == nil {
                         hint
@@ -85,7 +87,7 @@ struct CaptureHomeView: View {
             .nogTabTitle(.capture)
             .toolbar { SettingsToolbarItem() }
             // The tray sits on the keyboard while typing, and above the tab bar otherwise.
-            .safeAreaInset(edge: .bottom) { tray }
+            .safeAreaInset(edge: .bottom) { tray(result) }
             .navigationDestination(for: UUID.self) { id in
                 ItemDetailView(id: id)
             }
@@ -93,7 +95,7 @@ struct CaptureHomeView: View {
             .sheet(isPresented: $showHowTo) { HowToNogSheet() }
             .sheet(isPresented: $showParentPicker) { CaptureParentPicker(selection: $draft.parentID) }
             .sheet(item: $voiceNog) { nog in
-                VoiceNogSheet(id: nog.id)
+                VoiceNogSheet(id: nog.id, untitled: nog.untitled)
             }
             // The keyboard opens only when you tap the box (or ask for Quick Capture).
             .onChange(of: router.captureFocusRequest) { focus = .title }
@@ -156,7 +158,8 @@ struct CaptureHomeView: View {
     private var micButton: some View {
         Button {
             focus = nil
-            if let item = saveNog(forVoice: true) { voiceNog = VoiceNogID(id: item.id) }
+            let untitled = draft.isEmpty
+            if let item = saveNog(forVoice: true) { voiceNog = VoiceNogID(id: item.id, untitled: untitled) }
         } label: {
             Image(systemName: "mic")
                 .nogFont(20, weight: .medium)
@@ -281,9 +284,8 @@ struct CaptureHomeView: View {
 
     /// Live read-back of what will be saved.
     @ViewBuilder
-    private var readout: some View {
+    private func readout(_ result: CaptureResult) -> some View {
         if !draft.isEmpty {
-            let result = draft.resolved(defaults: defaults, now: .now)
             Text("→ " + Self.summary(result, subItems: draft.subItems.count,
                                      parent: draft.parentID.flatMap { store.items[$0]?.title }).uppercased())
                 .font(.nogMeta)
@@ -309,6 +311,8 @@ struct CaptureHomeView: View {
 
     private func pileRow(_ entry: JustNogged, isNewest: Bool) -> some View {
         let title = store.items[entry.id]?.title ?? entry.draft.text
+        // A recording can't be put back in the box, so Undo would only lose it.
+        let canUndo = isNewest && store.items[entry.id]?.voiceNotes.isEmpty != false
         return HStack(spacing: 10) {
             Button { router.push(entry.id) } label: {
                 HStack(spacing: 12) {
@@ -325,7 +329,7 @@ struct CaptureHomeView: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    if !isNewest {
+                    if !canUndo {
                         Image(systemName: "chevron.right")
                             .font(.footnote.weight(.semibold))
                             .foregroundStyle(Theme.muted)
@@ -338,8 +342,8 @@ struct CaptureHomeView: View {
             .buttonStyle(.plain)
             .accessibilityElement(children: .combine)
             .accessibilityLabel("\(title), \(entry.summary)")
-            .accessibilityHint("Opens it")
-            if isNewest {
+            .accessibilityHint("Opens it.")
+            if canUndo {
                 Button { undo(entry) } label: {
                     Text("Undo")
                         .font(.subheadline.weight(.semibold))
@@ -352,7 +356,7 @@ struct CaptureHomeView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Undo \(title)")
-                .accessibilityHint("Deletes it and puts the text back")
+                .accessibilityHint("Deletes it and puts the text back.")
             }
         }
         .padding(.leading, 14)
@@ -378,7 +382,7 @@ struct CaptureHomeView: View {
             showSubItems = !entry.draft.subItems.isEmpty
         }
         focus = .title
-        AccessibilityNotification.Announcement("Undone. \(entry.draft.text) is back in the box.").post()
+        AccessibilityNotification.Announcement("Undone").post()
     }
 
     private var hint: some View {
@@ -465,8 +469,7 @@ struct CaptureHomeView: View {
 
     // MARK: Tray
 
-    private var tray: some View {
-        let result = draft.resolved(defaults: defaults, now: .now)
+    private func tray(_ result: CaptureResult) -> some View {
         let kind = draft.kind ?? NogKind.of(result.reminder)
         return VStack(spacing: 8) {
             if focus == .title, !completions.isEmpty {

@@ -67,7 +67,7 @@ struct BreakdownSheet: View {
                             }
                         }
                     } footer: {
-                        Text("Added as sub-nogs without their own nogs. \(item.title) keeps nogging you.")
+                        Text("Added as quiet sub-nogs.")
                     }
                 }
             }

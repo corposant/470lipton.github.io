@@ -20,8 +20,9 @@ struct VoiceNote: Hashable {
 
     /// "Voice nog 8:44 AM": the title of a nog captured with a recording and no words.
     static func captureTitle(_ date: Date) -> String {
-        "Voice nog " + date.formatted(date: .omitted, time: .shortened)
+        captureTitlePrefix + date.formatted(date: .omitted, time: .shortened)
     }
+    static let captureTitlePrefix = "Voice nog "
 
     /// "0:42", "12:05"
     var clock: String { Self.clock(TimeInterval(seconds)) }

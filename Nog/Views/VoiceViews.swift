@@ -330,6 +330,8 @@ struct Waveform: View {
 /// Which voice nog the sheet is showing.
 struct VoiceNogID: Identifiable {
     let id: UUID
+    /// Named "Voice nog 8:44 AM" because nothing was typed.
+    var untitled = false
 }
 
 /// A brand-new voice nog, opened from the mic on New Nog: the nog's page in a sheet, already
@@ -339,6 +341,7 @@ struct VoiceNogSheet: View {
     @Environment(ItemStore.self) private var store
     @Environment(\.dismiss) private var dismiss
     let id: UUID
+    var untitled = false
     var onCancel: () -> Void = {}
     @State private var confirmCancel = false
 
@@ -363,6 +366,18 @@ struct VoiceNogSheet: View {
         }
         .tint(Theme.pink)
         .presentationDragIndicator(.visible)
+        .onDisappear(perform: dropIfEmpty)
+    }
+
+    /// No recording, no words, no notes (mic denied, or the recording binned): nothing to
+    /// remind you of, so don't leave a "Voice nog 8:44 AM" nogging you about nothing.
+    private func dropIfEmpty() {
+        guard untitled, let item = store.items[id], item.voiceNotes.isEmpty,
+              item.body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              store.children(of: id).isEmpty,
+              item.title.hasPrefix(VoiceNote.captureTitlePrefix) else { return }
+        store.delete(id)
+        onCancel()
     }
 
     private func cancel() {

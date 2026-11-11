@@ -27,6 +27,10 @@ final class VoiceRecorder: NSObject, AVAudioRecorderDelegate {
 
     @ObservationIgnored private var recorder: AVAudioRecorder?
     @ObservationIgnored private var meterTask: Task<Void, Never>?
+    @ObservationIgnored private var interruptionObserver: NSObjectProtocol?
+
+    /// The waveform shows the last few seconds, so older samples aren't kept.
+    private static let keptLevels = 400
 
     /// Long enough for a ramble, short enough that a forgotten recording doesn't fill the phone.
     static let maxSeconds: TimeInterval = 15 * 60
@@ -60,6 +64,7 @@ final class VoiceRecorder: NSObject, AVAudioRecorderDelegate {
             levels = []
             state = .recording
             startMetering()
+            observeInterruptions()
         } catch {
             print("Nog: couldn't record: \(error)")
             state = .failed
@@ -106,6 +111,8 @@ final class VoiceRecorder: NSObject, AVAudioRecorderDelegate {
     private func finish() {
         meterTask?.cancel()
         meterTask = nil
+        if let interruptionObserver { NotificationCenter.default.removeObserver(interruptionObserver) }
+        interruptionObserver = nil
         level = 0
         recorder = nil
         if isLive || state == .stoppedItself { state = .idle }
@@ -121,10 +128,27 @@ final class VoiceRecorder: NSObject, AVAudioRecorderDelegate {
                     // -50 dB (quiet room) … 0 dB (shouting) → 0…1
                     let level = max(0, min(1, (recorder.averagePower(forChannel: 0) + 50) / 50))
                     self.level = Double(level)
+                    if self.levels.count >= Self.keptLevels { self.levels.removeFirst(self.levels.count - Self.keptLevels + 1) }
                     self.levels.append(level)
                     self.elapsed = recorder.currentTime
                 }
                 try? await Task.sleep(for: Self.sampleInterval)
+            }
+        }
+    }
+
+    /// A call or Siri takes the mic: iOS pauses the recorder, so show Paused and let you resume.
+    private func observeInterruptions() {
+        interruptionObserver = NotificationCenter.default.addObserver(
+            forName: AVAudioSession.interruptionNotification, object: nil, queue: .main) { [weak self] note in
+            let type = (note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt)
+                .flatMap(AVAudioSession.InterruptionType.init(rawValue:))
+            guard type == .began else { return }
+            MainActor.assumeIsolated {
+                guard let self, self.state == .recording else { return }
+                self.recorder?.pause()
+                self.level = 0
+                self.state = .paused
             }
         }
     }

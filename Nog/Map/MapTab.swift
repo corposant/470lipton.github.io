@@ -270,7 +270,7 @@ struct MindMapView: View {
             .overlay {
                 if graph.items.isEmpty {
                     ContentUnavailableView("Nothing to map yet", systemImage: "point.3.connected.trianglepath.dotted",
-                                           description: Text("Capture a few things, give them #tags, sub-nogs or [[links]], and they'll show up here."))
+                                           description: Text("Add #tags, sub-nogs or [[links]]."))
                 }
             }
             .confirmationDialog(filingTitle(graph), isPresented: filingShown, titleVisibility: .visible) {
@@ -960,7 +960,7 @@ struct MindMapView: View {
         .glassEffect(.regular.interactive(), in: .circle)
         .glassEffectID("arrange", in: glassSpace)
         .accessibilityLabel("Tidy up")
-        .accessibilityHint("Fixes overlaps and keeps your layout. More layouts in the actions.")
+        .accessibilityHint("Fixes overlaps, keeps your layout.")
         .accessibilityActions {
             ForEach(MapLayout.Style.wand) { style in
                 Button("Lay out as \(style.title)") { rearrange(graph, style: style, in: size) }

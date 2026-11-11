@@ -432,7 +432,7 @@ private struct NogsAlertsPage: View {
             } header: {
                 SectionLabel(title: "Timing")
             } footer: {
-                Text("Heads-up: a quiet note before a nog starts. Snoozing resets the ignored count.")
+                Text("Snoozing resets the ignored count.")
             }
             .listRowBackground(Theme.glass)
 
@@ -522,7 +522,7 @@ private struct DoingPage: View {
             } header: {
                 SectionLabel(title: "▶︎ Doing")
             } footer: {
-                Text("Used when Nog has nothing better: an estimate or how long similar ones took.")
+                Text("Used when there's no estimate or history.")
             }
             .listRowBackground(Theme.glass)
 
