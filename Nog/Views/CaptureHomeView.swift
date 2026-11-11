@@ -16,6 +16,8 @@ struct CaptureHomeView: View {
     @State private var showKindHelp = false
     @State private var showHowTo = false
     @State private var showParentPicker = false
+    /// The voice nog just made with the mic, open in its sheet.
+    @State private var voiceNog: VoiceNogID?
     /// What you've saved since opening the tab, newest first. Clears when you leave the tab.
     @State private var justNogged: [JustNogged] = []
     /// Apple's Siri tip ("Say 'Take a Nog'"); hidden for good once dismissed.
@@ -50,7 +52,10 @@ struct CaptureHomeView: View {
         NavigationStack(path: $router.capturePath) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    composer
+                    HStack(spacing: 10) {
+                        composer
+                        micButton
+                    }
                     if showSubItems || !draft.subItems.isEmpty { subItemList }
                     saveButton
                     readout
@@ -87,6 +92,9 @@ struct CaptureHomeView: View {
             .sheet(isPresented: $showKindHelp) { NogKindSheet() }
             .sheet(isPresented: $showHowTo) { HowToNogSheet() }
             .sheet(isPresented: $showParentPicker) { CaptureParentPicker(selection: $draft.parentID) }
+            .sheet(item: $voiceNog) { nog in
+                VoiceNogSheet(id: nog.id)
+            }
             // The keyboard opens only when you tap the box (or ask for Quick Capture).
             .onChange(of: router.captureFocusRequest) { focus = .title }
             .nogFeedback(.success, trigger: justNogged.first?.id)
@@ -140,6 +148,26 @@ struct CaptureHomeView: View {
         .opacity(draft.isEmpty ? 0.45 : 1)
         .accessibilityLabel("Save")
         .accessibilityHint(draft.isEmpty ? "Type something first." : "")
+    }
+
+    /// A quiet round mic beside the box. One tap makes a nog and opens it, already recording.
+    /// With words typed, they're the nog's name; without, it's "Voice nog 8:44 AM".
+    /// The tray's choices apply either way.
+    private var micButton: some View {
+        Button {
+            focus = nil
+            if let item = saveNog(forVoice: true) { voiceNog = VoiceNogID(id: item.id) }
+        } label: {
+            Image(systemName: "mic")
+                .nogFont(20, weight: .medium)
+                .foregroundStyle(Theme.pink)
+                .nogFrame(width: 56, height: 56)
+                .nogPanel(cornerRadius: 28)
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Record voice nog")
+        .accessibilityHint("Makes a nog and starts recording.")
     }
 
     /// Sub-nogs typed straight in. Each one has its own line with a remove button, and the
@@ -396,10 +424,15 @@ struct CaptureHomeView: View {
 
     // MARK: Saving
 
-    private func submit() {
-        guard !draft.isEmpty else { return }
+    private func submit() { saveNog(forVoice: false) }
+
+    @discardableResult
+    private func saveNog(forVoice voice: Bool) -> Item? {
+        guard !draft.isEmpty || voice else { return nil }
         let now = Date.now
-        let result = draft.resolved(defaults: defaults, now: now)
+        var result = draft.resolved(defaults: defaults, now: now)
+        // Only a recording: name it for what it is, so it's easy to spot later.
+        if voice, result.title.isEmpty { result.title = VoiceNote.captureTitle(now) }
         let own = draft.choseOwnRhythm(defaults: defaults, now: now)
         let pending = newSubItem.trimmingCharacters(in: .whitespacesAndNewlines)
         let subItems = draft.subItems + (pending.isEmpty ? [] : [pending])
@@ -410,7 +443,7 @@ struct CaptureHomeView: View {
                 for line in subItems { store.capture(line, parent: parent.id, now: now) }
             }
         }
-        guard let item = created else { return }
+        guard let item = created else { return nil }
         var saved = draft
         saved.subItems = subItems
         // The line under the title in the pile: the summary without the title.
@@ -421,12 +454,13 @@ struct CaptureHomeView: View {
         newSubItem = ""
         showSubItems = false
         panel = nil
-        focus = .title // keep the keyboard up for the next thought
+        if !voice { focus = .title } // keep the keyboard up for the next thought
         // Drops in on top of the pile and stays until you leave the tab (no timer to race).
         withNogAnimation {
             justNogged.insert(JustNogged(id: item.id, summary: summary, draft: saved), at: 0)
         }
-        AccessibilityNotification.Announcement("Saved \(result.title), \(summary)").post()
+        if !voice { AccessibilityNotification.Announcement("Saved \(result.title), \(summary)").post() }
+        return item
     }
 
     // MARK: Tray

@@ -9,6 +9,7 @@ A capture-first iPhone app where **every item can nog you, repeatedly, until it'
 - **Things that come back.** "Meds every morning", "bins every tue", "rent every month on the 1st": tap Done and the item moves on to its next time (its sub-nogs reopen too), or tap **Skip this time** on its page. "Every 4 hours" still means how often to remind you until it's done.
 - **Places.** Save Home, Work and others in Settings › Places, then type "bins when I get home" or "buy milk when I leave work". iOS fires the reminder when you arrive or leave (While Using permission only; Nog never tracks you), and from then on it reminds you like anything else until it's done.
 - **First run** explains what Nog does, asks how firm it should be (Gentle, Steady or Relentless) and offers Low stimulation, then asks for notifications and alarms, each with its reason. Existing installs skip it.
+- **Voice nogs.** Tap the mic beside the box on New Nog: a nog opens, already recording, with a timer and a live waveform. Pause, discard or Save. With nothing typed it's named "Voice nog 8:44 AM"; typed words become its name. Any nog's page can hold more recordings under Voice. They're `.m4a` files next to the item's Markdown file, so they sync too.
 - **"Hey Siri, take a Nog"** captures something hands-free (Siri asks what). Settings → Siri & Shortcuts lists every phrase.
 - **Syncs through iCloud Drive.** Each item is a plain Markdown file in *iCloud Drive → Nog → Items*, readable on your Mac too. If iCloud isn't available, files stay on the phone and move to iCloud automatically once it is.
 
@@ -195,6 +196,7 @@ Nog/App                     App entry, notification delegate, background refresh
 Nog/Model                   Item, Markdown file format, capture parser, nog planner
 Nog/Store                   ItemStore (in-memory + Markdown files), Router
 Nog/Notifications           Sync between the plan and iOS's notification center
+Nog/Audio                   Voice note recorder and player
 Nog/Intents                 Siri / Shortcuts / Action Button capture
 Nog/Views                   SwiftUI screens
 NogWidgets                  Live Activity for ▶︎ Doing and the widgets (widget extension)

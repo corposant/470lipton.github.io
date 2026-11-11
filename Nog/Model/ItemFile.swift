@@ -13,6 +13,7 @@ import Foundation
 ///     repeat_minutes: 8
 ///     repeat_curve: logarithmic      (omitted when steady)
 ///     repeats: weekdays:3            (a recurring item: comes back after it's done)
+///     voice: [voice-9A2B….m4a=42]     (recordings next to this file, with their length in seconds)
 ///     ---
 ///     Notes go here. Link to other items with [[Another item]].
 enum ItemFile {
@@ -50,6 +51,10 @@ enum ItemFile {
         if let place = item.place {
             lines.append("place: \(oneLine(place.name))")
             if place.leaving { lines.append("place_leaving: true") }
+        }
+        let voice = item.voiceNotes.filter { VoiceNote.isValidFile($0.file) }
+        if !voice.isEmpty {
+            lines.append("voice: [\(voice.map { "\($0.file)=\($0.seconds)" }.joined(separator: ", "))]")
         }
         lines.append("---")
         return lines.joined(separator: "\n") + "\n" + item.body
@@ -122,6 +127,16 @@ enum ItemFile {
         item.timesDone = fields["times_done"].flatMap { Int($0) }.map { max(0, $0) } ?? 0
         if let name = fields["place"], !name.isEmpty {
             item.place = PlaceTrigger(name: name, leaving: fields["place_leaving"] == "true")
+        }
+        if let raw = fields["voice"] {
+            item.voiceNotes = raw.trimmingCharacters(in: CharacterSet(charactersIn: "[]"))
+                .split(separator: ",")
+                .compactMap { entry -> VoiceNote? in
+                    let parts = entry.split(separator: "=", maxSplits: 1).map { $0.trimmingCharacters(in: .whitespaces) }
+                    guard let file = parts.first, VoiceNote.isValidFile(file) else { return nil }
+                    let seconds = parts.count > 1 ? Int(parts[1]).map { max(0, $0) } ?? 0 : 0
+                    return VoiceNote(file: file, seconds: seconds)
+                }
         }
         return item
     }

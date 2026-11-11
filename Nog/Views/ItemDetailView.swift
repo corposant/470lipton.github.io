@@ -4,10 +4,14 @@ import SwiftUI
 struct ItemDetailView: View {
     @Environment(ItemStore.self) private var store
     let id: UUID
+    /// Opens the recorder at once (a voice nog made from New Nog).
+    var autoRecord = false
+    /// Off inside a sheet that has its own Cancel and Save in the bar.
+    var showsMenu = true
 
     var body: some View {
         if let item = store.items[id] {
-            ItemEditor(item: item)
+            ItemEditor(item: item, autoRecord: autoRecord, showsMenu: showsMenu)
         } else {
             ContentUnavailableView("Item deleted", systemImage: "trash")
         }
@@ -20,6 +24,8 @@ private struct ItemEditor: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.dynamicTypeSize) private var typeSize
     let item: Item
+    var autoRecord = false
+    var showsMenu = true
 
     @State private var newChild = ""
     @FocusState private var childFieldFocused: Bool
@@ -66,13 +72,14 @@ private struct ItemEditor: View {
     private var tint: Color { StatusDial.tint(item.status) }
 
     // The page, top to bottom: where it lives, what it is, its state and the one
-    // thing to do next; then the content (notes, sub-items, tags); details last.
+    // thing to do next; then the content (notes, voice, sub-items, tags); details last.
     var body: some View {
         ScrollViewReader { proxy in
             Form {
                 hero
                 stateSection
                 notesSection(proxy)
+                VoiceNotesSection(item: item, autoRecord: autoRecord)
                 childrenSection
                 tagsSection
                 detailsSection
@@ -84,7 +91,7 @@ private struct ItemEditor: View {
         .listSectionSpacing(14)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) { moreMenu }
+            if showsMenu { ToolbarItem(placement: .topBarTrailing) { moreMenu } }
             // Notes are saved as you type; Done puts the keyboard away and confirms it.
             if notesFocused {
                 ToolbarItemGroup(placement: .keyboard) {

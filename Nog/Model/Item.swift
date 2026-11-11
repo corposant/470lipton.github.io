@@ -20,6 +20,8 @@ struct Item: Identifiable, Hashable {
     var timesDone: Int = 0
     /// "When I get home": reminds you at a saved place (Settings › Places).
     var place: PlaceTrigger?
+    /// Recordings, oldest first (see `VoiceNote`).
+    var voiceNotes: [VoiceNote] = []
 
     // Doing (the ▶︎ button)
     /// When the current working session started (status == .doing).

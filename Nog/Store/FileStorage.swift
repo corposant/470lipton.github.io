@@ -76,6 +76,58 @@ final class FileStorage: @unchecked Sendable {
         }
     }
 
+    /// Moves a finished recording into the items folder, coordinated with iCloud like any write.
+    func move(_ source: URL, to destination: URL) {
+        queue.async {
+            var coordinationError: NSError?
+            NSFileCoordinator(filePresenter: nil).coordinate(
+                writingItemAt: destination, options: .forReplacing, error: &coordinationError) { target in
+                let fm = FileManager.default
+                do {
+                    if fm.fileExists(atPath: target.path) { try fm.removeItem(at: target) }
+                    try fm.moveItem(at: source, to: target)
+                } catch { print("Nog: move failed \(target.lastPathComponent): \(error)") }
+            }
+            if let coordinationError { print("Nog: move coordination failed: \(coordinationError)") }
+        }
+    }
+
+    /// Copies files that aren't there yet from one folder to another (switching to on-phone storage).
+    func copyFiles(_ names: [String], from source: URL, to destination: URL) {
+        guard !names.isEmpty, source.standardizedFileURL != destination.standardizedFileURL else { return }
+        queue.async {
+            let fm = FileManager.default
+            for name in names {
+                let to = destination.appending(path: name)
+                guard !fm.fileExists(atPath: to.path) else { continue }
+                var coordinationError: NSError?
+                NSFileCoordinator(filePresenter: nil).coordinate(
+                    readingItemAt: source.appending(path: name), options: [], error: &coordinationError) { from in
+                    try? fm.copyItem(at: from, to: to)
+                }
+            }
+        }
+    }
+
+    /// Reads a whole file once queued writes have landed. With iCloud, waits for it to download.
+    /// Runs off the write queue, so a slow download never holds up saving.
+    func readData(at url: URL, coordinated: Bool) async -> Data? {
+        await flush()
+        return await withCheckedContinuation { c in
+            DispatchQueue.global(qos: .userInitiated).async {
+                guard coordinated else { return c.resume(returning: try? Data(contentsOf: url)) }
+                try? FileManager.default.startDownloadingUbiquitousItem(at: url)
+                var result: Data?
+                var coordinationError: NSError?
+                NSFileCoordinator(filePresenter: nil).coordinate(
+                    readingItemAt: url, options: [], error: &coordinationError) { target in
+                    result = try? Data(contentsOf: target)
+                }
+                c.resume(returning: result)
+            }
+        }
+    }
+
     /// Waits until every queued write/delete has hit the disk.
     func flush() async {
         await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in queue.async { c.resume() } }
@@ -234,6 +286,17 @@ final class FileStorage: @unchecked Sendable {
             } else {
                 do { try fm.setUbiquitous(true, itemAt: url, destinationURL: destination) }
                 catch { print("Nog: couldn't move \(url.lastPathComponent) to iCloud: \(error)") }
+            }
+        }
+        // Voice notes: each name is unique, so one already in iCloud (even not downloaded) is the same recording.
+        for url in urls where url.pathExtension == VoiceNote.fileExtension {
+            let name = url.lastPathComponent
+            let destination = cloud.appending(path: name)
+            if fm.fileExists(atPath: destination.path) || fm.fileExists(atPath: cloud.appending(path: ".\(name).icloud").path) {
+                try? fm.removeItem(at: url)
+            } else {
+                do { try fm.setUbiquitous(true, itemAt: url, destinationURL: destination) }
+                catch { print("Nog: couldn't move \(name) to iCloud: \(error)") }
             }
         }
     }

@@ -2,6 +2,7 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!-- Apple privacy manifest. Nog doesn't track anyone or collect any data:
      everything stays on the device (or in the person's own iCloud Drive).
+     That includes voice recordings, so audio isn't "collected" data either.
      This lists the "required reason" APIs Nog uses and why. -->
 <plist version="1.0">
 <dict>
