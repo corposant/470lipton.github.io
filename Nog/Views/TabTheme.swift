@@ -55,9 +55,9 @@ extension View {
 // MARK: Settings
 
 /// The gear that opens Settings. Every tab shows it in the same place, the top-right
-/// corner: tabs with a navigation bar use `SettingsToolbarItem` (last in their toolbar,
-/// so it's always the rightmost), and the Map, which hides its bar, ends its header row
-/// with this. RootView owns the sheet, so there's one Settings, whichever tab opens it.
+/// corner, through `SettingsToolbarItem` (last in the toolbar, so it's always the
+/// rightmost), where the bar gives it its glass. RootView owns the sheet, so there's one
+/// Settings, whichever tab opens it.
 struct SettingsButton: View {
     @Environment(Router.self) private var router
 
@@ -77,6 +77,16 @@ struct SettingsButton: View {
 struct SettingsToolbarItem: ToolbarContent {
     var body: some ToolbarContent {
         ToolbarItem(placement: .topBarTrailing) { SettingsButton() }
+    }
+}
+
+extension View {
+    /// Liquid Glass in the same material as the navigation bar's buttons (the Settings
+    /// gear), so controls on the page and in the bar read as one set. `interactive` makes
+    /// it respond to touch like a bar button; leave it off for text fields. Reduce
+    /// Transparency and Increase Contrast are handled by the system's glass.
+    func nogGlass<S: Shape>(in shape: S, interactive: Bool = false) -> some View {
+        glassEffect(interactive ? .regular.interactive() : .regular, in: shape)
     }
 }
 
