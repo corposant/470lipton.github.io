@@ -191,14 +191,16 @@ struct AdaptiveLineLimit: ViewModifier {
 
 // MARK: - Building blocks
 
-/// "DOING NOW 02 ────" label with a trailing hairline. The hairline is the same
-/// length on every heading, so it reads as one mark, not a leftover that shrinks
-/// as the title grows.
+/// "DOING NOW 02 ─ ›› ›› ›› ◀●" label: a short trail, then three little fish
+/// following a big one. The same mark on every heading, so it reads as a motif,
+/// not a leftover line that shrinks as the title grows. Drawn still, never
+/// animated: a page can carry a dozen headings and they shouldn't all be moving.
 struct SectionLabel: View {
     let title: String
     var count: Int? = nil
     var tint: Color = Theme.muted
-    @ScaledMetric(relativeTo: .caption) private var ruleLength: CGFloat = 56
+    /// The lead fish's height; the trail and the little fish scale with it.
+    @ScaledMetric(relativeTo: .caption) private var fishHeight: CGFloat = 9
 
     var body: some View {
         HStack(spacing: 8) {
@@ -211,15 +213,61 @@ struct SectionLabel: View {
                     .font(.nogMeta)
                     .foregroundStyle(Theme.muted)
             }
-            LinearGradient(colors: [Theme.edgeStrong, .clear], startPoint: .leading, endPoint: .trailing)
-                .frame(width: ruleLength, height: 1)
-                .accessibilityHidden(true)
+            HeadingSchool(height: fishHeight, tint: tint)
             Spacer(minLength: 0)
         }
         .textCase(nil)
         .padding(.leading, -4)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isHeader)
+    }
+}
+
+/// A fading trail, three small fish, and the big fish leading them. Decoration only.
+private struct HeadingSchool: View {
+    let height: CGFloat
+    let tint: Color
+
+    var body: some View {
+        let small = height * 0.55
+        HStack(spacing: height * 0.33) {
+            LinearGradient(colors: [.clear, Theme.edgeStrong], startPoint: .leading, endPoint: .trailing)
+                .frame(width: height * 1.5, height: 1)
+            ForEach(0..<3, id: \.self) { _ in fish(small) }
+            fish(height).padding(.leading, height * 0.2)
+        }
+        .accessibilityHidden(true)
+    }
+
+    private func fish(_ h: CGFloat) -> some View {
+        FishShape()
+            .fill(tint, style: FillStyle(eoFill: true))
+            .frame(width: h * 1.8, height: h)
+    }
+}
+
+/// A side-on fish swimming right: forked tail, round body, an eye cut out.
+private struct FishShape: Shape {
+    func path(in r: CGRect) -> Path {
+        let h = r.height
+        func pt(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: r.minX + x * h, y: r.minY + y * h) }
+        var p = Path()
+        // Tail.
+        p.move(to: pt(0, 0.1))
+        p.addLine(to: pt(0.42, 0.5))
+        p.addLine(to: pt(0, 0.9))
+        p.closeSubpath()
+        // Body, from the tail's root round to the snout and back.
+        p.move(to: pt(0.3, 0.5))
+        p.addQuadCurve(to: pt(1.35, 0.12), control: pt(0.75, 0.02))
+        p.addQuadCurve(to: pt(1.8, 0.5), control: pt(1.75, 0.25))
+        p.addQuadCurve(to: pt(1.35, 0.88), control: pt(1.75, 0.75))
+        p.addQuadCurve(to: pt(0.3, 0.5), control: pt(0.75, 0.98))
+        p.closeSubpath()
+        // Eye (even-odd fill makes it a hole).
+        let eye = 0.14 * h
+        p.addEllipse(in: CGRect(x: r.minX + 1.45 * h - eye / 2, y: r.minY + 0.42 * h - eye / 2, width: eye, height: eye))
+        return p
     }
 }
 
