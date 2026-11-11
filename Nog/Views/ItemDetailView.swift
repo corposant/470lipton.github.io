@@ -80,7 +80,6 @@ private struct ItemEditor: View {
                 stateSection
                 notesSection(proxy)
                 childrenSection
-                tagsSection
                 detailsSection
                 linksSection
             }
@@ -144,13 +143,16 @@ private struct ItemEditor: View {
                 TextField("Title", text: binding(\.title), axis: .vertical)
                     .font(.nogTitle(28))
                     .foregroundStyle(item.status == .done ? Theme.muted : .primary)
-                HStack(spacing: 10) {
+                // Status, age and tags share one wrapping row under the title.
+                FlowLayout(spacing: 8) {
                     statusPill
                     Text(metaLine)
                         .font(.nogMeta)
                         .foregroundStyle(Theme.muted)
-                        .nogLineLimit()
+                        .padding(.trailing, 2)
+                    tagChips
                 }
+                tagSuggestions
             }
             .padding(.vertical, 2)
             .listRowBackground(Color.clear)
@@ -400,57 +402,57 @@ private struct ItemEditor: View {
         childFieldFocused = true
     }
 
-    private var tagsSection: some View {
-        Section {
-            FlowLayout(spacing: 8) {
-                ForEach(item.tags, id: \.self) { tag in
-                    TagChip(tag: tag) { removeTag(tag) }
-                }
-                if isAddingTag {
-                    TextField("tag", text: $newTag)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .focused($tagFieldFocused)
-                        .submitLabel(.done)
-                        .onSubmit(addTag)
-                        .frame(width: 110).frame(minHeight: 32)
-                        .padding(.horizontal, 12)
-                        .overlay(Capsule().strokeBorder(Theme.edgeStrong, lineWidth: 1))
-                        .onAppear { tagFieldFocused = true }
-                        // Tapped away with nothing typed: put the field away. With text, keep it
-                        // (and its suggestions) so a tap on a suggestion still lands.
-                        .onChange(of: tagFieldFocused) { _, focused in
-                            if !focused, newTag.trimmingCharacters(in: .whitespaces).isEmpty {
-                                withNogAnimation(.snappy) { isAddingTag = false }
-                            }
-                        }
-                } else {
-                    Button {
-                        withNogAnimation(.snappy) { isAddingTag = true }
-                    } label: {
-                        Text("+ tag")
-                            .font(.subheadline)
-                            .foregroundStyle(Theme.muted)
-                            .padding(.horizontal, 12)
-                            .frame(minHeight: 32)
-                            .overlay(Capsule().strokeBorder(Theme.edgeStrong, style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
+    /// The tag chips and "+ tag", laid out in the hero's status row.
+    @ViewBuilder
+    private var tagChips: some View {
+        ForEach(item.tags, id: \.self) { tag in
+            TagChip(tag: tag) { removeTag(tag) }
+        }
+        if isAddingTag {
+            TextField("tag", text: $newTag)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .focused($tagFieldFocused)
+                .submitLabel(.done)
+                .onSubmit(addTag)
+                .frame(width: 110).frame(minHeight: 32)
+                .padding(.horizontal, 12)
+                .overlay(Capsule().strokeBorder(Theme.edgeStrong, lineWidth: 1))
+                .onAppear { tagFieldFocused = true }
+                // Tapped away with nothing typed: put the field away. With text, keep it
+                // (and its suggestions) so a tap on a suggestion still lands.
+                .onChange(of: tagFieldFocused) { _, focused in
+                    if !focused, newTag.trimmingCharacters(in: .whitespaces).isEmpty {
+                        withNogAnimation(.snappy) { isAddingTag = false }
                     }
-                    .buttonStyle(.borderless)
-                    .accessibilityLabel("Add tag")
                 }
+        } else {
+            Button {
+                withNogAnimation(.snappy) { isAddingTag = true }
+            } label: {
+                Text("+ tag")
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.muted)
+                    .padding(.horizontal, 12)
+                    .frame(minHeight: 32)
+                    .overlay(Capsule().strokeBorder(Theme.edgeStrong, style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
             }
-            .padding(.vertical, 2)
-            if isAddingTag {
-                let suggestions = TagSuggester.suggest(newTag, from: TagSuggester.stats(store.items.values),
-                                                       excluding: Set(item.tags))
-                TagSuggestionStrip(title: newTag.isEmpty ? "Recent" : "Tags", tags: suggestions) { tag in
-                    add(tag)
-                    newTag = ""
-                }
+            .buttonStyle(.borderless)
+            .accessibilityLabel("Add tag")
+        }
+    }
+
+    /// While adding a tag: recent or matching tags to tap.
+    @ViewBuilder
+    private var tagSuggestions: some View {
+        if isAddingTag {
+            let suggestions = TagSuggester.suggest(newTag, from: TagSuggester.stats(store.items.values),
+                                                   excluding: Set(item.tags))
+            TagSuggestionStrip(title: newTag.isEmpty ? "Recent" : "Tags", tags: suggestions) { tag in
+                add(tag)
+                newTag = ""
             }
         }
-        .listRowBackground(Color.clear)
-        .listRowInsets(EdgeInsets(top: 2, leading: 4, bottom: 2, trailing: 4))
     }
 
     /// Return in the tag field: add what's typed and put the field away.
