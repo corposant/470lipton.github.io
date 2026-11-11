@@ -61,12 +61,13 @@ private struct ItemEditor: View {
     private var tint: Color { StatusDial.tint(item.status) }
 
     // The page, top to bottom: where it lives, what it is, its state and the one
-    // thing to do next; then the content (notes, sub-items, tags); details last.
+    // thing to do next; then the content (notes, voice, sub-items, tags); details last.
     var body: some View {
         Form {
             hero
             stateSection
             notesSection
+            VoiceNotesSection(item: item)
             childrenSection
             tagsSection
             detailsSection

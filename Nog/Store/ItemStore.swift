@@ -96,6 +96,33 @@ final class ItemStore {
         storage.write(data: data, to: folder.appending(path: name))
     }
 
+    // MARK: - Voice notes, stored and synced next to the items
+
+    /// Moves a finished recording into the folder and lists it on the item.
+    func attachVoiceNote(_ recording: VoiceRecording, to id: UUID) {
+        guard var item = items[id], VoiceNote.isValidFile(recording.file) else {
+            try? FileManager.default.removeItem(at: recording.url)
+            return
+        }
+        storage.move(recording.url, to: folder.appending(path: recording.file))
+        item.voiceNotes.append(VoiceNote(file: recording.file, seconds: recording.seconds))
+        update(item)
+    }
+
+    func removeVoiceNote(_ file: String, from id: UUID) {
+        guard var item = items[id], item.voiceNotes.contains(where: { $0.file == file }) else { return }
+        item.voiceNotes.removeAll { $0.file == file }
+        update(item)
+        if VoiceNote.isValidFile(file) { storage.delete(folder.appending(path: file)) }
+    }
+
+    /// The recording's audio. From iCloud, this waits for it to download.
+    func voiceNoteData(_ file: String) async -> Data? {
+        guard VoiceNote.isValidFile(file) else { return nil }
+        // Always coordinated: the folder may be iCloud's before the connect at launch finishes.
+        return await storage.readData(at: folder.appending(path: file), coordinated: true)
+    }
+
     // MARK: - iCloud
 
     /// Switches storage to iCloud Drive/Nog/Items if iCloud is available,
@@ -171,8 +198,11 @@ final class ItemStore {
         isUsingICloud = false
         guard wasElsewhere else { return }
         try? FileManager.default.createDirectory(at: local, withIntermediateDirectories: true)
+        let previous = folder
         folder = local
         for item in items.values { write(item) }
+        storage.copyFiles(items.values.flatMap { $0.voiceNotes.map(\.file) }.filter(VoiceNote.isValidFile),
+                          from: previous, to: local)
         await flush()
     }
 
@@ -511,6 +541,9 @@ final class ItemStore {
 
     func delete(_ id: UUID) {
         let wasDoing = items[id]?.isDoing == true
+        for note in items[id]?.voiceNotes ?? [] where VoiceNote.isValidFile(note.file) {
+            storage.delete(folder.appending(path: note.file))
+        }
         items[id] = nil
         pendingWrites[id] = nil
         recentlyDeleted[id] = .now

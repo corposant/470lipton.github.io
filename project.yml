@@ -56,6 +56,7 @@ targets:
           - CFBundleURLName: $(NOG_BUNDLE_ID)
             CFBundleURLSchemes: [nog]
         NSAlarmKitUsageDescription: To ring like an alarm for things you can't miss.
+        NSMicrophoneUsageDescription: To record voice nogs. Recordings stay on your iPhone and in your own iCloud Drive.
         NSLocationWhenInUseUsageDescription: To remind you at places you save, like Home. Your location never leaves your iPhone.
         # Shows the app's iCloud folder as "Nog" in iCloud Drive (Files app, Finder)
         NSUbiquitousContainers:
