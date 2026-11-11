@@ -213,6 +213,8 @@ struct SectionLabel: View {
         }
         .textCase(nil)
         .padding(.leading, -4)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isHeader)
     }
 }
 

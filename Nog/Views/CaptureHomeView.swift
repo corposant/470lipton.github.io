@@ -119,11 +119,17 @@ struct CaptureHomeView: View {
             .lineLimit(1...6)
             .focused($focus, equals: .title)
             .submitLabel(.send)
-            .padding(16)
-            .nogPanel(cornerRadius: 18)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 14)
+            // At least as tall as the mic, so one line is a pill the same height.
+            .frame(minHeight: Self.controlHeight)
+            // Glass like the Settings gear and the mic: a pill on one line, rounding off
+            // into a soft card as it grows.
+            .nogGlass(in: Self.composerShape)
             .overlay {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .strokeBorder(focus == .title ? Theme.violet.opacity(0.55) : .clear, lineWidth: 1)
+                // Shows where you're typing, without relying on the cursor alone.
+                Self.composerShape
+                    .strokeBorder(focus == .title ? Theme.violet.opacity(0.7) : .clear, lineWidth: 1.5)
             }
             // Tab on a keyboard finishes a `!` word (`!unh` → `!unhinged`).
             .onKeyPress(.tab) {
@@ -139,6 +145,10 @@ struct CaptureHomeView: View {
                 }
             }
     }
+
+    /// The text box and the mic share a height, so they line up as a pair.
+    private static let controlHeight: CGFloat = 56
+    private static let composerShape = RoundedRectangle(cornerRadius: 28, style: .continuous)
 
     /// Saves the nog, right under what you typed (Return on the keyboard does the same).
     private var saveButton: some View {
@@ -164,11 +174,12 @@ struct CaptureHomeView: View {
             Image(systemName: "mic")
                 .nogFont(20, weight: .medium)
                 .foregroundStyle(Theme.pink)
-                .nogFrame(width: 56, height: 56)
-                .nogPanel(cornerRadius: 28)
+                .nogFrame(width: Self.controlHeight, height: Self.controlHeight)
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
+        // A true circle of glass, the same material as the Settings gear.
+        .nogGlass(in: Circle(), interactive: true)
         .accessibilityLabel("Record voice nog")
         .accessibilityHint("Makes a nog and starts recording.")
     }
@@ -179,7 +190,7 @@ struct CaptureHomeView: View {
     private var subItemList: some View {
         VStack(alignment: .leading, spacing: 8) {
             SectionLabel(title: subNogCount > 1 ? "Sub-nogs" : "Sub-nog")
-                .accessibilityAddTraits(.isHeader)
+                .padding(.leading, 16) // in from the panel edge, as in the lists on other tabs
             VStack(spacing: 0) {
                 ForEach(Array(draft.subItems.enumerated()), id: \.offset) { index, line in
                     HStack(spacing: 12) {
@@ -299,7 +310,7 @@ struct CaptureHomeView: View {
     private var pile: some View {
         VStack(alignment: .leading, spacing: 8) {
             SectionLabel(title: "Just nogged", count: justNogged.count)
-                .accessibilityAddTraits(.isHeader)
+                .padding(.leading, 16) // in from the panel edge, as in the lists on other tabs
             VStack(spacing: 6) {
                 ForEach(justNogged) { entry in
                     pileRow(entry, isNewest: entry.id == justNogged.first?.id)

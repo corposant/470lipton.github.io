@@ -41,11 +41,8 @@ struct OutlineView: View {
                         OutlineBranch(node: node, expanded: expanded)
                     }
                 } header: {
-                    HStack(spacing: 8) {
-                        Image(systemName: "tray").foregroundStyle(Theme.muted)
-                        Text("UNFILED").font(.nogLabel).tracking(2).foregroundStyle(Theme.muted)
-                        Text(String(format: "%02d", unfiled.count)).font(.nogMeta).foregroundStyle(Theme.muted.opacity(0.7))
-                    }
+                    // The same section title as every other list in the app.
+                    SectionLabel(title: "Unfiled", count: unfiled.count)
                 }
             }
         }
