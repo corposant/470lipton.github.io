@@ -17,7 +17,15 @@ final class NotificationScheduler {
         case morning = "NOG_MORNING"
         case extend = "NOG_EXTEND_10"
         case stopDoing = "NOG_STOP"
+        case start = "NOG_START"
+        case gentler = "NOG_GENTLER"
+        case skipToday = "NOG_SKIP_TODAY"
+        case later = "NOG_LATER"
+        case push = "NOG_PUSH_15"
     }
+
+    /// How far "Push 15 min" on a heads-up moves the start.
+    static let pushMinutes = 15
 
     private let center = UNUserNotificationCenter.current()
     private var running: Task<Void, Never>?
@@ -36,29 +44,47 @@ final class NotificationScheduler {
         guard signature != registeredCategories else { return }
         registeredCategories = signature
 
-        let done = UNNotificationAction(identifier: Action.done.rawValue, title: "Done ✓", options: [])
+        func action(_ action: Action, _ title: String, _ symbol: String,
+                    options: UNNotificationActionOptions = []) -> UNNotificationAction {
+            UNNotificationAction(identifier: action.rawValue, title: title, options: options,
+                                 icon: UNNotificationActionIcon(systemImageName: symbol))
+        }
+        let done = action(.done, "Done", "checkmark")
+        // Starting opens Nog, so the Live Activity and timer start where you can see them.
+        let start = action(.start, "Start", "play.fill", options: .foreground)
+        let later = UNTextInputNotificationAction(
+            identifier: Action.later.rawValue, title: "Later…", options: [],
+            icon: UNNotificationActionIcon(systemImageName: "clock"),
+            textInputButtonTitle: "Set", textInputPlaceholder: "20m, 4pm, tomorrow")
+
         var categories: Set<UNNotificationCategory> = []
         for id in ids {
             let custom = NogPlanner.snoozeSettings(fromCategory: id)
+            let buttons = NogPlanner.profileButtons(fromCategory: id)
             let snoozeMinutes = custom.snooze ?? NogSettings.snoozeMinutes
             let morningMinutes = custom.morning ?? NogSettings.morningMinutes
-            let snooze = UNNotificationAction(identifier: Action.snoozeHour.rawValue,
-                                              title: NogSettings.snoozeLabel(minutes: snoozeMinutes), options: [])
-            let morning = UNNotificationAction(identifier: Action.morning.rawValue,
-                                               title: NogSettings.morningSnoozeLabel(minutes: morningMinutes), options: [])
-            categories.insert(UNNotificationCategory(identifier: id, actions: [done, snooze, morning],
+            var actions = [done, start,
+                           action(.snoozeHour, NogSettings.snoozeLabel(minutes: snoozeMinutes), "zzz")]
+            actions.append(buttons.skipToday
+                ? action(.skipToday, "Skip today", "forward.end")
+                : action(.morning, NogSettings.morningSnoozeLabel(minutes: morningMinutes), "sunrise"))
+            if buttons.gentler { actions.append(action(.gentler, "Gentler", "speaker.wave.1")) }
+            actions.append(later)
+            categories.insert(UNNotificationCategory(identifier: id, actions: actions,
                                                      intentIdentifiers: [], options: []))
         }
-        let doing = UNNotificationCategory(
+        categories.insert(UNNotificationCategory(
+            identifier: NogPlanner.categoryHeadsUp,
+            actions: [action(.start, "Start now", "play.fill", options: .foreground),
+                      action(.push, "Push \(IntervalFormat.amount(Self.pushMinutes))", "clock.arrow.circlepath"),
+                      done],
+            intentIdentifiers: [], options: []))
+        categories.insert(UNNotificationCategory(
             identifier: NogPlanner.categoryDoing,
-            actions: [
-                done,
-                UNNotificationAction(identifier: Action.extend.rawValue, title: "+10 minutes", options: []),
-                UNNotificationAction(identifier: Action.stopDoing.rawValue, title: "Stop for now", options: []),
-            ],
-            intentIdentifiers: [],
-            options: [])
-        categories.insert(doing)
+            actions: [done,
+                      action(.extend, "+10 minutes", "plus"),
+                      action(.stopDoing, "Stop for now", "stop.fill")],
+            intentIdentifiers: [], options: []))
         center.setNotificationCategories(categories)
     }
 
@@ -137,7 +163,8 @@ final class NotificationScheduler {
     private static let signatureKey = "appliedNotificationSignature"
 
     private static var contentSignature: String {
-        "\(NogSettings.playsSound)|\(NogSettings.timeSensitive)|\(NogSettings.showTitles)"
+        // "v2": buttons and banner lines changed, so nogs scheduled by an older build are replaced.
+        "v2|\(NogSettings.playsSound)|\(NogSettings.timeSensitive)|\(NogSettings.showTitles)"
     }
 
     func clearDelivered(for itemID: UUID) async {

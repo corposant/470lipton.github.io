@@ -50,15 +50,41 @@ enum NogPlanner {
     static let categoryDoing = "NOG_DOING"
     /// "Open Nog to keep nogging": no buttons, and nothing about the item in it.
     static let categoryPause = "NOG_PAUSE"
+    /// "Coming up in 5 min": Start now / Push 15 min / Done.
+    static let categoryHeadsUp = "NOG_HEADS"
     static let defaultBudget = 60
 
-    /// The notification category for an item's nogs: "NOG", or e.g. "NOG_S30_M510" when it has
-    /// its own snooze length / morning time, so its notification buttons say the right thing.
+    /// The notification category for an item's nogs: "NOG", or e.g. "NOG_S30_M510_G" when it has
+    /// its own snooze length / morning time, or a profile with its own buttons, so its notification
+    /// buttons say the right thing. "_G": the profile has a Gentler step. "_K": Skip today, not
+    /// Snooze till morning (Daily, Teatime).
     static func category(for reminder: Reminder?) -> String {
         var id = categoryNog
         if let s = reminder?.snoozeMinutes { id += "_S\(s)" }
         if let m = reminder?.morningMinutes { id += "_M\(m)" }
+        if let profile = reminder.flatMap(NogProfile.matching) {
+            if profile.gentler != nil { id += "_G" }
+            if profile.skipsDays { id += "_K" }
+        }
         return id
+    }
+
+    /// Reads a category's profile buttons back.
+    static func profileButtons(fromCategory id: String) -> (gentler: Bool, skipToday: Bool) {
+        let parts = id.split(separator: "_").dropFirst()
+        return (parts.contains("G"), parts.contains("K"))
+    }
+
+    /// The line under a nog's title: its profile's voice, or the plain rhythm for a custom one.
+    static func bannerLine(for r: Reminder) -> String {
+        guard r.repeatMinutes != nil else { return "Reminder" }
+        if let profile = NogProfile.matching(r) { return profile.bannerLine }
+        return r.repeatSummary.map { "Nogging \($0) until done" } ?? "Reminder"
+    }
+
+    /// "Alarm next." / "Alarm after 2 more." for a nog with an alarm coming (ignored nogs escalate).
+    static func alarmCountdown(nogsBeforeAlarm n: Int) -> String {
+        n == 0 ? "Alarm next." : "Alarm after \(n) more."
     }
 
     /// Reads a category back: (snooze minutes, morning minutes), nil where it uses the defaults.
@@ -95,18 +121,19 @@ enum NogPlanner {
             let doing = item.isDoing
             let body = doing
                 ? (item.timeboxMinutes != nil ? "Time's up. Done, or 10 more?" : "Still on it?")
-                : (r.repeatSummary.map { "Nogging \($0) until done" } ?? "Reminder")
+                : bannerLine(for: r)
             let category = doing ? categoryDoing : self.category(for: item.reminder)
             // A change of category (its buttons) must replace already-scheduled nogs.
-            // So does turning Hush on or off (the sound is baked into each request).
+            // So does turning Hush on or off (the sound is baked into each request), or a new banner line.
             let titleTag = stableHash((category == categoryNog || doing ? item.title : item.title + "|" + category)
-                                      + (r.silent ? "|silent" : ""))
+                                      + (r.silent ? "|silent" : "") + "|" + body)
             let base = "\(prefix)\(item.id.uuidString)\(doing ? ".doing" : "")"
 
             func oneShot(_ date: Date, body: String = body, kind: String = "at") -> PlannedNotification {
                 PlannedNotification(identifier: "\(base).\(kind).\(Int(date.timeIntervalSince1970)).\(titleTag)",
                                     itemID: item.id, title: item.title, body: body, trigger: .at(date),
-                                    category: category, isHeadsUp: kind == "heads", silent: r.silent)
+                                    category: kind == "heads" ? categoryHeadsUp : category,
+                                    isHeadsUp: kind == "heads", silent: r.silent)
             }
 
             // Heads-up before a dated nog starts: the global one, plus Building's 15 / 5 / 1 min
@@ -155,9 +182,16 @@ enum NogPlanner {
                     if seen.insert(when).inserted { dates.append(when) }
                     if dates.count > maxFollowUpsPerItem { break }
                 }
-                guard let first = dates.first else { continue } // one-shot already fired
-                primaries.append(oneShot(first))
-                followUps.append(contentsOf: dates.dropFirst().map { oneShot($0) })
+                guard !dates.isEmpty else { continue } // one-shot already fired
+                // With an alarm coming, each nog before it says how many are left.
+                let alarms = ringing.sorted()
+                let nogs = dates.map { date -> PlannedNotification in
+                    guard !doing, let alarm = alarms.first(where: { $0 > date }) else { return oneShot(date) }
+                    let left = dates.filter { $0 > date && $0 < alarm }.count
+                    return oneShot(date, body: alarmCountdown(nogsBeforeAlarm: left), kind: "at\(left)")
+                }
+                primaries.append(nogs[0])
+                followUps.append(contentsOf: nogs.dropFirst())
             }
         }
 
@@ -239,5 +273,34 @@ enum NogPlanner {
             h = h &* 16_777_619
         }
         return String(h, radix: 16)
+    }
+}
+
+/// What you typed into a notification's "Later…" box: a time ("20m", "4pm", "tomorrow", "in an hour")
+/// and/or a profile ("!hush", "!tea"). A bare number is minutes.
+struct LaterReply: Equatable {
+    var start: Date?
+    var profile: NogProfile?
+
+    static func parse(_ text: String, now: Date, calendar: Calendar = .current) -> LaterReply {
+        var reply = LaterReply()
+        var words: [String] = []
+        for word in text.split(whereSeparator: \.isWhitespace).map(String.init) {
+            if let profile = NogProfile.token(word) { reply.profile = profile } else { words.append(word) }
+        }
+        let rest = words.joined(separator: " ")
+        guard !rest.isEmpty else { return reply }
+        if let n = Int(rest), n > 0, n <= 10_000 {
+            reply.start = now.addingTimeInterval(TimeInterval(n * 60))
+            return reply
+        }
+        // "4pm" and "tomorrow" read as they are; "20m" and "an hour" need an "in".
+        for phrase in [rest, "in " + rest] {
+            if let start = NaturalDateParser.parse(phrase, now: now, calendar: calendar).start, start > now {
+                reply.start = start
+                return reply
+            }
+        }
+        return reply
     }
 }

@@ -91,6 +91,34 @@ enum NogProfile: String, CaseIterable, Identifiable {
         }
     }
 
+    /// The line under the title on this profile's notifications.
+    var bannerLine: String {
+        switch self {
+        case .hush: "Quiet nog."
+        case .teatime: "Tea time."
+        case .whisper: "When you're ready."
+        case .daily: "Today's nog."
+        case .easing: "Easing off."
+        case .steady: "Still here."
+        case .building: "Getting louder."
+        case .unhinged: "Not letting this go."
+        }
+    }
+
+    /// One step quieter, for a notification's "Gentler" button. nil on profiles that are already quiet.
+    var gentler: NogProfile? {
+        switch self {
+        case .unhinged: .building
+        case .building: .steady
+        case .steady: .easing
+        case .easing: .whisper
+        case .hush, .teatime, .whisper, .daily: nil
+        }
+    }
+
+    /// Nogs once a day or less: their notifications offer "Skip today" instead of "Snooze till 9 AM".
+    var skipsDays: Bool { self == .daily || self == .teatime }
+
     /// No sound and no Time Sensitive break-through, whatever the global settings say.
     var silent: Bool { self == .hush }
 

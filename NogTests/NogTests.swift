@@ -1323,3 +1323,141 @@ final class ProfileTokenTests: XCTestCase {
         XCTAssertEqual(CaptureCompletion.complete("!w", with: "!whisper"), "!whisper ")
     }
 }
+
+final class NotificationButtonTests: XCTestCase {
+    private let now = Date(timeIntervalSince1970: 1_900_000_000)
+
+    private func reminder(_ profile: NogProfile, startsIn minutes: Double = 60) -> Reminder {
+        profile.apply(to: Reminder(start: now.addingTimeInterval(minutes * 60)))
+    }
+
+    func testCategoryCarriesTheProfilesButtons() {
+        XCTAssertEqual(NogPlanner.category(for: reminder(.unhinged)), "NOG_G")
+        XCTAssertEqual(NogPlanner.category(for: reminder(.daily)), "NOG_K")
+        XCTAssertEqual(NogPlanner.category(for: reminder(.teatime)), "NOG_K")
+        XCTAssertEqual(NogPlanner.category(for: reminder(.hush)), "NOG")
+        XCTAssertEqual(NogPlanner.category(for: reminder(.whisper)), "NOG")
+
+        var custom = reminder(.steady)
+        custom.snoozeMinutes = 30
+        let id = NogPlanner.category(for: custom)
+        XCTAssertEqual(id, "NOG_S30_G")
+        XCTAssertEqual(NogPlanner.snoozeSettings(fromCategory: id).snooze, 30)
+        XCTAssertTrue(NogPlanner.profileButtons(fromCategory: id).gentler)
+        XCTAssertFalse(NogPlanner.profileButtons(fromCategory: id).skipToday)
+        XCTAssertTrue(NogPlanner.profileButtons(fromCategory: "NOG_K").skipToday)
+    }
+
+    func testGentlerStepsDownTheLoudProfilesOnly() {
+        XCTAssertEqual(NogProfile.unhinged.gentler, .building)
+        XCTAssertEqual(NogProfile.building.gentler, .steady)
+        XCTAssertEqual(NogProfile.steady.gentler, .easing)
+        XCTAssertEqual(NogProfile.easing.gentler, .whisper)
+        for quiet in [NogProfile.hush, .teatime, .whisper, .daily] { XCTAssertNil(quiet.gentler) }
+    }
+
+    func testBannerLineIsInTheProfilesVoice() {
+        XCTAssertEqual(NogPlanner.bannerLine(for: reminder(.building)), "Getting louder.")
+        XCTAssertEqual(NogPlanner.bannerLine(for: reminder(.teatime)), "Tea time.")
+        XCTAssertEqual(NogPlanner.bannerLine(for: Reminder(start: now, repeatMinutes: 10)),
+                       "Nogging every 10 min until done")
+        XCTAssertEqual(NogPlanner.bannerLine(for: Reminder(start: now)), "Reminder")
+        let item = Item(title: "x", reminder: reminder(.building))
+        let nogs = NogPlanner.plan(items: [item], now: now).filter { !$0.isHeadsUp }
+        XCTAssertEqual(nogs.first?.body, "Getting louder.")
+    }
+
+    func testHeadsUpsGetTheirOwnButtons() {
+        let item = Item(title: "x", reminder: reminder(.building))
+        let plan = NogPlanner.plan(items: [item], now: now)
+        let headsUps = plan.filter(\.isHeadsUp)
+        XCTAssertEqual(headsUps.count, 3)
+        XCTAssertTrue(headsUps.allSatisfy { $0.category == NogPlanner.categoryHeadsUp })
+        XCTAssertTrue(plan.filter { !$0.isHeadsUp }.allSatisfy { $0.category == "NOG_G" })
+    }
+
+    func testNogsCountDownToTheAlarm() {
+        let r = reminder(.unhinged, startsIn: 10)
+        let item = Item(title: "x", reminder: r)
+        let alarm = r.start.addingTimeInterval(3 * 7 * 60)
+        let plan = NogPlanner.plan(items: [item], now: now, maxFollowUpsPerItem: 4, alarmDates: [item.id: [alarm]])
+            .filter { !$0.isHeadsUp }
+            .sorted { ($0.fireDate ?? .distantPast) < ($1.fireDate ?? .distantPast) }
+        XCTAssertEqual(plan.prefix(4).map(\.body),
+                       ["Alarm after 2 more.", "Alarm after 1 more.", "Alarm next.", "Not letting this go."])
+        XCTAssertFalse(plan.contains { $0.fireDate == alarm })
+        // The countdown stays put as time passes, so pending nogs aren't needlessly replaced.
+        let later = NogPlanner.plan(items: [item], now: now.addingTimeInterval(60), maxFollowUpsPerItem: 4,
+                                    alarmDates: [item.id: [alarm]]).filter { !$0.isHeadsUp }
+        XCTAssertEqual(Set(plan.map(\.identifier)), Set(later.map(\.identifier)))
+    }
+
+    func testLaterReplyReadsTimesAndProfiles() {
+        XCTAssertEqual(LaterReply.parse("20", now: now).start, now.addingTimeInterval(20 * 60))
+        XCTAssertEqual(LaterReply.parse("20m", now: now).start, now.addingTimeInterval(20 * 60))
+        XCTAssertEqual(LaterReply.parse("in 2 hours", now: now).start, now.addingTimeInterval(2 * 3600))
+        let hush = LaterReply.parse("!hush", now: now)
+        XCTAssertEqual(hush.profile, .hush)
+        XCTAssertNil(hush.start)
+        let both = LaterReply.parse("1h !tea", now: now)
+        XCTAssertEqual(both.profile, .teatime)
+        XCTAssertEqual(both.start, now.addingTimeInterval(3600))
+        XCTAssertEqual(LaterReply.parse("whatever", now: now), LaterReply())
+        XCTAssertNotNil(LaterReply.parse("tomorrow", now: now).start)
+    }
+}
+
+@MainActor
+final class NotificationButtonStoreTests: XCTestCase {
+    private func store() -> ItemStore {
+        ItemStore(folder: FileManager.default.temporaryDirectory.appending(path: UUID().uuidString),
+                  schedulesNotifications: false)
+    }
+
+    func testGentlerMovesOneProfileQuieterAndStartsOver() throws {
+        let store = store()
+        let item = Item(title: "x", reminder: NogProfile.unhinged.apply(to: Reminder(start: .now.addingTimeInterval(-3600))))
+        store.insert(item)
+        store.makeGentler(item.id)
+        let r = try XCTUnwrap(store.items[item.id]?.reminder)
+        XCTAssertEqual(NogProfile.matching(r), .building)
+        XCTAssertGreaterThan(r.start, .now.addingTimeInterval(25 * 60))
+
+        var quiet = Item(title: "y", reminder: NogProfile.whisper.reminder())
+        store.insert(quiet)
+        quiet = try XCTUnwrap(store.items[quiet.id])
+        store.makeGentler(quiet.id)
+        XCTAssertEqual(store.items[quiet.id], quiet, "Whisper has nowhere quieter to go")
+    }
+
+    func testSkipTodayKeepsTheTimeOfDay() throws {
+        let store = store()
+        let calendar = Calendar.current
+        let item = Item(title: "x", reminder: NogProfile.daily.apply(to: Reminder(start: .now.addingTimeInterval(60))))
+        store.insert(item)
+        let start = try XCTUnwrap(store.items[item.id]?.reminder?.start)
+        store.skipToday(item.id)
+        let next = try XCTUnwrap(store.items[item.id]?.reminder?.start)
+        XCTAssertGreaterThanOrEqual(next, calendar.startOfDay(for: calendar.date(byAdding: .day, value: 1, to: .now)!))
+        XCTAssertEqual(calendar.component(.minute, from: next), calendar.component(.minute, from: start))
+    }
+
+    func testLaterWithAProfileSwitchesIt() throws {
+        let store = store()
+        let item = Item(title: "x", reminder: NogProfile.unhinged.reminder())
+        store.insert(item)
+        store.nogLater(item.id, reply: "30m !hush")
+        let r = try XCTUnwrap(store.items[item.id]?.reminder)
+        XCTAssertEqual(NogProfile.matching(r), .hush)
+        XCTAssertEqual(r.start.timeIntervalSinceNow, 30 * 60, accuracy: 5)
+    }
+
+    func testLaterThatMakesNoSenseStillSnoozes() throws {
+        let store = store()
+        let item = Item(title: "x", reminder: NogProfile.steady.reminder())
+        store.insert(item)
+        store.nogLater(item.id, reply: "purple")
+        let start = try XCTUnwrap(store.items[item.id]?.reminder?.start)
+        XCTAssertEqual(start.timeIntervalSinceNow, TimeInterval(NogSettings.snoozeMinutes * 60), accuracy: 5)
+    }
+}

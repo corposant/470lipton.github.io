@@ -94,12 +94,13 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         completionHandler([.banner, .list, .sound])
     }
 
-    /// Done / Snooze / Tomorrow buttons, or a tap on the notification itself.
+    /// A notification's buttons (Done, Start, Snooze, Gentler, Later…), or a tap on the notification itself.
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter,
                                             didReceive response: UNNotificationResponse,
                                             withCompletionHandler completionHandler: @escaping () -> Void) {
         let idString = response.notification.request.content.userInfo[NotificationScheduler.itemIDKey] as? String
         let action = response.actionIdentifier
+        let typed = (response as? UNTextInputNotificationResponse)?.userText ?? ""
         Task { @MainActor in
             if let idString, let id = UUID(uuidString: idString) {
                 let store = ItemStore.shared
@@ -115,6 +116,18 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
                     store.extend(id, minutes: 10)
                 case NotificationScheduler.Action.stopDoing.rawValue:
                     store.stopDoing(id)
+                case NotificationScheduler.Action.start.rawValue:
+                    store.start(id)
+                    Router.shared.open(id)
+                case NotificationScheduler.Action.gentler.rawValue:
+                    store.makeGentler(id)
+                case NotificationScheduler.Action.skipToday.rawValue:
+                    store.skipToday(id)
+                case NotificationScheduler.Action.later.rawValue:
+                    store.nogLater(id, reply: typed)
+                case NotificationScheduler.Action.push.rawValue:
+                    let start = max(store.items[id]?.reminder?.start ?? .now, .now)
+                    store.snooze(id, until: start.addingTimeInterval(TimeInterval(NotificationScheduler.pushMinutes * 60)))
                 case UNNotificationDefaultActionIdentifier:
                     Router.shared.open(id)
                 default:
