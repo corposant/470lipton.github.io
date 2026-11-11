@@ -509,6 +509,50 @@ final class ItemStore {
         update(item)
     }
 
+    // MARK: - Notification buttons
+
+    /// "Gentler": the next quieter profile (Unhinged → Building → Steady → Easing → Whisper),
+    /// starting over from now so the new rhythm begins at its own first gap.
+    func makeGentler(_ id: UUID, now: Date = .now) {
+        guard var item = items[id], item.isOpen, let r = item.reminder,
+              let quieter = NogProfile.matching(r)?.gentler else { return }
+        var gentler = quieter.apply(to: r)
+        gentler.start = quieter.firstStart(from: now)
+        if item.parentID != nil { gentler.followsParent = false }
+        item.reminder = gentler
+        clearDelivered(id)
+        update(item)
+    }
+
+    /// "Skip today": nothing more today, back at its usual time on its next day.
+    /// A recurring to-do skips to its next occurrence instead.
+    func skipToday(_ id: UUID, now: Date = .now, calendar: Calendar = .current) {
+        guard let item = items[id] else { return }
+        if item.recurrence != nil { return skipOccurrence(id) }
+        guard let r = item.reminder,
+              let tomorrow = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now)),
+              let next = r.nextFire(after: tomorrow.addingTimeInterval(-1)) else { return }
+        snooze(id, until: next)
+    }
+
+    /// "Later…": a typed time ("20m", "4pm", "tomorrow") and/or profile ("!hush").
+    /// Anything it can't read snoozes for the usual length, so the nog is never lost.
+    func nogLater(_ id: UUID, reply: String, now: Date = .now) {
+        guard var item = items[id] else { return }
+        let later = LaterReply.parse(reply, now: now)
+        if let profile = later.profile, item.isOpen {
+            var r = profile.apply(to: item.reminder ?? profile.reminder(from: now))
+            r.start = later.start ?? profile.firstStart(from: now)
+            if item.parentID != nil { r.followsParent = false }
+            item.reminder = r
+            clearDelivered(id)
+            update(item)
+            return
+        }
+        let minutes = NogSettings.snoozeLength(for: item)
+        snooze(id, until: later.start ?? now.addingTimeInterval(TimeInterval(minutes * 60)))
+    }
+
     func delete(_ id: UUID) {
         let wasDoing = items[id]?.isDoing == true
         items[id] = nil
