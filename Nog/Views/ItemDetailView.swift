@@ -32,6 +32,11 @@ private struct ItemEditor: View {
     @State private var newTag = ""
     @State private var isAddingTag = false
     @FocusState private var tagFieldFocused: Bool
+    @FocusState private var notesFocused: Bool
+    @State private var notesCommitted = 0
+    /// Notes grow with the text up to this height, then scroll inside themselves,
+    /// so the caret is never pushed under the keyboard.
+    @ScaledMetric(relativeTo: .body) private var notesMaxHeight: CGFloat = 240
     @State private var showBreakdown = false
     @State private var showParentPicker = false
     @State private var showNogSheet = false
@@ -69,22 +74,35 @@ private struct ItemEditor: View {
     // The page, top to bottom: where it lives, what it is, its state and the one
     // thing to do next; then the content (notes, voice, sub-items, tags); details last.
     var body: some View {
-        Form {
-            hero
-            stateSection
-            notesSection
-            VoiceNotesSection(item: item, autoRecord: autoRecord)
-            childrenSection
-            tagsSection
-            detailsSection
-            linksSection
+        ScrollViewReader { proxy in
+            Form {
+                hero
+                stateSection
+                notesSection(proxy)
+                VoiceNotesSection(item: item, autoRecord: autoRecord)
+                childrenSection
+                tagsSection
+                detailsSection
+                linksSection
+            }
+            .scrollDismissesKeyboard(.interactively)
         }
         .nogListStyle()
         .listSectionSpacing(14)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             if showsMenu { ToolbarItem(placement: .topBarTrailing) { moreMenu } }
+            // Notes are saved as you type; Done puts the keyboard away and confirms it.
+            if notesFocused {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") { commitNotes() }
+                        .fontWeight(.semibold)
+                        .accessibilityHint("Saves the notes and hides the keyboard")
+                }
+            }
         }
+        .nogFeedback(.success, trigger: notesCommitted)
         .sheet(isPresented: $showParentPicker) {
             ParentPicker(item: item)
         }
@@ -255,14 +273,34 @@ private struct ItemEditor: View {
 
     // MARK: Content
 
-    private var notesSection: some View {
+    private static let notesAnchor = "notes"
+
+    private func commitNotes() {
+        notesFocused = false
+        notesCommitted += 1
+        AccessibilityNotification.Announcement("Notes saved").post()
+    }
+
+    private func notesSection(_ proxy: ScrollViewProxy) -> some View {
         Section {
             TextEditor(text: binding(\.body))
-                .frame(minHeight: 120)
+                .focused($notesFocused)
+                .frame(minHeight: 120, maxHeight: notesMaxHeight)
                 .scrollContentBackground(.hidden)
+                // As the notes grow a line, keep their bottom edge (and so the caret)
+                // above the keyboard instead of letting it slide underneath.
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { _ in
+                    guard notesFocused else { return }
+                    withAnimation(.snappy) { proxy.scrollTo(Self.notesAnchor, anchor: .bottom) }
+                }
+                .onChange(of: notesFocused) { _, focused in
+                    guard focused else { return }
+                    withAnimation(.snappy) { proxy.scrollTo(Self.notesAnchor, anchor: .bottom) }
+                }
+                .id(Self.notesAnchor)
                 .overlay(alignment: .topLeading) {
                     if item.body.isEmpty {
-                        Text(verbatim: "Notes. [[Title]] links a nog.")
+                        Text(verbatim: "[[Title]] links a nog.")
                             .italic()
                             .foregroundStyle(Theme.muted.opacity(0.6))
                             .padding(.top, 8)

@@ -18,12 +18,21 @@ struct CaptureHomeView: View {
     @State private var showParentPicker = false
     /// The voice nog just made with the mic, open in its sheet.
     @State private var voiceNog: VoiceNogID?
-    @State private var confirmation: (text: String, id: UUID)?
+    /// What you've saved since opening the tab, newest first. Clears when you leave the tab.
+    @State private var justNogged: [JustNogged] = []
     /// Apple's Siri tip ("Say 'Take a Nog'"); hidden for good once dismissed.
     @AppStorage("siriTip.capture") private var showSiriTip = true
     @FocusState private var focus: Field?
 
     private enum Field: Hashable { case title, subItem, tag }
+
+    /// One saved nog in the "Just nogged" pile, with what's needed to undo it.
+    struct JustNogged: Identifiable, Equatable {
+        let id: UUID
+        let summary: String
+        /// The draft as it was, so Undo can put it back in the box.
+        let draft: CaptureDraft
+    }
     enum TrayPanel: Hashable {
         case when, kind, tags
 
@@ -50,6 +59,7 @@ struct CaptureHomeView: View {
                     if showSubItems || !draft.subItems.isEmpty { subItemList }
                     saveButton
                     readout
+                    if !justNogged.isEmpty { pile }
                     if draft.isEmpty && focus == nil {
                         hint
                         SiriTipView(intent: CaptureIntent(), isVisible: $showSiriTip)
@@ -83,11 +93,19 @@ struct CaptureHomeView: View {
             .sheet(isPresented: $showHowTo) { HowToNogSheet() }
             .sheet(isPresented: $showParentPicker) { CaptureParentPicker(selection: $draft.parentID) }
             .sheet(item: $voiceNog) { nog in
-                VoiceNogSheet(id: nog.id) { confirmation = nil }
+                VoiceNogSheet(id: nog.id)
             }
             // The keyboard opens only when you tap the box (or ask for Quick Capture).
             .onChange(of: router.captureFocusRequest) { focus = .title }
-            .nogFeedback(.success, trigger: confirmation?.id)
+            .nogFeedback(.success, trigger: justNogged.first?.id)
+            // The pile is for this visit; leaving the tab starts fresh.
+            .onChange(of: router.tab) { _, tab in
+                if tab != .capture { justNogged = [] }
+            }
+            // Drop anything deleted elsewhere (from its detail page, say).
+            .onChange(of: store.items.count) {
+                justNogged.removeAll { store.items[$0.id] == nil }
+            }
         }
     }
 
@@ -112,7 +130,6 @@ struct CaptureHomeView: View {
                 return .handled
             }
             .onChange(of: draft.text) {
-                if !draft.text.isEmpty { confirmation = nil }
                 // Return sends (a multi-line field otherwise inserts a newline).
                 if draft.text.hasSuffix("\n") {
                     draft.text.removeLast()
@@ -262,7 +279,7 @@ struct CaptureHomeView: View {
         focus = .subItem
     }
 
-    /// Live read-back of what will be saved, or the last capture's confirmation.
+    /// Live read-back of what will be saved.
     @ViewBuilder
     private var readout: some View {
         if !draft.isEmpty {
@@ -273,18 +290,95 @@ struct CaptureHomeView: View {
                 .tracking(0.4)
                 .foregroundStyle(Theme.blue)
                 .padding(.horizontal, 6)
-        } else if let confirmation {
-            Button {
-                router.push(confirmation.id)
-            } label: {
-                Text(confirmation.text + "  ›")
-                    .font(.nogMeta)
-                    .foregroundStyle(Theme.muted)
+        }
+    }
+
+    /// Everything saved this visit, newest on top. Tap one to open it; the newest has Undo.
+    private var pile: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionLabel(title: "Just nogged", count: justNogged.count)
+                .accessibilityAddTraits(.isHeader)
+            VStack(spacing: 6) {
+                ForEach(justNogged) { entry in
+                    pileRow(entry, isNewest: entry.id == justNogged.first?.id)
+                        .transition(.nog(.move(edge: .top).combined(with: .opacity)))
+                }
+            }
+        }
+    }
+
+    private func pileRow(_ entry: JustNogged, isNewest: Bool) -> some View {
+        let title = store.items[entry.id]?.title ?? entry.draft.text
+        return HStack(spacing: 10) {
+            Button { router.push(entry.id) } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(Theme.teal)
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(title)
+                            .foregroundStyle(.primary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Text(entry.summary)
+                            .font(.nogMeta)
+                            .foregroundStyle(Theme.muted)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    if !isNewest {
+                        Image(systemName: "chevron.right")
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(Theme.muted)
+                            .accessibilityHidden(true)
+                    }
+                }
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .padding(.horizontal, 6)
-            .transition(.opacity)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("\(title), \(entry.summary)")
+            .accessibilityHint("Opens it")
+            if isNewest {
+                Button { undo(entry) } label: {
+                    Text("Undo")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Theme.teal)
+                        .padding(.horizontal, 12)
+                        .frame(minHeight: 32)
+                        .overlay(Capsule().strokeBorder(Theme.teal.opacity(0.7), lineWidth: 1))
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Undo \(title)")
+                .accessibilityHint("Deletes it and puts the text back")
+            }
         }
+        .padding(.leading, 14)
+        .padding(.trailing, 6)
+        .padding(.vertical, 4)
+        .nogPanel(cornerRadius: 14)
+        .overlay {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(isNewest ? Theme.teal.opacity(0.6) : .clear, lineWidth: 1)
+        }
+    }
+
+    /// Deletes the newest nog (and its sub-nogs) and puts what you typed back in the box.
+    private func undo(_ entry: JustNogged) {
+        store.batch {
+            for child in store.children(of: entry.id) { store.delete(child.id) }
+            store.delete(entry.id)
+        }
+        withNogAnimation {
+            justNogged.removeAll { $0.id == entry.id }
+            draft = entry.draft
+            newSubItem = ""
+            showSubItems = !entry.draft.subItems.isEmpty
+        }
+        focus = .title
+        AccessibilityNotification.Announcement("Undone. \(entry.draft.text) is back in the box.").post()
     }
 
     private var hint: some View {
@@ -350,16 +444,22 @@ struct CaptureHomeView: View {
             }
         }
         guard let item = created else { return nil }
+        var saved = draft
+        saved.subItems = subItems
+        // The line under the title in the pile: the summary without the title.
+        let full = Self.summary(result, subItems: subItems.count, parent: nil)
+        let lead = (result.title.isEmpty ? "Untitled" : result.title) + " · "
+        let summary = full.hasPrefix(lead) ? String(full.dropFirst(lead.count)) : full
         draft = CaptureDraft()
         newSubItem = ""
         showSubItems = false
         panel = nil
         if !voice { focus = .title } // keep the keyboard up for the next thought
-        // Stays until you start the next one (no timer to race), and VoiceOver hears it.
+        // Drops in on top of the pile and stays until you leave the tab (no timer to race).
         withNogAnimation {
-            confirmation = ("✓ Saved · " + Self.summary(result, subItems: subItems.count, parent: nil).uppercased(), item.id)
+            justNogged.insert(JustNogged(id: item.id, summary: summary, draft: saved), at: 0)
         }
-        if !voice { AccessibilityNotification.Announcement("Saved \(result.title)").post() }
+        if !voice { AccessibilityNotification.Announcement("Saved \(result.title), \(summary)").post() }
         return item
     }
 
@@ -401,21 +501,32 @@ struct CaptureHomeView: View {
                          isOn: draft.parentID != nil, isOpen: false) { showParentPicker = true }
                         .accessibilityLabel(draft.parentID.flatMap { store.items[$0]?.title }.map { "Linked to \($0)" } ?? "Link")
                         .accessibilityHint("Puts it inside another nog")
-                    if focus != nil {
-                        Button {
-                            focus = nil
-                            panel = nil
-                        } label: {
-                            Image(systemName: "keyboard.chevron.compact.down")
-                                .frame(width: 40, height: 36)
-                        }
-                        .buttonStyle(.borderless)
-                        .accessibilityLabel("Hide keyboard")
-                    }
                 }
                 .padding(.horizontal, 12)
             }
             .padding(.vertical, 8)
+            // Done stays pinned outside the scrolling chips, so it's always on screen.
+            .safeAreaInset(edge: .trailing, spacing: 0) {
+                if focus != nil {
+                    Button {
+                        focus = nil
+                        panel = nil
+                    } label: {
+                        Text("Done")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Theme.base)
+                            .padding(.horizontal, 14)
+                            .frame(minHeight: 36)
+                            .background(Theme.teal, in: Capsule())
+                            .frame(minHeight: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.trailing, 12)
+                    .padding(.leading, 4)
+                    .accessibilityHint("Hides the keyboard")
+                }
+            }
             .background(.bar)
         }
         .nogAnimation(.snappy, value: panel)
