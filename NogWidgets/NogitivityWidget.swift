@@ -57,6 +57,14 @@ struct NogitivityEntry: TimelineEntry {
             .min { ($0.when(at: date) ?? .distantFuture) < ($1.when(at: date) ?? .distantFuture) }
     }
 
+    /// Nogs on today: doing, nogging, or due later today (the Lock Screen's count).
+    var todayCount: Int {
+        (snapshot?.entries ?? []).filter { item in
+            item.isDoing || (item.isOpen && (item.isNogging(at: date)
+                || item.when(at: date).map { Calendar.current.isDate($0, inSameDayAs: date) } == true))
+        }.count
+    }
+
     var showsTitlesOnLockScreen: Bool { snapshot?.showTitlesOnLockScreen ?? true }
 }
 
@@ -663,31 +671,46 @@ private struct LockRectangular: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 1) {
             if let item = entry.doing {
-                Text("▶ \(entry.lockTitle(item).uppercased())")
-                    .font(.system(size: 11, weight: .semibold)).lineLimit(1).widgetAccentable()
+                header("▶ \(entry.lockTitle(item).uppercased())")
                 timerLine(item)
                     .font(.system(size: 20, weight: .medium, design: .monospaced))
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
             } else if !entry.nogging.isEmpty {
-                Text("NOW").font(.system(size: 11, weight: .semibold)).widgetAccentable()
+                header("NOW")
                 ForEach(entry.nogging.prefix(2)) { item in
                     Text("· \(entry.lockTitle(item))").font(.system(size: 13)).lineLimit(1)
                 }
             } else if let next = entry.nextNog, let when = next.when(at: entry.date) {
-                Text("NEXT NOG · \(when.formatted(date: .omitted, time: .shortened))")
-                    .font(.system(size: 11, weight: .semibold)).lineLimit(1).widgetAccentable()
+                header("NEXT · \(when.formatted(date: .omitted, time: .shortened))")
                 Text(entry.lockTitle(next)).font(.system(size: 14, weight: .semibold)).lineLimit(1)
                 if let detail = detail(next) {
                     Text(detail).font(.system(size: 11)).lineLimit(1)
                 }
             } else {
-                Text("DOING").font(.system(size: 11, weight: .semibold)).widgetAccentable()
+                header("NOG")
                 Text("Nothing nogging").font(.system(size: 14, weight: .semibold))
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .widgetURL(entry.doing.flatMap { itemURL($0.id) })
+    }
+
+    /// The carton, the state ("NOW", "NEXT · 12:40 PM") and how many nogs are on today.
+    private func header(_ text: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 4) {
+            Image("Carton").resizable().scaledToFit()
+                .frame(width: 12, height: 12)
+                .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 1.5 }
+                .accessibilityHidden(true)
+            Text(text).font(.system(size: 11, weight: .semibold)).lineLimit(1)
+            Spacer(minLength: 4)
+            Text("\(entry.todayCount) today")
+                .font(.system(size: 11, weight: .semibold)).monospacedDigit()
+                .lineLimit(1).layoutPriority(1)
+                .accessibilityLabel(entry.todayCount == 1 ? "1 nog today" : "\(entry.todayCount) nogs today")
+        }
+        .widgetAccentable()
     }
 
     /// "12:04 of 25".
