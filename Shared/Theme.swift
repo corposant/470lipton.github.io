@@ -191,11 +191,14 @@ struct AdaptiveLineLimit: ViewModifier {
 
 // MARK: - Building blocks
 
-/// "DOING NOW 02 ────────" label with a trailing hairline.
+/// "DOING NOW 02 ────" label with a trailing hairline. The hairline is the same
+/// length on every heading, so it reads as one mark, not a leftover that shrinks
+/// as the title grows.
 struct SectionLabel: View {
     let title: String
     var count: Int? = nil
     var tint: Color = Theme.muted
+    @ScaledMetric(relativeTo: .caption) private var ruleLength: CGFloat = 56
 
     var body: some View {
         HStack(spacing: 8) {
@@ -209,7 +212,9 @@ struct SectionLabel: View {
                     .foregroundStyle(Theme.muted)
             }
             LinearGradient(colors: [Theme.edgeStrong, .clear], startPoint: .leading, endPoint: .trailing)
-                .frame(height: 1)
+                .frame(width: ruleLength, height: 1)
+                .accessibilityHidden(true)
+            Spacer(minLength: 0)
         }
         .textCase(nil)
         .padding(.leading, -4)
