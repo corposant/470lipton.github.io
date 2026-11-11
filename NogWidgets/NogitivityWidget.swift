@@ -14,7 +14,7 @@ struct NogitivityWidget: Widget {
         AppIntentConfiguration(kind: Self.kind, intent: NogitivityConfiguration.self, provider: NogitivityProvider()) { entry in
             NogitivityView(entry: entry)
         }
-        .configurationDisplayName("Nogitivity")
+        .configurationDisplayName("Nog")
         .description("Pick a nog and start it. While you're on it, see the timer.")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge,
                             .accessoryCircular, .accessoryRectangular, .accessoryInline])
@@ -144,7 +144,7 @@ private let captureURL = URL(string: "nog://capture")
 private struct NotSetUp: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("▶ NOGITIVITY").font(W.label()).tracking(1.8).foregroundStyle(Theme.blue)
+            Text("▶ DOING").font(W.label()).tracking(1.8).foregroundStyle(Theme.blue)
             Text("Open Nog once to see your nogs here.")
                 .font(.system(size: 13.5, weight: .medium))
             Spacer(minLength: 0)
@@ -221,7 +221,7 @@ private struct TimerWidget: View {
 
     private var header: some View {
         HStack(alignment: .firstTextBaseline) {
-            Text("▶ NOGITIVITY").font(W.label(family == .systemSmall ? 9.5 : 11)).tracking(1.8).foregroundStyle(Theme.blue)
+            Text("▶ DOING").font(W.label(family == .systemSmall ? 9.5 : 11)).tracking(1.8).foregroundStyle(Theme.blue)
             Spacer(minLength: 4)
             if family != .systemSmall, let box = item.timeboxMinutes {
                 Text("\(box) MIN BOX").font(.nogMeta).foregroundStyle(Theme.muted)
@@ -561,7 +561,7 @@ private struct PickWidget: View {
     }
 }
 
-/// "NOGGING SINCE 8:10 AM · ~10 MIN", "TODAY 3:00 PM", "LOOSE NOG".
+/// "NOGGING SINCE 8:10 AM · ~10 MIN", "TODAY 3:00 PM", "NO REMINDER".
 private struct HeroDetail: View {
     let item: WidgetSnapshot.Entry
     let date: Date
@@ -576,14 +576,14 @@ private struct HeroDetail: View {
     private var text: String {
         var parts: [String] = []
         if item.isDream {
-            parts.append("DREAM NOG")
+            parts.append("SOMEDAY")
         } else if item.isNogging(at: date), let start = item.start {
             parts.append((item.alarm ? "ALARM SINCE " : "NOGGING SINCE ") + Self.moment(start, from: date))
         } else if let when = item.when(at: date) {
             let day = Calendar.current.isDate(when, inSameDayAs: date) ? "TODAY " : ""
             parts.append(day + Self.moment(when, from: date))
         } else {
-            parts.append("LOOSE NOG")
+            parts.append("NO REMINDER")
         }
         if let box = item.suggestedMinutes { parts.append("~\(IntervalLabel.amount(box).uppercased())") }
         return parts.joined(separator: " · ")
@@ -789,7 +789,7 @@ private struct LockRectangular: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
             } else if !entry.nogging.isEmpty {
-                Text("NOGGING NOW").font(.system(size: 11, weight: .semibold)).widgetAccentable()
+                Text("NOW").font(.system(size: 11, weight: .semibold)).widgetAccentable()
                 ForEach(entry.nogging.prefix(2)) { item in
                     Text("· \(entry.lockTitle(item))").font(.system(size: 13)).lineLimit(1)
                 }
@@ -801,7 +801,7 @@ private struct LockRectangular: View {
                     Text(detail).font(.system(size: 11)).lineLimit(1)
                 }
             } else {
-                Text("NOGITIVITY").font(.system(size: 11, weight: .semibold)).widgetAccentable()
+                Text("DOING").font(.system(size: 11, weight: .semibold)).widgetAccentable()
                 Text("Nothing nogging").font(.system(size: 14, weight: .semibold))
             }
         }

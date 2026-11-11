@@ -261,11 +261,11 @@ struct CaptureHomeView: View {
 
     private var hint: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Type anything, like \"call mom tomorrow 9am #family !2h\". Dates, #tags and !shortcuts work anywhere in the line, or use the tray below.")
+            Text("Type it the way you'd say it, like \"call mom tomorrow at 3\" or \"meds every morning\". Or pick options from the tray below.")
                 .font(.callout)
                 .foregroundStyle(Theme.muted)
             Button { showHowTo = true } label: {
-                Label("How to Nog", systemImage: "questionmark.circle")
+                Label("How to use Nog", systemImage: "questionmark.circle")
                     .font(.callout.weight(.medium))
                     .foregroundStyle(Theme.violet)
             }
@@ -277,6 +277,7 @@ struct CaptureHomeView: View {
         var parts = [result.title.isEmpty ? "Untitled" : result.title]
         if let r = result.reminder {
             parts.append(Self.whenText(r.start, now: .now))
+            if let rec = result.recurrence { parts.append("repeats \(rec.summary)") }
             parts.append(r.alarm ? "alarm" : "nog")
             if let every = r.repeatSummary { parts.append(every) }
         } else {
@@ -681,9 +682,14 @@ private struct CaptureParentPicker: View {
     }
 }
 
-/// New Nog · Agenda · List · Map. Each tab has its own accent colour (see TabTheme.swift).
+/// New Nog · List, plus Map when it's switched on. Each tab has its own accent colour (see TabTheme.swift).
 struct RootView: View {
     @Environment(Router.self) private var router
+    @Environment(ItemStore.self) private var store
+    @AppStorage(OnboardingView.doneKey) private var onboardingDone = false
+    @AppStorage(AppTab.mapTabKey) private var showMapTab = false
+    /// First-run setup waits until we know this isn't an existing install.
+    @State private var checkedFirstRun = false
 
     var body: some View {
         @Bindable var router = router
@@ -691,20 +697,41 @@ struct RootView: View {
             Tab(AppTab.capture.title, systemImage: "plus.circle", value: AppTab.capture) {
                 CaptureHomeView().nogTabTheme(.capture)
             }
-            Tab(AppTab.agenda.title, systemImage: "calendar", value: AppTab.agenda) {
-                AgendaView().nogTabTheme(.agenda)
-            }
             Tab(AppTab.nogs.title, image: "TabCarton", value: AppTab.nogs) {
                 NogsTab().nogTabTheme(.nogs)
             }
-            Tab(AppTab.map.title, systemImage: "point.3.connected.trianglepath.dotted", value: AppTab.map) {
-                MapTab().nogTabTheme(.map)
+            // The mind map is for people who want it: Settings › Advanced › Map tab.
+            if showMapTab {
+                Tab(AppTab.map.title, systemImage: "point.3.connected.trianglepath.dotted", value: AppTab.map) {
+                    MapTab().nogTabTheme(.map)
+                }
             }
+        }
+        .onChange(of: showMapTab) { _, on in
+            if !on && router.tab == .map { router.tab = .nogs }
         }
         // The selected tab lights up in that tab's colour.
         .tint(router.tab.accent)
         .tabBarMinimizeBehavior(.onScrollDown)
         .sheet(isPresented: $router.showSilenceSheet) { SilenceSheet() }
         .sheet(isPresented: $router.showSettings) { SettingsView() }
+        // First run only: what Nog does, how firm, and permissions with their reasons.
+        .fullScreenCover(isPresented: Binding(get: { checkedFirstRun && !onboardingDone },
+                                              set: { if !$0 { onboardingDone = true } })) {
+            OnboardingView()
+        }
+        .task {
+            // Anyone who used Nog before first-run setup existed skips it.
+            if !onboardingDone {
+                await store.refresh()
+                let status = await NotificationScheduler.shared.authorizationStatus()
+                if !store.items.isEmpty || status != .notDetermined {
+                    onboardingDone = true
+                    // Existing installs keep the Map tab they had.
+                    if UserDefaults.standard.object(forKey: AppTab.mapTabKey) == nil { showMapTab = true }
+                }
+            }
+            checkedFirstRun = true
+        }
     }
 }

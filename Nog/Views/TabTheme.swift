@@ -12,6 +12,9 @@ extension Theme {
 }
 
 extension AppTab {
+    /// Settings › Advanced › Map tab. Off for new installs; existing ones keep it.
+    static let mapTabKey = "showMapTab"
+
     /// The page title, which matches the tab bar label.
     var title: String {
         switch self {

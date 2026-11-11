@@ -1,11 +1,11 @@
 import AppIntents
 import SwiftUI
 
-/// The List tab (carton icon): everything, sorted by time, or as an outline of what's
-/// inside what.
+/// The List tab (carton icon): everything, sorted by time; the week ahead, as a calendar
+/// would show it; or an outline of what's inside what.
 struct NogsTab: View {
     enum Mode: String, CaseIterable {
-        case byTime = "By time", outline = "Outline"
+        case byTime = "By time", week = "Week", outline = "Outline"
     }
 
     @Environment(Router.self) private var router
@@ -34,6 +34,10 @@ struct NogsTab: View {
                 // A search always lists matching items, whichever view you're on.
                 if mode == .outline && search.isEmpty {
                     OutlineView(showNogged: outlineShowsDone)
+                } else if mode == .week && search.isEmpty {
+                    TimelineView(MinuteSchedule.forItems(store.items.values)) { context in
+                        AgendaList(now: context.date)
+                    }
                 } else {
                     TimelineView(MinuteSchedule.forItems(store.items.values)) { context in
                         ItemListView(now: context.date, search: search, selection: $selection)
@@ -79,7 +83,7 @@ struct NogsTab: View {
                             }
                             .accessibilityLabel(outlineShowsDone ? "Hide done items" : "Show done items")
                         }
-                    } else {
+                    } else if mode == .byTime {
                         ToolbarItem(placement: .topBarTrailing) {
                             Button("Select") {
                                 withNogAnimation(.snappy) { editMode = .active }
@@ -172,7 +176,9 @@ struct ItemListView: View {
                 .sorted { $0.reminder!.start < $1.reminder!.start }
             let laterToday = upcoming.filter { Calendar.current.isDate($0.reminder!.start, inSameDayAs: now) }
             let onDeck = upcoming.filter { !Calendar.current.isDate($0.reminder!.start, inSameDayAs: now) }
-            let ideas = open.filter { $0.reminder == nil }
+            let atPlace = open.filter { $0.reminder == nil && $0.place != nil }
+                .sorted { $0.created < $1.created }
+            let ideas = open.filter { $0.reminder == nil && $0.place == nil }
                 .sorted { $0.updated > $1.updated }
             let someday = all.filter { $0.status == .someday && !caughtIDs.contains($0.id) }
                 .sorted { $0.updated > $1.updated }
@@ -189,15 +195,16 @@ struct ItemListView: View {
                                 .listRowInsets(EdgeInsets(top: 4, leading: 4, bottom: 4, trailing: 4))
                         }
                     } header: {
-                        SectionLabel(title: "Nogitivity", tint: Theme.blue)
+                        SectionLabel(title: "Doing", tint: Theme.blue)
                     }
                 }
                 section("Just caught", justCaught, stats: stats)
-                section("Nogging now", due, stats: stats)
+                section("Now", due, stats: stats)
                 section("Later today", laterToday, stats: stats)
-                section("Nogs next", onDeck, stats: stats)
-                section("Loose nogs", ideas, stats: stats)
-                section("Dream nogs", someday, stats: stats, dreamy: true)
+                section("Upcoming", onDeck, stats: stats)
+                section("At a place", atPlace, stats: stats)
+                section("No reminder", ideas, stats: stats)
+                section("Someday", someday, stats: stats, dreamy: true)
                 if !done.isEmpty {
                     Section {
                         DisclosureGroup {
@@ -329,7 +336,8 @@ struct ItemRow: View {
             Image(systemName: r.alarm ? "alarm" : "bell")
                 .foregroundStyle(r.isActive(at: now) ? Theme.pink : Theme.violet)
         } else {
-            Image(systemName: "lightbulb").foregroundStyle(Theme.muted)
+            Image(systemName: item.place != nil && item.isOpen ? "location" : "lightbulb")
+                .foregroundStyle(item.place != nil && item.isOpen ? Theme.violet : Theme.muted)
         }
     }
 
@@ -342,6 +350,11 @@ struct ItemRow: View {
         let childCount = counts.total
         var parts: [String] = []
         if let text = reminderText { parts.append(text) }
+        if let recurrence = item.recurrence, item.status != .done { parts.append("comes back \(recurrence.summary)") }
+        if let place = item.place, item.isOpen {
+            parts.append("reminds you \(place.phrase)"
+                         + (PlaceBook.place(named: place.name) == nil ? " (set it up in Settings › Places)" : ""))
+        }
         if item.isDoing, let end = item.timeboxEnd {
             parts.append(end > now ? "Doing · \(end.formatted(.relative(presentation: .named))) left" : "Doing · time's up")
         } else if item.isDoing {

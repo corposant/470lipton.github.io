@@ -48,7 +48,7 @@ enum NogSettings {
 
     static var captureDefaults: CaptureDefaults {
         CaptureDefaults(firstDelayMinutes: firstDelayMinutes, repeatMinutes: repeatMinutes, curve: curve,
-                        escalateAfter: defaultEscalateAfter, silent: silent)
+                        escalateAfter: defaultEscalateAfter, silent: silent, places: PlaceBook.savedNames)
     }
 
     static var defaultReminderFromNow: Reminder {

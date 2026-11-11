@@ -6,6 +6,9 @@ A capture-first iPhone app where **every item can nog you, repeatedly, until it'
 - **Capture is instant.** The app opens with the keyboard already up. Type, hit return, and keep typing.
 - **Every capture gets a default nog** (out of the box: first nog 15 min after capture, then every 8 min until done). You can change that in Settings, or per item.
 - **Nogs repeat forever.** They don't stop after one or two. Each nog has **Done ✓ / Snooze 1 hour / Tomorrow morning** buttons right on the notification. With quiet hours, a timed silence or alarms in play, iOS only lets Nog line up the next few hours of nogs at a time; if you don't open Nog before they run out, one last notification asks you to, so they never just stop.
+- **Things that come back.** "Meds every morning", "bins every tue", "rent every month on the 1st": tap Done and the item moves on to its next time (its sub-nogs reopen too), or tap **Skip this time** on its page. "Every 4 hours" still means how often to remind you until it's done.
+- **Places.** Save Home, Work and others in Settings › Places, then type "bins when I get home" or "buy milk when I leave work". iOS fires the reminder when you arrive or leave (While Using permission only; Nog never tracks you), and from then on it reminds you like anything else until it's done.
+- **First run** explains what Nog does, asks how firm it should be (Gentle, Steady or Relentless) and offers Low stimulation, then asks for notifications and alarms, each with its reason. Existing installs skip it.
 - **"Hey Siri, take a Nog"** captures something hands-free (Siri asks what). Settings → Siri & Shortcuts lists every phrase.
 - **Syncs through iCloud Drive.** Each item is a plain Markdown file in *iCloud Drive → Nog → Items*, readable on your Mac too. If iCloud isn't available, files stay on the phone and move to iCloud automatically once it is.
 
@@ -33,8 +36,8 @@ As you type, a line above the capture field shows how Nog understood it. A day w
 - **Text size and contrast.** Every font follows the iPhone's text size (Settings → Accessibility → Display & Text Size → Larger Text), and rows, chips and buttons stack instead of cutting text off at the largest sizes. Text colours meet WCAG AA contrast (4.5:1) in Light and Dark. **Increase Contrast** switches to stronger colours and a plain background, and **Reduce Transparency** drops the haze and grid. `NogTests/AccessibilityTests.swift` checks the contrast ratios.
 - **Calm** (Control Panel): **Low stimulation** turns off glows, the background haze and grid, motion and vibration in one switch, and **Vibration** turns off just the haptics. Nog also follows the iOS **Reduce Motion** setting: no springs or slides, and panels fade in instead of moving.
 - **Two app icons**, both a nog carton with the light-and-spectrum motif: Comix (inked and cross-hatched on cream) and Neon (neon-hatched on charcoal), switchable in the Control Panel. Sources and the generator are in `design/carton/` (`python3 make4.py`, then `node render.js <name>`).
-- **Nogs & alerts** (Control Panel): defaults for new captures, **quiet hours** (optionally all weekend), a **heads-up** before dated nogs, **ring as an alarm after N ignored nogs**, snooze length, what "morning" means, Time Sensitive, sound, **hide titles on the Lock Screen**, and an app icon badge. **Nogitivity**: default timebox, how often "time's up" repeats, the open-ended check-in, and the Live Activity on/off.
-- **Control Panel** (gear icon): appearance, app icon, **storage (iCloud Drive or on this iPhone)**, nog defaults, Doing timebox, capture shortcuts, alerts & permissions, and Siri phrases.
+- **Timing & alerts** (Settings › Advanced): a custom default rhythm, a **heads-up** before dated nogs, **ring as an alarm after N ignored nogs**, snooze length, what "morning" means, Time Sensitive, sound, **hide titles on the Lock Screen**, and an app icon badge. **Doing**: default timebox, how often "time's up" repeats, the open-ended check-in, and the Live Activity on/off.
+- **Settings** (gear icon, top right on every tab) leads with what people change: **How firm** (Whisper, Steady, Building, Unhinged, with More styles for the rest), **Quiet hours** and **Silence**, **Calm**, **Places** and **How to use Nog**. Everything else is under **Advanced**: timing and alerts, the Doing timer, the Map tab, appearance and app icon, storage, permissions, and Siri phrases.
 
 ## iOS 27 features
 
@@ -44,31 +47,32 @@ As you type, a line above the capture field shows how Nog understood it. A day w
 - **Ring like an alarm.** Flip it on per item, or type `!alarm`, and that item's nogs become real AlarmKit alarms. They break through Silent mode and Focus, take over the Lock Screen and your Watch, with **Stop** (silence this ring; nogs continue) and **Done** (finish the item). Regular nogs take over again after the scheduled alarms run out.
 - **Break it down.** On-device Apple Intelligence (Foundation Models) suggests 3–7 concrete first steps for any item, and you pick which ones become sub-nogs. It runs only on Apple Intelligence devices, and nothing leaves the phone.
 
-## Four tabs
+## Tabs
 
-Each tab has its own colour (New Nog pink, Agenda violet, List blue, Map teal), used for its title, its buttons and a soft haze in the background. The colour is only a hint: every tab is also named in its title and on the tab bar. Titles are Futura and grow with your text size.
+Each tab has its own colour (New Nog pink, List blue, Map teal), used for its title, its buttons and a soft haze in the background. The colour is only a hint: every tab is also named in its title and on the tab bar. Titles are Futura and grow with your text size.
 
 - **New Nog** (where Nog opens): one text box for the thought, with its options in a tray on the keyboard.
-- **Agenda**: only what has a time, from now through the coming week.
-- **List**: everything, in two views you switch between at the top.
+- **List**: everything, in three views you switch between at the top.
   - **By time:** the full overview, with the sections below.
+  - **Week:** only what has a time, from now through the coming week (this used to be the Agenda tab).
   - **Outline:** each folder is a collapsible section, sub-folders collapse inside it, and anything not connected sits under **Unfiled**. What you've collapsed is remembered. The ✓ button shows or hides finished items.
-- **Map**: see your data as a mind map.
+- **Map** (opt-in: Settings › Advanced › Map tab; off for new installs, kept on for existing ones): see your data as a mind map.
   Every item is a node. **Tap a node to select it**: it lights up and its details slide up from the bottom; tap it again to open it. **Only a selected node can be dragged** (a drag anywhere else pans), so nothing moves by accident. To file it, hold it over another node until that one glows, then let go. Every move and filing shows an Undo, and VoiceOver users get Move, File into… and Take out actions on each node. A node with things connected under it *is* a folder, shown with a folder icon. Long-press a node to take it out of its folder, open it, or start it. Solid lines show what's filed where; dashed lines show `[[links]]`. Each #tag gets a coloured zone. Tap the wand to **tidy up**: overlaps go, stray sub-nogs come back to their folder, and anything you placed by hand stays put. Tap it again and nothing moves: it is already tidy. Touch and hold the wand for whole-page layouts: Stars, Mind map, By tag or Web. The grid button next to it lines everything up in even rows and columns. Chips flock to their new spots (or simply appear there with Reduce Motion or Low stimulation), and Undo puts everything back. Tap ✏︎ to scribble with finger or Pencil. Positions and scribbles are saved in `_nogmap.json` next to your items, so they sync too.
 
 ## The list
 
 | Section | What's in it |
 |---|---|
-| **Nogitivity** | what you've hit ▶︎ on, with its live timer |
-| **Nogging now** | reminders firing right now |
-| **Later today** | nogs that start later today |
-| **Nogs next** | tomorrow and beyond |
-| **Loose nogs** | no reminder: ideas, concepts, notes |
-| **Dream nogs** | someday / maybe |
+| **Doing** | what you've hit ▶︎ on, with its live timer |
+| **Now** | reminders firing right now |
+| **Later today** | reminders that start later today |
+| **Upcoming** | tomorrow and beyond |
+| **At a place** | waiting for you to get somewhere |
+| **No reminder** | ideas, concepts, notes |
+| **Someday** | someday / maybe |
 | **Done** | finished, kept for reference |
 
-## ▶︎ Doing a nog (Nogitivity)
+## ▶︎ Doing something
 
 Every nog has a play button. Tap it and the nog becomes **Doing**, the thing you're working on right now:
 
@@ -78,14 +82,14 @@ Every nog has a play button. Tap it and the nog becomes **Doing**, the thing you
 - **Finishing keeps the item.** Done items stay with their notes, sub-nogs and the time you spent ("took 40 min"). That history makes future timeboxes smarter. **Stop** puts it back to Open and keeps the time.
 - **Siri:** *"Start write report in Nog."*
 
-### Nogitivity widgets
+### Widgets
 
-Add **Nogitivity** to your Home Screen (small, medium or large) or Lock Screen (circle, rectangle or the line above the clock).
+Add **Nog** to your Home Screen (small, medium or large) or Lock Screen (circle, rectangle or the line above the clock).
 
 - **Nothing on:** most of the widget is for acting. The nog that matters most right now sits up front with big **▶︎ Start** (showing the timebox Nog would pick) and **✓ Done** buttons, plus **Later** on the large size. **+ Take a Nog** opens New Nog. The rest of the widget lists what else is about now, each with a **▶︎** (and **✓** on the large size). Buttons work without opening the app; tap a title to open it. When nothing is due, it says you're clear and offers **Take a Nog**.
 - **While you're doing something:** it turns into the timer, with **✓ Done / +10 min / Stop**. The medium size adds a timebox bar, and the large one shows the item's sub-nogs and what's up next.
 - **Lock Screen:** a ring that fills as the timebox runs (or how many are nogging), the timer with "of 25", or the next nog. Titles hide when **Show titles on Lock Screen** is off.
-- **Press and hold › Edit Widget** to choose what it offers: one or more **Lists** (**Now**, the default: nogging now plus the rest of today; or Nogging now, Today, Agenda, Loose nogs, Dream nogs), **Only #tag**, or **Pick nogs** one by one from everything outstanding. **Show the timer while I'm doing something** can be switched off for a pure list.
+- **Press and hold › Edit Widget** to choose what it offers: one or more **Lists** (**Now**, the default: what's due now plus the rest of today; or Due now, Today, This week, No reminder, Someday), **Only #tag**, or **Pick nogs** one by one from everything outstanding. **Show the timer while I'm doing something** can be switched off for a pure list.
 
 The widgets read a small summary the app writes to a shared App Group whenever your nogs change, so open Nog once after installing.
 
@@ -159,9 +163,9 @@ Run the tests with **⌘U**.
 
 **Getting updates:** run `./update.sh` in the Nog folder. It pulls the latest code and re-runs `xcodegen`, which you need whenever new files are added. If Xcode asks, choose **Read From Disk**.
 
-**iCloud sync:** still switched off in `project.yml`, so items live on the phone (Files → On My iPhone → Nog). To turn it on, uncomment the three iCloud lines under `entitlements:` and run `./update.sh`. Nog moves your items into iCloud Drive on its next launch. The container is `iCloud.com.ticknor.nog`.
+**iCloud sync:** on. Items (and your saved places, in `_places.json`) live in iCloud Drive → Nog, so they're backed up and visible on your Mac. Xcode's automatic signing registers the container `iCloud.com.ticknor.nog` on the first build. If iCloud isn't available, items stay on the phone and move to iCloud on a later launch.
 
-**Widgets and the App Group:** the Nogitivity widgets share data with the app through an App Group (`group.<your bundle id>`), which `project.yml` adds to both targets. Xcode's automatic signing registers it on the first build with a paid account. If your team can't use App Groups, delete the two `com.apple.security.application-groups` entitlements in `project.yml` and re-run `xcodegen`: everything else still works, and the widgets just say "Open Nog once".
+**Widgets and the App Group:** the widgets share data with the app through an App Group (`group.<your bundle id>`), which `project.yml` adds to both targets. Xcode's automatic signing registers it on the first build with a paid account. If your team can't use App Groups, delete the two `com.apple.security.application-groups` entitlements in `project.yml` and re-run `xcodegen`: everything else still works, and the widgets just say "Open Nog once".
 
 **Free vs paid developer account:** with a free (personal team) account the app stops opening after **7 days** and you have to press ⌘R again. With the paid program ($99/yr) it lasts a year and you can use TestFlight. To check which you have, go to developer.apple.com/account. If you see a **Membership** section with a renewal date, you're on the paid program.
 
@@ -193,7 +197,7 @@ Nog/Store                   ItemStore (in-memory + Markdown files), Router
 Nog/Notifications           Sync between the plan and iOS's notification center
 Nog/Intents                 Siri / Shortcuts / Action Button capture
 Nog/Views                   SwiftUI screens
-NogWidgets                  Live Activity for ▶︎ Doing and the Nogitivity widgets (widget extension)
+NogWidgets                  Live Activity for ▶︎ Doing and the widgets (widget extension)
 Shared                      Code compiled into both the app and NogWidgets
 NogTests                    Unit tests for the model and planner
 design/AppIcon.svg          Source for the app icon

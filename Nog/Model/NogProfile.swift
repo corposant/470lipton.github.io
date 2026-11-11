@@ -119,6 +119,9 @@ enum NogProfile: String, CaseIterable, Identifiable {
         }
     }
 
+    /// The four shown first; the rest are under More styles.
+    static let mainCases: [NogProfile] = [.whisper, .steady, .building, .unhinged]
+
     /// Capture tokens: `!hush`, `!whisper`, `!daily`, `!easing`, `!steady`, `!building`,
     /// `!hyperfocus`, `!unhinged`, or the first few letters of one (`!unh`, `!hyp`, `!bui`).
     /// `!gentle` still means Whisper, and `!break` means Hyperfocus.

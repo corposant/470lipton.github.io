@@ -9,7 +9,7 @@ enum NogListChoice: String, AppEnum {
 
     static var typeDisplayRepresentation: TypeDisplayRepresentation = "Nog List"
     static var caseDisplayRepresentations: [NogListChoice: DisplayRepresentation] = [
-        // Plain words first; the in-app names ("Nogging now", "Loose nogs",
+        // Plain words first; the in-app names ("Now", "No reminder",
         // "Nogitivity") still work as synonyms.
         .now: DisplayRepresentation(title: "what's next",
                                     synonyms: ["next", "now", "right now", "nogging now", "what's due"]),

@@ -439,7 +439,7 @@ private struct ItemEditor: View {
                 Button {
                     showNogSheet = true
                 } label: {
-                    LabeledContent("Nog me", value: item.status.pausedReason)
+                    LabeledContent("Reminders", value: item.status.pausedReason)
                 }
                 .foregroundStyle(.primary)
             }
@@ -556,19 +556,35 @@ private struct NextNogCard: View {
                         .foregroundStyle(Theme.blue)
                 }
                 rhythmRow(reminder.repeatSummary.map { "then \($0)" } ?? "once, no repeat", reminder: reminder)
+                if let recurrence = item.recurrence { recurrenceRow(recurrence, start: reminder.start) }
             } else if let reminder = item.reminder {
                 // A one-off that has already gone off.
-                PanelLabel(text: "Nogged you at \(reminder.start.formatted(date: .omitted, time: .shortened))")
+                PanelLabel(text: "Reminded you at \(reminder.start.formatted(date: .omitted, time: .shortened))")
                 rhythmRow("no repeat · tap to pick a new time", reminder: reminder)
+            } else if let place = item.place {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        PanelLabel(text: "Waiting for a place", tint: Theme.violet)
+                        Text("Reminds you \(place.phrase), then keeps reminding until it's done.")
+                        if PlaceBook.place(named: place.name) == nil {
+                            Text("Nog doesn't know where \(place.name) is yet. Add it in Settings › Places.")
+                                .font(.subheadline)
+                                .foregroundStyle(Theme.pink)
+                        }
+                    }
+                    Spacer()
+                    Button("Change…", action: edit)
+                        .buttonStyle(OutlineButtonStyle(tint: Theme.violet, expands: false))
+                }
             } else {
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
-                        PanelLabel(text: "Not nogging")
-                        Text("No reminder on this one.")
+                        PanelLabel(text: "No reminder")
+                        Text("This one never reminds you.")
                             .foregroundStyle(Theme.muted)
                     }
                     Spacer()
-                    Button("Nog me…", action: edit)
+                    Button("Remind me…", action: edit)
                         .buttonStyle(OutlineButtonStyle(tint: Theme.pink, expands: false))
                 }
             }
@@ -603,6 +619,25 @@ private struct NextNogCard: View {
         .accessibilityHint("Change how this nogs you")
     }
 
+    /// "Comes back every day at 8:00 AM · done 12 times", and a way to skip this time.
+    private func recurrenceRow(_ recurrence: Recurrence, start: Date) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Image(systemName: "repeat").foregroundStyle(Theme.violet)
+                .accessibilityHidden(true)
+            Text("Comes back \(recurrence.summary(at: start))"
+                 + (item.timesDone > 0 ? " · done \(item.timesDone) time\(item.timesDone == 1 ? "" : "s")" : ""))
+                .foregroundStyle(Color(white: 0.85))
+            Spacer()
+            Button("Skip this time") { store.skipOccurrence(item.id) }
+                .font(.subheadline)
+                .buttonStyle(.borderless)
+                .tint(Theme.violet)
+                .accessibilityHint("Moves it to its next time without counting it as done")
+        }
+        .font(.subheadline)
+        .nogLineLimit(2, accessibilityLines: 4)
+    }
+
     /// "in 12 min", "in 3h 5m", "now"
     static func countdown(to date: Date, now: Date) -> String {
         let minutes = Int((date.timeIntervalSince(now) / 60).rounded(.up))
@@ -620,8 +655,8 @@ private struct DreamCard: View {
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                PanelLabel(text: "Dreaming", tint: Theme.violet)
-                Text("Parked in Dream nogs. No nogs.")
+                PanelLabel(text: "Someday", tint: Theme.violet)
+                Text("Parked in Someday. No reminders.")
                     .foregroundStyle(Theme.muted)
             }
             Spacer()

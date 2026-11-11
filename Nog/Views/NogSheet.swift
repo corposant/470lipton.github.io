@@ -9,6 +9,8 @@ struct NogSheet: View {
     let id: UUID
     @State private var showCalendar = false
     @State private var showKindHelp = false
+    @State private var showMoreStyles = false
+    @State private var showFineTune = false
 
     private var item: Item? { store.items[id] }
 
@@ -85,18 +87,20 @@ struct NogSheet: View {
                     }
                     .listRowBackground(Theme.glass)
 
+                    placeSection(item)
                     if let reminder = item.reminder {
                         familySection(item, reminder)
                         profileSection(reminder)
                         whenSection(reminder)
-                        rhythmSection(reminder)
+                        comesBackSection(item, reminder)
                         snoozeSection(item, reminder)
                         previewSection(item, reminder)
+                        fineTuneSection(item, reminder)
                     }
                 }
             }
             .nogListStyle()
-            .navigationTitle("Nog me")
+            .navigationTitle("Reminders")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -149,9 +153,12 @@ struct NogSheet: View {
         let current = NogProfile.matching(reminder)
         // Four across normally; two by two at the accessibility text sizes so names fit.
         let columns = Array(repeating: GridItem(.flexible(), spacing: 6), count: typeSize.isAccessibilitySize ? 2 : 4)
+        // The main four; the rest behind More styles (or shown if this item already uses one).
+        let shown = showMoreStyles ? NogProfile.allCases
+            : NogProfile.mainCases + (current.map { NogProfile.mainCases.contains($0) ? [] : [$0] } ?? [])
         return Section {
             LazyVGrid(columns: columns, spacing: 6) {
-                ForEach(NogProfile.allCases) { profile in
+                ForEach(shown) { profile in
                     let isOn = profile == current
                     let tint = profile == .unhinged || profile == .hyperfocus ? Theme.pink : Theme.violet
                     Button {
@@ -179,10 +186,16 @@ struct NogSheet: View {
                     .accessibilityHint(profile.summary)
                 }
             }
+            Button(showMoreStyles ? "Fewer styles" : "More styles") {
+                withNogAnimation(.snappy) { showMoreStyles.toggle() }
+            }
+            .font(.subheadline)
+            .buttonStyle(.borderless)
+            .tint(Theme.violet)
         } header: {
-            SectionLabel(title: "How hard")
+            SectionLabel(title: "How firm")
         } footer: {
-            Text(current?.summary ?? "Custom rhythm. Pick a profile to reset it.")
+            Text(current?.summary ?? "Custom rhythm. Pick a style to reset it.")
         }
         .listRowBackground(Color.clear)
         // Room from the row's rounded corners, which would otherwise clip the outer cards.
@@ -268,11 +281,118 @@ struct NogSheet: View {
         return Date(timeIntervalSinceReferenceDate: (now.timeIntervalSinceReferenceDate / step).rounded(.up) * step)
     }
 
+    // MARK: Where
+
+    /// "When I get home": a saved place, arriving or leaving.
+    private func placeSection(_ item: Item) -> some View {
+        let places = PlaceBook.shared.places
+        var names: [String] = places.map(\.name)
+        if let p = item.place, !places.contains(where: { $0.name.caseInsensitiveCompare(p.name) == .orderedSame }) {
+            names.append(p.name)
+        }
+        return Section {
+            Picker("Remind me at", selection: Binding<String?>(
+                get: { item.place?.name },
+                set: { name in
+                    guard var current = store.items[id] else { return }
+                    current.place = name.map { PlaceTrigger(name: $0, leaving: current.place?.leaving ?? false) }
+                    store.update(current)
+                })) {
+                Text("No place").tag(String?.none)
+                ForEach(names, id: \.self) { Text($0).tag(String?.some($0)) }
+            }
+            if let place = item.place {
+                Picker("When I", selection: Binding(
+                    get: { place.leaving },
+                    set: { leaving in
+                        guard var current = store.items[id] else { return }
+                        current.place?.leaving = leaving
+                        store.update(current)
+                    })) {
+                    Text("Arrive").tag(false)
+                    Text("Leave").tag(true)
+                }
+                .pickerStyle(.segmented)
+            }
+        } header: {
+            SectionLabel(title: "Where")
+        } footer: {
+            if places.isEmpty {
+                Text("Save places like Home or Work in Settings › Places, then type “when I get home” or pick one here.")
+            } else {
+                Text("Reminds you when you get there (or leave), then keeps reminding until it's done.")
+            }
+        }
+        .listRowBackground(Theme.glass)
+    }
+
+    // MARK: Comes back
+
+    /// A to-do that returns after it's done: meds every morning, bins every Tuesday.
+    private func comesBackSection(_ item: Item, _ reminder: Reminder) -> some View {
+        let choices = Recurrence.choices(for: reminder.start)
+        let all = item.recurrence.map { current in choices.contains(current) ? choices : [current] + choices } ?? choices
+        return Section {
+            Picker("Comes back", selection: Binding<Recurrence?>(
+                get: { item.recurrence },
+                set: { new in
+                    guard var current = store.items[id] else { return }
+                    current.recurrence = new
+                    if let new, var r = current.reminder {
+                        r.start = new.aligned(r.start)
+                        current.reminder = r
+                    }
+                    store.update(current)
+                })) {
+                Text("Never (a one-off)").tag(Recurrence?.none)
+                ForEach(all, id: \.self) { Text($0.summary.prefix(1).uppercased() + $0.summary.dropFirst()).tag(Recurrence?.some($0)) }
+            }
+        } header: {
+            SectionLabel(title: "Comes back")
+        } footer: {
+            Text(item.recurrence == nil
+                 ? "For things you do again and again, like meds or bins. Done moves it to its next time instead of finishing it."
+                 : "Done moves it to its next time, and its sub-nogs reopen for then.")
+        }
+        .listRowBackground(Theme.glass)
+    }
+
+    // MARK: Fine-tune
+
+    /// Exact gaps, style and snooze lengths: tucked away, since a style covers most needs.
+    private func fineTuneSection(_ item: Item, _ reminder: Reminder) -> some View {
+        let morningMinutes = reminder.morningMinutes ?? NogSettings.morningMinutes
+        return Section {
+            DisclosureGroup(isExpanded: $showFineTune) {
+                rhythmRows(reminder)
+                Picker("Snooze for", selection: Binding(
+                    get: { reminder.snoozeMinutes ?? 0 },
+                    set: { minutes in edit { $0.snoozeMinutes = minutes > 0 ? minutes : nil } })) {
+                    Text("Default (\(IntervalFormat.amount(NogSettings.snoozeMinutes)))").tag(0)
+                    ForEach(Array(Set(NogSettings.snoozeChoices + [reminder.snoozeMinutes ?? 5])).sorted(), id: \.self) {
+                        Text(IntervalFormat.amount($0)).tag($0)
+                    }
+                }
+                TimeTunerRow(title: "Morning snooze until", minutes: Binding(
+                    get: { morningMinutes },
+                    set: { minutes in
+                        // Same as the default: follow the default (so changing it in Settings still applies).
+                        edit { $0.morningMinutes = minutes == NogSettings.morningMinutes ? nil : minutes }
+                    }))
+            } label: {
+                Text("Fine-tune")
+            }
+        } footer: {
+            Text("Exact timing and snooze lengths for this item. Changing them makes its style Custom.")
+        }
+        .listRowBackground(Theme.glass)
+    }
+
     // MARK: Rhythm
 
-    private func rhythmSection(_ reminder: Reminder) -> some View {
-        Section {
-            Picker("Repeat", selection: Binding(
+    @ViewBuilder
+    private func rhythmRows(_ reminder: Reminder) -> some View {
+            Picker("Remind every", selection: Binding(
                 get: { reminder.repeatMinutes ?? 0 },
                 set: { minutes in edit { $0.repeatMinutes = minutes > 0 ? minutes : nil } })) {
                 ForEach(Array(Set(NogSettings.repeatChoices + [reminder.repeatMinutes ?? 0])).sorted(), id: \.self) {
@@ -288,10 +408,6 @@ struct NogSheet: View {
                 }
                 .pickerStyle(.segmented)
             }
-        } header: {
-            SectionLabel(title: "Repeat")
-        }
-        .listRowBackground(Theme.glass)
     }
 
     // MARK: Snooze
@@ -324,24 +440,10 @@ struct NogSheet: View {
                 }
                 .listRowInsets(EdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 12))
             }
-            Picker("Snooze for", selection: Binding(
-                get: { reminder.snoozeMinutes ?? 0 },
-                set: { minutes in edit { $0.snoozeMinutes = minutes > 0 ? minutes : nil } })) {
-                Text("Default (\(IntervalFormat.amount(NogSettings.snoozeMinutes)))").tag(0)
-                ForEach(Array(Set(NogSettings.snoozeChoices + [reminder.snoozeMinutes ?? 5])).sorted(), id: \.self) {
-                    Text(IntervalFormat.amount($0)).tag($0)
-                }
-            }
-            TimeTunerRow(title: "Morning snooze until", minutes: Binding(
-                get: { morningMinutes },
-                set: { minutes in
-                    // Same as the default: follow the default (so changing it in Settings still applies).
-                    edit { $0.morningMinutes = minutes == NogSettings.morningMinutes ? nil : minutes }
-                }))
         } header: {
             SectionLabel(title: "Snooze")
         } footer: {
-            Text("Push the next nog back. These are also the buttons on this item's notifications: press and hold one.")
+            Text("Push the next reminder back. These are also the buttons on this item's notifications: press and hold one.")
         }
         .listRowBackground(Theme.glass)
     }

@@ -80,7 +80,7 @@ final class WidgetPickerTests: XCTestCase {
         let all = [newer, later, loose, older, tomorrow, dream, doing]
 
         let result = sections(all, [.nogging, .today, .loose])
-        XCTAssertEqual(result.map(\.title), ["Nogging now", "Today", "Loose nogs"])
+        XCTAssertEqual(result.map(\.title), ["Due now", "Today", "No reminder"])
         XCTAssertEqual(result[0].entries.map(\.title), ["Plumber", "Ana"]) // longest nogging first
         XCTAssertEqual(result[1].entries.map(\.title), ["Paint"]) // nogging ones already shown
         XCTAssertEqual(result[2].entries.map(\.title), ["Garage"])

@@ -7,6 +7,8 @@ struct PlannedNotification: Hashable {
         case at(Date)
         /// Fire every N seconds, forever, until removed (iOS minimum is 60s).
         case every(TimeInterval)
+        /// Fire when you arrive at (or leave) a saved place.
+        case place(latitude: Double, longitude: Double, radius: Double, leaving: Bool)
     }
 
     /// Encodes everything that matters about the request, so an unchanged
@@ -169,6 +171,7 @@ enum NogPlanner {
             switch p.trigger {
             case .every: repeatingForever.insert(p.itemID)
             case .at(let date): lastByItem[p.itemID] = max(lastByItem[p.itemID] ?? date, date)
+            case .place: break
             }
         }
         // Items that would keep nogging after their last scheduled one-shot.
@@ -188,6 +191,31 @@ enum NogPlanner {
     }
 
     /// FNV-1a — stable across launches (unlike Swift's hashValue).
+    /// "When I get home" items: one notification each, fired by iOS when you arrive (or leave).
+    /// Unknown places (not saved yet) are skipped. iOS watches at most 20 regions per app.
+    static let placePrefix = prefix + "place."
+
+    static func placeNotifications(items: [Item], places: [SavedPlace], limit: Int) -> [PlannedNotification] {
+        let byName = Dictionary(places.map { ($0.name.lowercased(), $0) }, uniquingKeysWith: { a, _ in a })
+        return items
+            .filter { $0.isOpen && $0.place != nil }
+            .sorted { $0.created < $1.created }
+            .compactMap { item -> PlannedNotification? in
+                guard let trigger = item.place, let place = byName[trigger.name.lowercased()] else { return nil }
+                let key = String(format: "%.5f,%.5f,%.0f,%@", place.latitude, place.longitude, place.radius,
+                                 trigger.leaving ? "x" : "e")
+                return PlannedNotification(
+                    identifier: "\(placePrefix)\(item.id.uuidString).\(stableHash(key + "|" + item.title))",
+                    itemID: item.id, title: item.title,
+                    body: trigger.leaving ? "You're leaving \(place.name)." : "You're at \(place.name).",
+                    trigger: .place(latitude: place.latitude, longitude: place.longitude,
+                                    radius: place.radius, leaving: trigger.leaving),
+                    category: category(for: item.reminder))
+            }
+            .prefix(limit)
+            .map { $0 }
+    }
+
     static func stableHash(_ s: String) -> String {
         var h: UInt32 = 2_166_136_261
         for byte in s.utf8 {

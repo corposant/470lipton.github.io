@@ -56,6 +56,7 @@ targets:
           - CFBundleURLName: $(NOG_BUNDLE_ID)
             CFBundleURLSchemes: [nog]
         NSAlarmKitUsageDescription: Nog rings like an alarm for the items you mark as can't-miss.
+        NSLocationWhenInUseUsageDescription: So Nog can remind you when you get to a place you've saved, like Home or Work. iOS watches for the place; Nog doesn't track you, and your location never leaves your iPhone.
         # Shows the app's iCloud folder as "Nog" in iCloud Drive (Files app, Finder)
         NSUbiquitousContainers:
           iCloud.com.ticknor.nog:
@@ -70,13 +71,12 @@ targets:
         com.apple.security.application-groups: [group.$(NOG_BUNDLE_ID)]
         # Lets nogs break through Focus (the person still allows it per app in Settings).
         com.apple.developer.usernotifications.time-sensitive: true
-    # iCloud Drive sync needs the paid Apple Developer Program, so it's off for now:
-    # items are stored on the phone. When you upgrade, uncomment these 3 lines and
-    # re-run xcodegen; Nog moves your items into iCloud Drive on its next launch.
-    # (they go under the entitlements properties above)
-    #     com.apple.developer.icloud-container-identifiers: [iCloud.com.ticknor.nog]
-    #     com.apple.developer.ubiquity-container-identifiers: [iCloud.com.ticknor.nog]
-    #     com.apple.developer.icloud-services: [CloudDocuments]
+        # iCloud Drive sync: each item is a Markdown file in iCloud Drive → Nog, so it's
+        # backed up and on your other devices. Without iCloud, items stay on the phone and
+        # move to iCloud automatically once it's available.
+        com.apple.developer.icloud-container-identifiers: [iCloud.com.ticknor.nog]
+        com.apple.developer.ubiquity-container-identifiers: [iCloud.com.ticknor.nog]
+        com.apple.developer.icloud-services: [CloudDocuments]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(NOG_BUNDLE_ID)

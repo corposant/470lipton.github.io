@@ -46,7 +46,7 @@ enum Agenda {
         nogging.sort { ($0.item.reminder?.start ?? $0.when) < ($1.item.reminder?.start ?? $1.when) }
         let byTime: (Entry, Entry) -> Bool = { $0.when != $1.when ? $0.when < $1.when : $0.item.title < $1.item.title }
         return [
-            Group(title: "Nogging now", entries: nogging),
+            Group(title: "Now", entries: nogging),
             Group(title: "Later today", entries: today.sorted(by: byTime)),
             Group(title: "Tomorrow", entries: tomorrow.sorted(by: byTime)),
             Group(title: "This week", entries: week.sorted(by: byTime)),

@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// "How to Nog": everything the New Nog field understands, as a standard grouped list.
+/// "How to use Nog": everything the New Nog field understands, as a standard grouped list.
 /// Every example here must parse as described (see `CaptureParser`, `NaturalDateParser`,
 /// `NogProfile.token`). Opened from the New Nog screen and from Settings.
 struct HowToNogView: View {
@@ -13,40 +13,41 @@ struct HowToNogView: View {
                 ("standup tomorrow morning", "tomorrow, 9 AM"),
                 ("report by eod", "end of today"),
                 ("stretch in 20 min", "20 minutes from now"),
-                ("@30m  @2h  @1d  @now", "start nogging after 30 min, 2 h, a day, or now"),
             ])
-            section("How often", [
-                ("pills every 4 hours", "nogs every 4 hours"),
-                ("water plants hourly", "every hour (or daily, weekly)"),
-                ("!8m  !2h  !1d", "repeat every 8 min, 2 h, a day"),
-                ("!once", "remind once, no repeat"),
-                ("!log", "gaps double each time: 8, 16, 32 min…"),
-                ("!off", "no reminder, just keep the idea"),
+            section("Things that come back", footer: "Tap Done and it moves on to next time. Tap Skip this time on its page to skip one.", [
+                ("meds every morning", "every day at 9 AM"),
+                ("bins every tue", "every Tuesday"),
+                ("gym every mon and thu at 6pm", "two days a week"),
+                ("standup every weekday at 9:30am", "Monday to Friday"),
+                ("rent every month on the 1st", "monthly"),
+                ("water plants every 2 days", "every other day"),
             ])
-            section("How it gets you", footer: "Start typing a ! word and Nog offers to finish it.", [
-                ("!hush  !hus", "silent banner every 15 min, never rings"),
-                ("!whisper  !whi", "gentle, never rings"),
-                ("!daily  !dai", "once a day at the same time, never rings"),
-                ("!easing  !eas", "eases off over time"),
-                ("!steady  !ste", "every 8 min until done"),
-                ("!building  !bui", "heads-up 15, 5, 1 min before, then closer and closer"),
-                ("!hyperfocus  !hyp  !break", "every 5 min, rings after 1 ignored nog"),
-                ("!unhinged  !unh", "no let-up, rings after 3 ignored nogs"),
-                ("!alarm", "rings like a real alarm"),
+            section("Where", footer: "Save places first in Settings › Places. Home and Work work once they're saved.", [
+                ("bins when I get home", "when you arrive home"),
+                ("buy milk when I leave work", "when you leave work"),
+                ("return book when I'm at the library", "any saved place"),
+            ])
+            section("How often until it's done", [
+                ("pills every 4 hours", "reminds you every 4 hours"),
+                ("check oven every 10 min", "every 10 minutes"),
             ])
             section("Tags", [
                 ("call mom #family", "adds the tag family"),
                 ("taxes #money #admin", "as many tags as you like"),
             ])
-            section("Timebox", [
-                ("~30m  ~2h", "how long it'll take, for the ▶︎ timebox"),
-            ])
-            section("Mix them", [
-                ("pay rent fri 9am !1d #money ~10m", "“pay rent”, Friday 9 AM, daily, #money, 10 min"),
+            section("Shortcuts (optional)", footer: "You never need these: plain English and the tray do the same. Start typing a ! word and Nog offers to finish it.", [
+                ("@30m  @2h  @1d  @now", "start reminding after 30 min, 2 h, a day, or now"),
+                ("!8m  !2h  !1d", "remind every 8 min, 2 h, a day"),
+                ("!once", "remind once, no repeat"),
+                ("!off", "no reminder, just keep the idea"),
+                ("!alarm", "rings like a real alarm"),
+                ("!whisper  !steady  !building  !unhinged", "pick a style (first three letters are enough)"),
+                ("!hush  !daily  !easing  !hyperfocus", "the other styles"),
+                ("~30m  ~2h", "how long it'll take, for the ▶︎ timer"),
             ])
         }
         .nogListStyle()
-        .navigationTitle("How to Nog")
+        .navigationTitle("How to use Nog")
     }
 
     private func section(_ title: String, footer: String? = nil,

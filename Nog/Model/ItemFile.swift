@@ -12,6 +12,7 @@ import Foundation
 ///     remind_at: 2026-11-05T18:15:00Z
 ///     repeat_minutes: 8
 ///     repeat_curve: logarithmic      (omitted when steady)
+///     repeats: weekdays:3            (a recurring item: comes back after it's done)
 ///     ---
 ///     Notes go here. Link to other items with [[Another item]].
 enum ItemFile {
@@ -42,6 +43,13 @@ enum ItemFile {
             if let m = r.morningMinutes { lines.append("snooze_morning: \(String(format: "%02d:%02d", m / 60, m % 60))") }
             if !r.followsParent { lines.append("follows_parent: false") }
             if !r.passesDown { lines.append("pass_down: false") }
+        }
+        if let rec = item.recurrence { lines.append("repeats: \(rec.encoded)") }
+        if let last = item.lastDone { lines.append("last_done: \(iso(last))") }
+        if item.timesDone > 0 { lines.append("times_done: \(item.timesDone)") }
+        if let place = item.place {
+            lines.append("place: \(oneLine(place.name))")
+            if place.leaving { lines.append("place_leaving: true") }
         }
         lines.append("---")
         return lines.joined(separator: "\n") + "\n" + item.body
@@ -108,6 +116,12 @@ enum ItemFile {
                                      morningMinutes: fields["snooze_morning"].flatMap(Self.clockMinutes),
                                      followsParent: fields["follows_parent"] != "false",
                                      passesDown: fields["pass_down"] != "false")
+        }
+        item.recurrence = fields["repeats"].flatMap(Recurrence.init(encoded:))
+        item.lastDone = fields["last_done"].flatMap(date)
+        item.timesDone = fields["times_done"].flatMap { Int($0) }.map { max(0, $0) } ?? 0
+        if let name = fields["place"], !name.isEmpty {
+            item.place = PlaceTrigger(name: name, leaving: fields["place_leaving"] == "true")
         }
         return item
     }

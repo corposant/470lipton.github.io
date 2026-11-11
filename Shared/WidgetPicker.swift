@@ -7,11 +7,11 @@ enum WidgetListKind: String, CaseIterable, Codable {
     var title: String {
         switch self {
         case .now: "Now"
-        case .nogging: "Nogging now"
+        case .nogging: "Due now"
         case .today: "Today"
-        case .agenda: "Agenda"
-        case .loose: "Loose nogs"
-        case .dream: "Dream nogs"
+        case .agenda: "This week"
+        case .loose: "No reminder"
+        case .dream: "Someday"
         }
     }
 }
