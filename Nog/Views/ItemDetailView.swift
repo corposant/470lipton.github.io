@@ -257,17 +257,21 @@ private struct ItemEditor: View {
                 .scrollContentBackground(.hidden)
                 .overlay(alignment: .topLeading) {
                     if item.body.isEmpty {
-                        Text(verbatim: "Notes. Link to other items with [[Their title]].")
-                            .foregroundStyle(Theme.muted.opacity(0.8))
+                        Text(verbatim: "Link to other items with [[Their title]].")
+                            .italic()
+                            .foregroundStyle(Theme.muted.opacity(0.6))
                             .padding(.top, 8)
                             .padding(.leading, 5)
                             .allowsHitTesting(false)
+                            .accessibilityHidden(true)
                     }
                 }
                 .foregroundStyle(item.status == .done ? Theme.muted : .primary)
+                .accessibilityLabel("Notes")
+        } header: {
+            SectionLabel(title: "Notes")
         }
-        .listRowBackground(Color.clear)
-        .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+        .listRowBackground(Theme.glass)
     }
 
     private var childrenSection: some View {
