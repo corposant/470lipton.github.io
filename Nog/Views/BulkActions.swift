@@ -31,7 +31,7 @@ struct BulkActionBar: View {
                         }
                     }
                 } label: {
-                    Label("Snooze (each item's length)", systemImage: "zzz")
+                    Label("Snooze", systemImage: "zzz")
                 }
                 Button {
                     store.batch {
@@ -54,6 +54,8 @@ struct BulkActionBar: View {
                             apply { item in
                                 var r = item.reminder ?? NogSettings.defaultReminderFromNow
                                 r = profile.apply(to: r)
+                                // Teatime moves the next reminder to tea time, as on the item's page.
+                                if profile.timeOfDay != nil { r.start = profile.firstStart(from: .now) }
                                 // Picked for these items specifically: they stop following a parent.
                                 if item.parentID != nil { r.followsParent = false }
                                 item.reminder = r
@@ -127,7 +129,7 @@ struct BulkActionBar: View {
                     selection = []
                 }
             } message: {
-                Text("Their notes go too. Sub-nogs of deleted items stay, unfiled.")
+                Text("Their notes go too. Sub-nogs stay.")
             }
         }
         .labelStyle(StackedLabelStyle())

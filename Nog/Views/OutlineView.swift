@@ -53,8 +53,7 @@ struct OutlineView: View {
         .nogListStyle()
         .overlay {
             if roots.isEmpty {
-                ContentUnavailableView("No items yet", systemImage: "folder",
-                                       description: Text("On the map, select a node, then hold it over another to file it there."))
+                ContentUnavailableView("Nothing yet", systemImage: "folder")
             }
         }
     }

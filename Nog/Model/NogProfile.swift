@@ -23,14 +23,14 @@ enum NogProfile: String, CaseIterable, Identifiable {
 
     var summary: String {
         switch self {
-        case .hush: "After 15 min, then every 15 min. Always silent, just a banner. Never rings."
-        case .teatime: "At tea time (4 PM), then every other day at tea time: about three times a week. Never rings."
-        case .whisper: "After an hour, then hourly, easing off to daily. Never rings."
-        case .daily: "Once a day at the same time until done. Never rings."
-        case .easing: "After 8 min, then 16, 32, 64… easing off to daily."
-        case .steady: "After 15 min, then every 8 min until done."
-        case .building: "Heads-up 15, 5 and 1 min before. Then every 30, 15, 8, and every 4 min until done."
-        case .unhinged: "After 2 min, then every 7 min, no let-up. Rings as an alarm after 3 ignored nogs."
+        case .hush: "Every 15 min. Silent banner, no sound."
+        case .teatime: "4 PM, every other day."
+        case .whisper: "Hourly, easing off to daily."
+        case .daily: "Once a day, same time."
+        case .easing: "8 min, 16, 32… easing off to daily."
+        case .steady: "After 15 min, then every 8."
+        case .building: "Countdown, then every 30 min, speeding up to 4."
+        case .unhinged: "Every 7 min. Rings as an alarm after 3 ignored."
         }
     }
 
@@ -64,7 +64,7 @@ enum NogProfile: String, CaseIterable, Identifiable {
     var repeatMinutes: Int {
         switch self {
         case .hush: 15
-        case .teatime: 0
+        case .teatime: 2880
         case .whisper: 60
         case .daily: 1440
         case .easing: 8

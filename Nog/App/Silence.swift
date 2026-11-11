@@ -154,7 +154,7 @@ struct SilenceSheet: View {
                 } header: {
                     SectionLabel(title: "Silence nogs and alarms")
                 } footer: {
-                    Text("Nothing nogs or rings meanwhile. Anything due comes once silence ends. Also on the app icon: press and hold it.")
+                    Text("Anything due comes when silence ends.")
                 }
                 .listRowBackground(Theme.glass)
             }

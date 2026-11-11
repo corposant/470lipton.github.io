@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import UserNotifications
 import BackgroundTasks
 
@@ -51,9 +52,13 @@ struct NogApp: App {
                 QuickActions.update()
                 BackgroundRefresh.schedule()
                 store.pauseWatching(true)
+                // Ask iOS for a moment so edits still waiting out their debounce reach the
+                // disk (and nogs get rescheduled) before the app is suspended.
+                let finishing = UIApplication.shared.beginBackgroundTask(withName: "Save edits")
                 Task {
                     await store.syncIfPending()
                     await store.flush()
+                    UIApplication.shared.endBackgroundTask(finishing)
                 }
             default:
                 break
@@ -134,7 +139,7 @@ enum BackgroundRefresh {
                 await ItemStore.shared.reloadFromDisk()
                 await ItemStore.shared.syncNow()
                 await ItemStore.shared.flush()
-                task.setTaskCompleted(success: true)
+                task.setTaskCompleted(success: !Task.isCancelled)
             }
             task.expirationHandler = { work.cancel() }
         }

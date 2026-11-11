@@ -55,8 +55,8 @@ targets:
         CFBundleURLTypes:
           - CFBundleURLName: $(NOG_BUNDLE_ID)
             CFBundleURLSchemes: [nog]
-        NSAlarmKitUsageDescription: Nog rings like an alarm for the items you mark as can't-miss.
-        NSLocationWhenInUseUsageDescription: So Nog can remind you when you get to a place you've saved, like Home or Work. iOS watches for the place; Nog doesn't track you, and your location never leaves your iPhone.
+        NSAlarmKitUsageDescription: To ring like an alarm for things you can't miss.
+        NSLocationWhenInUseUsageDescription: To remind you at places you save, like Home. Your location never leaves your iPhone.
         # Shows the app's iCloud folder as "Nog" in iCloud Drive (Files app, Finder)
         NSUbiquitousContainers:
           iCloud.com.ticknor.nog:

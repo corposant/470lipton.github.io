@@ -82,7 +82,7 @@ struct NogSheet: View {
                             .buttonStyle(.borderless)
                             .tint(Theme.violet)
                     } header: {
-                        SectionLabel(title: "How it gets you")
+                        SectionLabel(title: "How")
                     }
                     .listRowBackground(Theme.glass)
 
@@ -136,9 +136,9 @@ struct NogSheet: View {
             } footer: {
                 let following = kids.filter { $0.reminder?.followsParent == true }.count
                 if !kids.isEmpty, reminder.passesDown {
-                    Text("\(following) of \(kids.count) sub-nogs follow this. Changing a sub-nog's own rhythm stops it following; switch Follow back on to rejoin.")
+                    Text("\(following) of \(kids.count) sub-nogs follow this.")
                 } else if parentReminder != nil, reminder.followsParent {
-                    Text("Repeat, alarm and snooze come from the parent. Change any of them here and this item keeps its own.")
+                    Text("Changing anything here gives it its own rhythm.")
                 }
             }
             .listRowBackground(Theme.glass)
@@ -189,7 +189,7 @@ struct NogSheet: View {
         } header: {
             SectionLabel(title: "How firm")
         } footer: {
-            Text(current?.summary ?? "Custom rhythm. Pick a style to reset it.")
+            Text(current?.summary ?? "Custom. Pick a style to reset.")
         }
         .listRowBackground(Color.clear)
         // Room from the row's rounded corners, which would otherwise clip the outer cards.
@@ -312,9 +312,7 @@ struct NogSheet: View {
             SectionLabel(title: "Where")
         } footer: {
             if places.isEmpty {
-                Text("Save places like Home or Work in Settings › Places, then type “when I get home” or pick one here.")
-            } else {
-                Text("Reminds you when you get there (or leave), then keeps reminding until it's done.")
+                Text("Save places in Settings › Places.")
             }
         }
         .listRowBackground(Theme.glass)
@@ -338,15 +336,13 @@ struct NogSheet: View {
                     }
                     store.update(current)
                 })) {
-                Text("Never (a one-off)").tag(Recurrence?.none)
+                Text("Never").tag(Recurrence?.none)
                 ForEach(all, id: \.self) { Text($0.summary.prefix(1).uppercased() + $0.summary.dropFirst()).tag(Recurrence?.some($0)) }
             }
         } header: {
             SectionLabel(title: "Comes back")
         } footer: {
-            Text(item.recurrence == nil
-                 ? "For things you do again and again, like meds or bins. Done moves it to its next time instead of finishing it."
-                 : "Done moves it to its next time, and its sub-nogs reopen for then.")
+            Text("Done moves it to next time.")
         }
         .listRowBackground(Theme.glass)
     }
@@ -376,8 +372,6 @@ struct NogSheet: View {
             } label: {
                 Text("Fine-tune")
             }
-        } footer: {
-            Text("Exact timing and snooze lengths for this item. Changing them makes its style Custom.")
         }
         .listRowBackground(Theme.glass)
     }
@@ -436,8 +430,6 @@ struct NogSheet: View {
             }
         } header: {
             SectionLabel(title: "Snooze")
-        } footer: {
-            Text("Push the next reminder back. These are also the buttons on this item's notifications: press and hold one.")
         }
         .listRowBackground(Theme.glass)
     }
@@ -457,17 +449,17 @@ struct NogSheet: View {
     nonisolated static func preview(item: Item, reminder: Reminder, now: Date = .now,
                                     policy: NogPolicy = NogSettings.policy) -> String {
         guard item.isOpen else {
-            return "\(item.status.pausedReason). Nogs pick up again when it's open."
+            return "\(item.status.pausedReason)."
         }
         // Real arrival times: quiet hours push nogs to when they end, like the planner.
         let dates = policy.deliveryDates(for: reminder, after: now, limit: 4)
-        guard let first = dates.first else { return "Already went off. Snooze it or pick a new time." }
+        guard let first = dates.first else { return "Already went off." }
         func show(_ date: Date) -> String {
             Calendar.current.isDateInToday(date)
                 ? date.formatted(date: .omitted, time: .shortened)
                 : date.formatted(.dateTime.weekday(.abbreviated).hour().minute())
         }
-        if dates.count == 1 { return "One nog at \(show(first)), no repeat." }
+        if dates.count == 1 { return "One nog at \(show(first))." }
         let rest = dates.dropFirst().map(show).joined(separator: ", ")
         return "First nog \(show(first)), then \(rest)… until it's done."
     }

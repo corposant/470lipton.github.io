@@ -130,9 +130,9 @@ enum ItemStatus: String, CaseIterable, Hashable {
     var pausedReason: String {
         switch self {
         case .open: "Nogging"
-        case .doing: "Paused while you're doing it"
-        case .someday: "Paused while it's parked in Someday"
-        case .done: "Paused, it's done"
+        case .doing: "Paused while you're on it"
+        case .someday: "Paused in Someday"
+        case .done: "Off"
         }
     }
 }

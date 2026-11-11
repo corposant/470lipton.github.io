@@ -28,7 +28,7 @@ struct CaptureHomeView: View {
         var title: String {
             switch self {
             case .when: "When"
-            case .kind: "How it gets you"
+            case .kind: "How"
             case .tags: "Tags"
             }
         }
@@ -104,6 +104,7 @@ struct CaptureHomeView: View {
                 return .handled
             }
             .onChange(of: draft.text) {
+                if !draft.text.isEmpty { confirmation = nil }
                 // Return sends (a multi-line field otherwise inserts a newline).
                 if draft.text.hasSuffix("\n") {
                     draft.text.removeLast()
@@ -121,7 +122,7 @@ struct CaptureHomeView: View {
         .disabled(draft.isEmpty)
         .opacity(draft.isEmpty ? 0.45 : 1)
         .accessibilityLabel("Save")
-        .accessibilityHint(draft.isEmpty ? "Type something first." : "Saves this nog.")
+        .accessibilityHint(draft.isEmpty ? "Type something first." : "")
     }
 
     /// Sub-nogs typed straight in. Each one has its own line with a remove button, and the
@@ -169,7 +170,6 @@ struct CaptureHomeView: View {
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel("Add sub-nog \(pendingSubItem)")
-                        .accessibilityHint("Keeps the box ready for another")
                     }
                     // Clears what's typed; with nothing else here it closes the section too.
                     if !pendingSubItem.isEmpty || draft.subItems.isEmpty {
@@ -261,7 +261,7 @@ struct CaptureHomeView: View {
 
     private var hint: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Type it the way you'd say it, like \"call mom tomorrow at 3\" or \"meds every morning\". Or pick options from the tray below.")
+            Text("Try “call mom tomorrow at 3”.")
                 .font(.callout)
                 .foregroundStyle(Theme.muted)
             Button { showHowTo = true } label: {
@@ -269,7 +269,6 @@ struct CaptureHomeView: View {
                     .font(.callout.weight(.medium))
                     .foregroundStyle(Theme.violet)
             }
-            .accessibilityHint("Shows everything you can type")
         }
     }
 
@@ -281,7 +280,7 @@ struct CaptureHomeView: View {
             parts.append(r.alarm ? "alarm" : "nog")
             if let every = r.repeatSummary { parts.append(every) }
         } else {
-            parts.append("note, never nogs")
+            parts.append("note")
         }
         if !result.tags.isEmpty { parts.append(result.tags.map { "#\($0)" }.joined(separator: " ")) }
         if subItems > 0 { parts.append("\(subItems) sub-nog\(subItems == 1 ? "" : "s")") }
@@ -323,13 +322,11 @@ struct CaptureHomeView: View {
         showSubItems = false
         panel = nil
         focus = .title // keep the keyboard up for the next thought
+        // Stays until you start the next one (no timer to race), and VoiceOver hears it.
         withNogAnimation {
-            confirmation = ("✓ Caught · " + Self.summary(result, subItems: subItems.count, parent: nil).uppercased(), item.id)
+            confirmation = ("✓ Saved · " + Self.summary(result, subItems: subItems.count, parent: nil).uppercased(), item.id)
         }
-        Task {
-            try? await Task.sleep(for: .seconds(5))
-            withNogAnimation { if confirmation?.id == item.id { confirmation = nil } }
-        }
+        AccessibilityNotification.Announcement("Saved \(result.title)").post()
     }
 
     // MARK: Tray
@@ -369,7 +366,7 @@ struct CaptureHomeView: View {
                          systemImage: "link", tint: Theme.violet,
                          isOn: draft.parentID != nil, isOpen: false) { showParentPicker = true }
                         .accessibilityLabel(draft.parentID.flatMap { store.items[$0]?.title }.map { "Linked to \($0)" } ?? "Link")
-                        .accessibilityHint("Puts this nog inside another one")
+                        .accessibilityHint("Puts it inside another nog")
                     if focus != nil {
                         Button {
                             focus = nil
@@ -400,7 +397,6 @@ struct CaptureHomeView: View {
                     smallChip(token, isOn: false) {
                         draft.text = CaptureCompletion.complete(draft.text, with: token)
                     }
-                    .accessibilityHint("Finishes the word")
                 }
             }
             .padding(.horizontal, 12)
@@ -473,7 +469,7 @@ struct CaptureHomeView: View {
                     }
                 }
                 if draft.when != nil {
-                    smallChip("From text", isOn: false) { draft.when = nil }
+                    smallChip("Clear", isOn: false) { draft.when = nil }
                 }
             }
             DatePicker("Pick", selection: Binding(

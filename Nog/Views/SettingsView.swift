@@ -91,9 +91,7 @@ struct SettingsView: View {
         } header: {
             SectionLabel(title: "How firm")
         } footer: {
-            Text(current == nil
-                 ? "You've set a custom rhythm under Advanced › Timing & alerts. Pick a style to go back."
-                 : "New things you add start like this. Each item can change on its own page.")
+            Text(current == nil ? "Custom (set in Advanced). Pick a style to reset." : "For new nogs.")
         }
         .listRowBackground(Theme.glass)
     }
@@ -127,7 +125,7 @@ struct SettingsView: View {
         } header: {
             SectionLabel(title: "Quiet")
         } footer: {
-            Text("Nothing reminds you or rings during quiet hours. Anything due waits until they end.")
+            Text("Anything due waits until quiet hours end.")
         }
         .listRowBackground(Theme.glass)
     }
@@ -139,7 +137,7 @@ struct SettingsView: View {
             Toggle(isOn: $lowStimulation) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Low stimulation")
-                    Text("No glow, background haze, motion or vibration.")
+                    Text("No glow, haze, motion or vibration.")
                         .font(.caption)
                         .foregroundStyle(Theme.muted)
                 }
@@ -148,8 +146,6 @@ struct SettingsView: View {
                 .disabled(lowStimulation)
         } header: {
             SectionLabel(title: "Calm")
-        } footer: {
-            Text("Nog also follows Reduce Motion, Reduce Transparency and Increase Contrast in Settings → Accessibility.")
         }
         .listRowBackground(Theme.glass)
         .tint(Theme.blue)
@@ -162,8 +158,6 @@ struct SettingsView: View {
             LabeledContent("Version",
                            value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—")
                 .font(.nogMeta)
-        } footer: {
-            Text("Nog reminds you until it's done.")
         }
         .listRowBackground(Theme.glass)
     }
@@ -173,18 +167,10 @@ struct SettingsView: View {
 struct AdvancedSettingsPage: View {
     @Environment(ItemStore.self) private var store
     @AppStorage(ThemeMode.key) private var themeMode: ThemeMode = .auto
-    @AppStorage(NogSettings.firstDelayKey) private var firstDelay = NogSettings.defaultFirstDelay
-    @AppStorage(NogSettings.repeatKey) private var repeatMinutes = NogSettings.defaultRepeat
-    @AppStorage(NogSettings.curveKey) private var curve: RepeatCurve = .steady
     @AppStorage(NogSettings.timeboxKey) private var timebox = NogSettings.defaultTimebox
     @State private var appIcon = AppIconChoice.current(alternateIconName: UIApplication.shared.alternateIconName)
     @State private var storageMode = StorageMode.current
     @State private var isSwitchingStorage = false
-    @State private var showSilence = false
-    @AppStorage(NogSettings.silencedUntilKey) private var silencedUntil: Double = 0
-    @AppStorage(Calm.lowStimulationKey) private var lowStimulation = false
-    @AppStorage(Calm.hapticsKey) private var haptics = true
-
     @AppStorage(AppTab.mapTabKey) private var showMapTab = false
 
     var body: some View {
@@ -194,7 +180,7 @@ struct AdvancedSettingsPage: View {
                 Toggle(isOn: $showMapTab) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Map tab")
-                        Text("See everything as a mind map you can arrange.")
+                        Text("Your nogs as a mind map.")
                             .font(.caption)
                             .foregroundStyle(Theme.muted)
                     }
@@ -254,8 +240,6 @@ struct AdvancedSettingsPage: View {
             .listRowBackground(Theme.glass)
         } header: {
             SectionLabel(title: "Appearance")
-        } footer: {
-            Text("Auto follows your iPhone's Light/Dark setting.")
         }
     }
 
@@ -300,11 +284,11 @@ struct AdvancedSettingsPage: View {
             SectionLabel(title: "Storage")
         } footer: {
             if storageMode == .iCloud && !store.isUsingICloud && !isSwitchingStorage {
-                Text("iCloud isn't available, so items stay on this iPhone. Check you're signed in to iCloud with iCloud Drive on.")
+                Text("iCloud isn't available. Check iCloud Drive is on.")
             } else {
                 Text(store.isUsingICloud
-                     ? "Every item is a plain Markdown file in iCloud Drive → Nog → Items, also visible on your Mac."
-                     : "Every item is a plain Markdown file in Files → On My iPhone → Nog → Items. Switching back to iCloud merges, keeping the newest edits.")
+                     ? "Markdown files in iCloud Drive › Nog › Items."
+                     : "Markdown files in Files › On My iPhone › Nog › Items.")
             }
         }
     }
@@ -321,7 +305,7 @@ struct AdvancedSettingsPage: View {
             NavigationLink {
                 DoingPage()
             } label: {
-                row("Doing (the ▶︎ timer)", "play.circle", Theme.blue,
+                row("Doing timer", "play.circle", Theme.blue,
                     detail: timebox > 0 ? "\(IntervalFormat.amount(timebox)) box" : "open-ended")
             }
         } header: {
@@ -428,11 +412,9 @@ private struct NogsAlertsPage: View {
                     }
                     .pickerStyle(.segmented)
                 }
-                Toggle("Silent (no sound, not Time Sensitive)", isOn: $profileSilent)
+                Toggle("Silent", isOn: $profileSilent)
             } header: {
                 SectionLabel(title: currentProfile == nil ? "Default rhythm · Custom" : "Default rhythm · \(currentProfile!.label)")
-            } footer: {
-                Text("Changing these makes your default a custom rhythm. Pick a style on the main Settings page to go back.")
             }
             .listRowBackground(Theme.glass)
 
@@ -450,7 +432,7 @@ private struct NogsAlertsPage: View {
             } header: {
                 SectionLabel(title: "Timing")
             } footer: {
-                Text("Heads-up: a gentle note before a dated nog starts. Ring as an alarm: if you keep ignoring an item, its nogs become alarms that break through Silent and Focus. Snoozing resets the count.")
+                Text("Heads-up: a quiet note before a nog starts. Snoozing resets the ignored count.")
             }
             .listRowBackground(Theme.glass)
 
@@ -462,7 +444,7 @@ private struct NogsAlertsPage: View {
             } header: {
                 SectionLabel(title: "Notifications")
             } footer: {
-                Text("Time Sensitive lets nogs through Focus (also allow it in iOS Settings → Notifications → Nog). With titles hidden, the Lock Screen just says something's nogging you.")
+                Text("Time Sensitive gets through Focus. Also allow it in Settings › Notifications › Nog.")
             }
             .listRowBackground(Theme.glass)
             .tint(Theme.pink)
@@ -540,7 +522,7 @@ private struct DoingPage: View {
             } header: {
                 SectionLabel(title: "▶︎ Doing")
             } footer: {
-                Text("Nog suggests, in order: the item's estimate, how long similar items took you (same #tag or project), a short box if it's urgent or overdue, then this default.")
+                Text("Used when Nog has nothing better: an estimate or how long similar ones took.")
             }
             .listRowBackground(Theme.glass)
 
@@ -554,8 +536,6 @@ private struct DoingPage: View {
                 Toggle("Live Activity", isOn: $liveActivity)
             } header: {
                 SectionLabel(title: "While you're on it")
-            } footer: {
-                Text("Live Activity shows your timer on the Lock Screen and in the Dynamic Island.")
             }
             .listRowBackground(Theme.glass)
             .tint(Theme.blue)
@@ -594,8 +574,6 @@ private struct PermissionsPage: View {
                 }
             } header: {
                 SectionLabel(title: "Permissions")
-            } footer: {
-                Text("For nogs that break through Focus, also turn on Time Sensitive in iOS Settings → Notifications → Nog.")
             }
             .listRowBackground(Theme.glass)
 
@@ -643,28 +621,28 @@ private struct SiriPage: View {
 
     var body: some View {
         List {
-            group("Add something", footer: "Siri asks what you want to add.", [
+            group("Add something", footer: nil, [
                 "Take a Nog",
                 "Add something to Nog",
                 "Take a note in Nog",
             ])
-            group("Hear your list", footer: "You can also say today, this week, unscheduled, or what I'm doing.", [
+            group("Hear your list", footer: "Or: today, this week, unscheduled.", [
                 "What's next in Nog",
                 "Read my Nog",
                 "Read this week in Nog",
             ])
-            group("Finish or start", footer: "Say the item's name, or leave it out and Siri asks which one.", [
+            group("Finish or start", footer: "Leave out the name and Siri asks.", [
                 "Mark done in Nog",
                 "Finish call mom in Nog",
                 "Start something in Nog",
                 "Work on write report in Nog",
             ])
-            group("Quiet things down", footer: "Also for two hours, five hours, twelve hours, or until I turn it back on.", [
+            group("Quiet things down", footer: nil, [
                 "Pause Nog for an hour",
                 "Silence Nog",
                 "Turn Nog back on",
             ])
-            group("With Apple Intelligence", footer: "Any item with sub-nogs works as a list for Siri.", [
+            group("With Apple Intelligence", footer: "Any nog with sub-nogs is a list.", [
                 "Remind me in Nog to call mom tomorrow at 3",
                 "Add milk to my Groceries list in Nog",
                 "Mark this as done",
@@ -678,7 +656,7 @@ private struct SiriPage: View {
                     Button("Show the Siri tip on New Nog again") { showSiriTip = true }
                 }
             } footer: {
-                Text("If Siri doesn't understand, open Nog once so Siri learns its phrases, then try again. Assign “Quick Capture” to the Action Button in iOS Settings → Action Button → Shortcut.")
+                Text("Siri not getting it? Open Nog once, then try again.")
             }
             .listRowBackground(Theme.glass)
         }
@@ -686,7 +664,7 @@ private struct SiriPage: View {
         .navigationTitle("Siri & Shortcuts")
     }
 
-    private func group(_ title: String, footer: String, _ phrases: [String]) -> some View {
+    private func group(_ title: String, footer: String?, _ phrases: [String]) -> some View {
         Section {
             ForEach(phrases, id: \.self) { text in
                 Label("“\(text)”", systemImage: "quote.bubble").foregroundStyle(.primary)
@@ -694,7 +672,7 @@ private struct SiriPage: View {
         } header: {
             SectionLabel(title: title)
         } footer: {
-            Text(footer)
+            if let footer { Text(footer) }
         }
         .listRowBackground(Theme.glass)
     }

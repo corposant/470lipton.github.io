@@ -20,8 +20,11 @@ final class PlaceBook {
 
     nonisolated static var stored: [SavedPlace] {
         guard let data = UserDefaults.standard.data(forKey: defaultsKey) else { return [] }
-        return (try? JSONDecoder().decode([SavedPlace].self, from: data)) ?? []
+        return decodeCache.places(for: data)
     }
+
+    /// Every list row and every keystroke in New Nog reads the places; decode once per change.
+    private nonisolated static let decodeCache = PlaceDecodeCache()
 
     /// Names only, for the capture parser.
     nonisolated static var savedNames: [String] { stored.map(\.name) }
@@ -59,6 +62,21 @@ final class PlaceBook {
         UserDefaults.standard.set(data, forKey: Self.defaultsKey)
         ItemStore.shared.writeSidecar(Self.sidecarName, data: data)
         ItemStore.shared.scheduleSync()
+    }
+}
+
+/// The last decoded copy of the saved places, reused until the stored data changes.
+private final class PlaceDecodeCache: @unchecked Sendable {
+    private let lock = NSLock()
+    private var last: (data: Data, places: [SavedPlace])?
+
+    func places(for data: Data) -> [SavedPlace] {
+        lock.lock()
+        defer { lock.unlock() }
+        if let last, last.data == data { return last.places }
+        let places = (try? JSONDecoder().decode([SavedPlace].self, from: data)) ?? []
+        last = (data, places)
+        return places
     }
 }
 
