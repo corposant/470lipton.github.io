@@ -142,11 +142,11 @@ private struct DoingTimer: View {
                     .accessibilityLabel("Time's up. Mark it done, add time, or stop.")
             } else {
                 Text(timerInterval: context.state.startedAt...end, countsDown: true)
-                    .accessibilityLabel(Text("Time left ") + Text(timerInterval: context.state.startedAt...end, countsDown: true))
+                    .accessibilityLabel(Text("Time left \(Text(timerInterval: context.state.startedAt...end, countsDown: true))"))
             }
         } else {
             Text(context.state.startedAt, style: .timer)
-                .accessibilityLabel(Text("Time spent ") + Text(context.state.startedAt, style: .timer))
+                .accessibilityLabel(Text("Time spent \(Text(context.state.startedAt, style: .timer))"))
         }
     }
 }
