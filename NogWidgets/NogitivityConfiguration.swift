@@ -1,10 +1,13 @@
 import AppIntents
 import WidgetKit
 
-/// Press and hold › Edit Widget: which nogs a Nogitivity widget offers to start.
+/// Press and hold › Edit Widget: how a Nogitivity widget looks and which nogs it shows.
 struct NogitivityConfiguration: WidgetConfigurationIntent {
     static var title: LocalizedStringResource = "What Nog shows"
-    static var description = IntentDescription("Start a nog right from your Home Screen, then watch its timer.")
+    static var description = IntentDescription("What's on now, at a glance.")
+
+    @Parameter(title: "Style", default: .timeList)
+    var style: NogWidgetStyle
 
     @Parameter(title: "Lists", default: [.now])
     var lists: [NogWidgetList]
@@ -20,7 +23,9 @@ struct NogitivityConfiguration: WidgetConfigurationIntent {
 
     init() {}
 
-    init(lists: [NogWidgetList] = [.now], tag: String? = nil, nogs: [NogWidgetEntity]? = nil, showTimer: Bool = true) {
+    init(style: NogWidgetStyle = .timeList, lists: [NogWidgetList] = [.now], tag: String? = nil,
+         nogs: [NogWidgetEntity]? = nil, showTimer: Bool = true) {
+        self.style = style
         self.lists = lists
         self.tag = tag
         self.nogs = nogs
@@ -37,6 +42,17 @@ struct NogitivityConfiguration: WidgetConfigurationIntent {
     var listKinds: [WidgetListKind] {
         lists.isEmpty ? [.now] : lists.map(\.kind)
     }
+}
+
+/// How the widget lays out what's on now.
+enum NogWidgetStyle: String, AppEnum {
+    case timeList, oneThing
+
+    static var typeDisplayRepresentation: TypeDisplayRepresentation = "Style"
+    static var caseDisplayRepresentations: [NogWidgetStyle: DisplayRepresentation] = [
+        .timeList: DisplayRepresentation(title: "Time list", subtitle: "What's on now, then later"),
+        .oneThing: DisplayRepresentation(title: "One thing", subtitle: "The nog that matters most, big"),
+    ]
 }
 
 enum NogWidgetList: String, AppEnum {
