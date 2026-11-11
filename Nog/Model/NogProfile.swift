@@ -5,18 +5,18 @@ import Foundation
 ///
 /// Listed gentlest to loudest; pickers show them in this order.
 enum NogProfile: String, CaseIterable, Identifiable {
-    case hush, whisper, daily, easing, steady, building, hyperfocus, unhinged
+    case hush, teatime, whisper, daily, easing, steady, building, unhinged
     var id: String { rawValue }
 
     var label: String {
         switch self {
         case .hush: "Hush"
+        case .teatime: "Teatime"
         case .whisper: "Whisper"
         case .daily: "Daily"
         case .easing: "Easing"
         case .steady: "Steady"
         case .building: "Building"
-        case .hyperfocus: "Hyperfocus"
         case .unhinged: "Unhinged"
         }
     }
@@ -24,12 +24,12 @@ enum NogProfile: String, CaseIterable, Identifiable {
     var summary: String {
         switch self {
         case .hush: "After 15 min, then every 15 min. Always silent, just a banner. Never rings."
+        case .teatime: "At tea time (4 PM), then every other day at tea time: about three times a week. Never rings."
         case .whisper: "After an hour, then hourly, easing off to daily. Never rings."
         case .daily: "Once a day at the same time until done. Never rings."
         case .easing: "After 8 min, then 16, 32, 64… easing off to daily."
         case .steady: "After 15 min, then every 8 min until done."
         case .building: "Heads-up 15, 5 and 1 min before. Then every 30, 15, 8, and every 4 min until done."
-        case .hyperfocus: "After 5 min, then every 5 min. Rings as an alarm after 1 ignored nog."
         case .unhinged: "After 2 min, then every 7 min, no let-up. Rings as an alarm after 3 ignored nogs."
         }
     }
@@ -37,12 +37,12 @@ enum NogProfile: String, CaseIterable, Identifiable {
     var systemImage: String {
         switch self {
         case .hush: "speaker.slash.fill"
+        case .teatime: "cup.and.saucer.fill"
         case .whisper: "wind"
         case .daily: "sunrise.fill"
         case .easing: "chart.line.downtrend.xyaxis"
         case .steady: "metronome"
         case .building: "chart.line.uptrend.xyaxis"
-        case .hyperfocus: "scope"
         case .unhinged: "bolt.fill"
         }
     }
@@ -51,12 +51,12 @@ enum NogProfile: String, CaseIterable, Identifiable {
     var firstDelayMinutes: Int {
         switch self {
         case .hush: 15
+        case .teatime: 0
         case .whisper: 60
         case .daily: 1440
         case .easing: 8
         case .steady: 15
         case .building: 30
-        case .hyperfocus: 5
         case .unhinged: 2
         }
     }
@@ -64,12 +64,12 @@ enum NogProfile: String, CaseIterable, Identifiable {
     var repeatMinutes: Int {
         switch self {
         case .hush: 15
+        case .teatime: 0
         case .whisper: 60
         case .daily: 1440
         case .easing: 8
         case .steady: 8
         case .building: 30
-        case .hyperfocus: 5
         case .unhinged: 7
         }
     }
@@ -78,22 +78,38 @@ enum NogProfile: String, CaseIterable, Identifiable {
         switch self {
         case .whisper, .easing: .logarithmic
         case .building: .building
-        case .hush, .daily, .steady, .hyperfocus, .unhinged: .steady
+        case .hush, .teatime, .daily, .steady, .unhinged: .steady
         }
     }
 
     /// nil = follow the global "ring as an alarm after" setting; 0 = never.
     var escalateAfter: Int? {
         switch self {
-        case .hush, .whisper, .daily: 0
+        case .hush, .teatime, .whisper, .daily: 0
         case .steady, .easing, .building: nil
-        case .hyperfocus: 1
         case .unhinged: 3
         }
     }
 
     /// No sound and no Time Sensitive break-through, whatever the global settings say.
     var silent: Bool { self == .hush }
+
+    /// Starts at this time of day (minutes after midnight) instead of after a delay.
+    var timeOfDay: Int? { self == .teatime ? 16 * 60 : nil }
+
+    /// When a new capture in this profile first reminds you.
+    func firstStart(from now: Date, calendar: Calendar = .current) -> Date {
+        Self.firstStart(delayMinutes: firstDelayMinutes, timeOfDay: timeOfDay, from: now, calendar: calendar)
+    }
+
+    /// The next `timeOfDay` (today if it's still ahead), or `delayMinutes` from now.
+    static func firstStart(delayMinutes: Int, timeOfDay: Int?, from now: Date,
+                           calendar: Calendar = .current) -> Date {
+        guard let timeOfDay,
+              let today = calendar.date(bySettingHour: timeOfDay / 60, minute: timeOfDay % 60, second: 0, of: now)
+        else { return now.addingTimeInterval(TimeInterval(delayMinutes * 60)) }
+        return today > now ? today : calendar.date(byAdding: .day, value: 1, to: today) ?? today
+    }
 
     /// Applies this profile's rhythm to a reminder, keeping its start time.
     func apply(to reminder: Reminder) -> Reminder {
@@ -108,7 +124,7 @@ enum NogProfile: String, CaseIterable, Identifiable {
 
     /// A fresh reminder in this profile, starting `firstDelayMinutes` from `now`.
     func reminder(from now: Date = .now) -> Reminder {
-        apply(to: Reminder(start: now.addingTimeInterval(TimeInterval(firstDelayMinutes * 60))))
+        apply(to: Reminder(start: firstStart(from: now)))
     }
 
     /// The profile a reminder follows, if it matches one exactly (otherwise it's "Custom").
@@ -119,12 +135,9 @@ enum NogProfile: String, CaseIterable, Identifiable {
         }
     }
 
-    /// The four shown first; the rest are under More styles.
-    static let mainCases: [NogProfile] = [.whisper, .steady, .building, .unhinged]
-
     /// Capture tokens: `!hush`, `!whisper`, `!daily`, `!easing`, `!steady`, `!building`,
-    /// `!hyperfocus`, `!unhinged`, or the first few letters of one (`!unh`, `!hyp`, `!bui`).
-    /// `!gentle` still means Whisper, and `!break` means Hyperfocus.
+    /// `!teatime` (or `!tea`), `!unhinged`, or the first few letters of one (`!unh`, `!hyp`, `!bui`).
+    /// `!gentle` still means Whisper; `!tea` is Teatime.
     static func token(_ word: String) -> NogProfile? {
         let word = word.lowercased()
         guard word.hasPrefix("!") else { return nil }
@@ -136,7 +149,7 @@ enum NogProfile: String, CaseIterable, Identifiable {
     }
 
     /// Other words that pick a profile.
-    static let aliases: [String: NogProfile] = ["gentle": .whisper, "break": .hyperfocus]
+    static let aliases: [String: NogProfile] = ["gentle": .whisper, "tea": .teatime]
 
     /// Profiles you can type in a capture: all of them.
     static let tokenProfiles: [NogProfile] = allCases

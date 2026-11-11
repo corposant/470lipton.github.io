@@ -72,10 +72,17 @@ struct CaptureDraft: Equatable {
             result.reminder = nil
         } else {
             var r = result.reminder ?? Reminder(
-                start: now.addingTimeInterval(TimeInterval(defaults.firstDelayMinutes * 60)),
+                start: NogProfile.firstStart(delayMinutes: defaults.firstDelayMinutes, timeOfDay: defaults.timeOfDay,
+                                             from: now, calendar: calendar),
                 repeatMinutes: defaults.repeatMinutes, curve: defaults.curve, silent: defaults.silent,
                 escalateAfter: defaults.escalateAfter)
-            if let profile { r = profile.apply(to: r) }
+            if let profile {
+                r = profile.apply(to: r)
+                // Teatime picked in the tray, and no time typed: first reminder at tea time.
+                if profile.timeOfDay != nil, NaturalDateParser.parse(text, now: now, calendar: calendar).start == nil {
+                    r.start = profile.firstStart(from: now, calendar: calendar)
+                }
+            }
             if let when { r.start = when }
             r.alarm = kind == .alarm
             result.reminder = r
