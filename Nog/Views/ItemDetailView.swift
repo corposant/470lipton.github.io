@@ -230,20 +230,20 @@ private struct ItemEditor: View {
                     .listRowInsets(EdgeInsets(top: 4, leading: 4, bottom: 4, trailing: 4))
             }
         case .open, .someday:
+            // Start and Done sit inside the timer panel, under the next nog.
             Section {
                 if item.status == .someday {
-                    DreamCard { store.reopen(item.id) }
+                    DreamCard(reopen: { store.reopen(item.id) }) { actions }
                 } else {
-                    NextNogCard(item: item) { showNogSheet = true }
+                    NextNogCard(item: item, edit: { showNogSheet = true }) { actions }
                 }
-                actions
             }
             .listRowBackground(Color.clear)
             .listRowInsets(EdgeInsets(top: 4, leading: 4, bottom: 4, trailing: 4))
         }
     }
 
-    /// ▶︎ Start and ✓ Nogged, side by side. Finishing is its own clearly-labelled
+    /// ▶︎ Start and ✓ Done, side by side, at the foot of the timer panel. Finishing is its own clearly-labelled
     /// action, never a "save" button: edits on this page are saved as you make them.
     private var actions: some View {
         // Stacked at the accessibility text sizes, so neither button truncates.
@@ -268,7 +268,6 @@ private struct ItemEditor: View {
             .buttonStyle(.borderless)
             .accessibilityLabel("Mark done")
         }
-        .padding(.top, 4)
     }
 
     // MARK: Content
@@ -571,11 +570,12 @@ private struct ItemEditor: View {
 // MARK: - State cards
 
 /// The one question you have about an open item: when will it nog me next?
-/// Big glowing readout, and the rhythm underneath (tap to change it).
-private struct NextNogCard: View {
+/// Big glowing readout, the rhythm underneath (tap to change it), then Start and Done.
+private struct NextNogCard<Actions: View>: View {
     @Environment(ItemStore.self) private var store
     let item: Item
     let edit: () -> Void
+    @ViewBuilder let actions: Actions
 
     var body: some View {
         // The countdown ("in 12 min") changes on the minute counted back from the next nog.
@@ -631,6 +631,7 @@ private struct NextNogCard: View {
                         .buttonStyle(OutlineButtonStyle(tint: Theme.pink, expands: false))
                 }
             }
+            PanelActions { actions }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
@@ -691,20 +692,37 @@ private struct NextNogCard: View {
     }
 }
 
-/// Parked in Dream nogs: say so, and offer the way back.
-private struct DreamCard: View {
-    let reopen: () -> Void
+/// The foot of a timer panel: a hairline, then the panel's buttons.
+private struct PanelActions<Content: View>: View {
+    @ViewBuilder let content: Content
 
     var body: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                PanelLabel(text: "Someday", tint: Theme.violet)
-                Text("No reminders.")
-                    .foregroundStyle(Theme.muted)
+        VStack(spacing: 12) {
+            Divider().overlay(Theme.muted.opacity(0.25))
+            content
+        }
+        .padding(.top, 4)
+    }
+}
+
+/// Parked in Dream nogs: say so, and offer the way back.
+private struct DreamCard<Actions: View>: View {
+    let reopen: () -> Void
+    @ViewBuilder let actions: Actions
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    PanelLabel(text: "Someday", tint: Theme.violet)
+                    Text("No reminders.")
+                        .foregroundStyle(Theme.muted)
+                }
+                Spacer()
+                Button("Bring back", action: reopen)
+                    .buttonStyle(OutlineButtonStyle(tint: Theme.pink, expands: false))
             }
-            Spacer()
-            Button("Bring back", action: reopen)
-                .buttonStyle(OutlineButtonStyle(tint: Theme.pink, expands: false))
+            PanelActions { actions }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
