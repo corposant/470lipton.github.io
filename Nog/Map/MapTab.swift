@@ -451,6 +451,12 @@ struct MindMapView: View {
     private static let zoneInset = (side: MapLayout.cell.width / 2 + 26, top: MapLayout.cell.height / 2 + 42,
                                     bottom: MapLayout.cell.height / 2 + 26)
 
+    /// Height of a zone title tab on screen.
+    private static let zoneTitleHeight: CGFloat = 22
+    /// Screen distance between the borders of nested zones: one title plus a clear gap,
+    /// so stacked titles never touch at any zoom.
+    private static let zoneTitleStep: CGFloat = zoneTitleHeight + 8
+
     /// One soft, coloured zone per #tag, wrapped around its items.
     private func zoneList(_ graph: MapGraph) -> [Zone] {
         let inset = Self.zoneInset
@@ -464,11 +470,17 @@ struct MindMapView: View {
                               width: maxX - minX + 2 * inset.side, height: maxY - minY + inset.top + inset.bottom)
             return Zone(tags: group.tags, members: group.members, rect: rect)
         }
+        // The titles are drawn at a fixed size on screen, so the room an outer zone leaves
+        // above an inner one has to hold a whole title on screen too. In map points that
+        // room grows as the map zooms out; otherwise the inner title covers the outer one.
+        let s = max(scale, 0.01)
+        let gap = (top: max(32, Self.zoneTitleStep / s), side: max(18, 10 / s), bottom: max(18, 10 / s))
         for j in zones.indices {
             for i in zones.indices where i < j && zones[i].members.isStrictSubset(of: zones[j].members) {
                 let inner = zones[i].rect
-                zones[j].rect = zones[j].rect.union(CGRect(x: inner.minX - 18, y: inner.minY - 32,
-                                                           width: inner.width + 36, height: inner.height + 50))
+                zones[j].rect = zones[j].rect.union(CGRect(x: inner.minX - gap.side, y: inner.minY - gap.top,
+                                                           width: inner.width + 2 * gap.side,
+                                                           height: inner.height + gap.top + gap.bottom))
             }
         }
         // Biggest drawn first (underneath).
@@ -503,7 +515,7 @@ struct MindMapView: View {
                         .fixedSize()
                         .foregroundStyle(zone.color)
                         .padding(.horizontal, 10)
-                        .frame(height: 22)
+                        .frame(height: Self.zoneTitleHeight)
                         .background(Theme.base, in: Capsule())
                         .overlay(Capsule().strokeBorder(zone.color.opacity(0.6), lineWidth: 1))
                         // Centred on the border line, a little in from the corner.
