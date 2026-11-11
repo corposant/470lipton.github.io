@@ -1388,7 +1388,7 @@ final class NotificationButtonTests: XCTestCase {
         XCTAssertFalse(plan.contains { $0.fireDate == alarm })
         // The countdown stays put as time passes, so pending nogs aren't needlessly replaced.
         let later = NogPlanner.plan(items: [item], now: now.addingTimeInterval(60), maxFollowUpsPerItem: 4,
-                                    alarmDates: [item.id: [alarm]])
+                                    alarmDates: [item.id: [alarm]]).filter { !$0.isHeadsUp }
         XCTAssertEqual(Set(plan.map(\.identifier)), Set(later.map(\.identifier)))
     }
 
