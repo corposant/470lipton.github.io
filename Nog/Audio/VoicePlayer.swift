@@ -16,6 +16,18 @@ final class VoicePlayer: NSObject, AVAudioPlayerDelegate {
 
     @ObservationIgnored private var player: AVAudioPlayer?
 
+    override init() {
+        super.init()
+        // A call or an alarm cuts in: iOS pauses the player, so stop rather than look stuck.
+        NotificationCenter.default.addObserver(
+            forName: AVAudioSession.interruptionNotification, object: nil, queue: .main) { [weak self] note in
+            let type = (note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt)
+                .flatMap(AVAudioSession.InterruptionType.init(rawValue:))
+            guard type == .began else { return }
+            MainActor.assumeIsolated { self?.stop() }
+        }
+    }
+
     /// How far into the playing note, in seconds.
     var currentTime: TimeInterval { player?.currentTime ?? 0 }
 

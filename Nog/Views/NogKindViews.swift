@@ -115,7 +115,7 @@ struct NogKindSheet: View {
                             "Stop: rings again later. Done: finished.",
                         ])
                     }
-                    Label("Ignored nogs can turn into alarms: Unhinged does after 3. Set it for all in Settings › Advanced › Timing & alerts.",
+                    Label("Ignored nogs can become alarms. Unhinged: after 3.",
                           systemImage: "chart.line.uptrend.xyaxis")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
