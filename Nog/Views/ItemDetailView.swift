@@ -27,6 +27,7 @@ private struct ItemEditor: View {
     @State private var isAddingTag = false
     @FocusState private var tagFieldFocused: Bool
     @FocusState private var notesFocused: Bool
+    @State private var notesCommitted = 0
     /// Notes grow with the text up to this height, then scroll inside themselves,
     /// so the caret is never pushed under the keyboard.
     @ScaledMetric(relativeTo: .body) private var notesMaxHeight: CGFloat = 240
@@ -84,7 +85,17 @@ private struct ItemEditor: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) { moreMenu }
+            // Notes are saved as you type; Done puts the keyboard away and confirms it.
+            if notesFocused {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") { commitNotes() }
+                        .fontWeight(.semibold)
+                        .accessibilityHint("Saves the notes and hides the keyboard")
+                }
+            }
         }
+        .nogFeedback(.success, trigger: notesCommitted)
         .sheet(isPresented: $showParentPicker) {
             ParentPicker(item: item)
         }
@@ -256,6 +267,12 @@ private struct ItemEditor: View {
     // MARK: Content
 
     private static let notesAnchor = "notes"
+
+    private func commitNotes() {
+        notesFocused = false
+        notesCommitted += 1
+        AccessibilityNotification.Announcement("Notes saved").post()
+    }
 
     private func notesSection(_ proxy: ScrollViewProxy) -> some View {
         Section {
