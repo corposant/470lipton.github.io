@@ -423,3 +423,171 @@ final class MapSqueezeTests: XCTestCase {
     }
 }
 
+
+final class MapHexTests: XCTestCase {
+    private let lattice = MapHex.Lattice.standard
+
+    private func onLattice(_ p: CGPoint, _ lattice: MapHex.Lattice = .standard) -> Bool {
+        lattice.snapped(p) == p
+    }
+
+    /// A deterministic scatter of `count` chips over a square `span` points wide.
+    private func scatter(_ count: Int, span: Int = 3000) -> [UUID: CGPoint] {
+        var seed = 4242
+        func next() -> CGFloat {
+            seed = (seed * 1_103_515_245 + 12345) % 2_147_483_648
+            return CGFloat(seed % span) - CGFloat(span / 2)
+        }
+        var p: [UUID: CGPoint] = [:]
+        for _ in 0..<count { p[UUID()] = CGPoint(x: next(), y: next()) }
+        return p
+    }
+
+    func testCellsHaveSixNeighboursAndRowsAreOffsetByHalfACell() {
+        let origin = MapHex(column: 0, row: 0)
+        XCTAssertEqual(lattice.point(origin), .zero)
+        for step in MapHex.neighbourSteps {
+            XCTAssertEqual(origin.distance(to: MapHex(column: step.dc, row: step.dr)), 1)
+        }
+        // The cell beside is one cell across; the cells above are half a cell across.
+        XCTAssertEqual(lattice.point(MapHex(column: 2, row: 0)).x, MapLayout.pitch.width)
+        XCTAssertEqual(lattice.point(MapHex(column: 1, row: 1)), CGPoint(x: MapLayout.pitch.width / 2, y: MapLayout.pitch.height))
+        // Standard chips in neighbouring cells never overlap.
+        var p: [UUID: CGPoint] = [UUID(): .zero]
+        for step in MapHex.neighbourSteps { p[UUID()] = lattice.point(MapHex(column: step.dc, row: step.dr)) }
+        XCTAssertFalse(MapLayout.hasOverlap(p))
+    }
+
+    func testNearestCellIsReallyTheNearest() {
+        for p in scatter(200).values {
+            let q = lattice.snapped(p)
+            let best = lattice.searchOrder(radius: 2).map { lattice.point(lattice.hex(near: q) + $0) }
+                .map { hypot($0.x - p.x, $0.y - p.y) }.min() ?? 0
+            XCTAssertEqual(hypot(q.x - p.x, q.y - p.y), best, accuracy: 0.01)
+        }
+    }
+
+    func testSnapPutsEveryChipInAFreeCellAndIsStable() {
+        var p = scatter(150)
+        // Half of them piled up on one spot.
+        for id in p.keys.sorted(by: { $0.uuidString < $1.uuidString }).prefix(40) { p[id] = CGPoint(x: 10, y: 10) }
+        let out = MapLayout.snap(p)
+        XCTAssertEqual(out.count, p.count)
+        XCTAssertFalse(MapLayout.hasOverlap(out))
+        XCTAssertTrue(out.values.allSatisfy { onLattice($0) })
+        XCTAssertEqual(MapLayout.snap(out), out)
+    }
+
+    func testSnapWithBigChipsKeepsThemApart() {
+        let p = scatter(80, span: 1500)
+        var sizes: [UUID: CGSize] = [:]
+        for (i, id) in p.keys.sorted(by: { $0.uuidString < $1.uuidString }).enumerated() {
+            sizes[id] = i % 4 == 0 ? CGSize(width: 420, height: 110) : CGSize(width: 196, height: 58)
+        }
+        let out = MapLayout.snap(p, sizes: sizes)
+        XCTAssertFalse(MapLayout.hasOverlap(out, sizes: sizes))
+        XCTAssertEqual(MapLayout.snap(out, sizes: sizes), out)
+    }
+
+    func testSnapNeverMovesPinnedChipsAndSteersAroundThem() {
+        let pinned = UUID(), loose = UUID()
+        let p = [pinned: CGPoint(x: 13, y: 7), loose: CGPoint(x: 20, y: 0)]
+        let out = MapLayout.snap(p, fixed: [pinned])
+        XCTAssertEqual(out[pinned], CGPoint(x: 13, y: 7))
+        XCTAssertTrue(onLattice(out[loose]!))
+        XCTAssertFalse(MapLayout.hasOverlap(out))
+    }
+
+    func testLargeTextMakesBiggerCells() {
+        let ids = (0..<5).map { _ in UUID() }
+        let big = Dictionary(uniqueKeysWithValues: ids.map { ($0, CGSize(width: 300, height: 100)) })
+        let roomy = MapHex.Lattice.fitting(ids, sizes: big)
+        XCTAssertEqual(roomy.step.width, 300 + MapLayout.spacing.width)
+        XCTAssertEqual(roomy.step.height, 100 + MapLayout.spacing.height)
+        XCTAssertEqual(MapHex.Lattice.fitting(ids, sizes: [:]), .standard)
+    }
+
+    func testHoneycombLayoutOffsetsEveryOtherRow() {
+        let base = Date(timeIntervalSince1970: 1_800_000_000)
+        let items = (0..<20).map { i -> Item in
+            var item = Item(title: "Nog \(i)")
+            item.created = base.addingTimeInterval(Double(i))
+            return item
+        }
+        let p = MapLayout.layOut(.grid, items: items)
+        XCTAssertEqual(p.count, 20)
+        XCTAssertFalse(MapLayout.hasOverlap(p))
+        XCTAssertTrue(p.values.allSatisfy { onLattice($0) })
+        // Reading order: the first row is level, and the second row starts half a cell over.
+        let rows = Dictionary(grouping: items.compactMap { p[$0.id] }, by: \.y).keys.sorted()
+        XCTAssertGreaterThan(rows.count, 1)
+        let first = p.values.filter { $0.y == rows[0] }.map(\.x).min()!
+        let second = p.values.filter { $0.y == rows[1] }.map(\.x).min()!
+        XCTAssertEqual(abs(second - first), MapLayout.pitch.width / 2, accuracy: 0.01)
+        XCTAssertEqual(p[items[0].id]?.x, first)
+        XCTAssertEqual(p[items[0].id]?.y, rows[0])
+    }
+
+    func testEveryLayoutAndTidyUpLandsInTheHoneycomb() {
+        let base = Date(timeIntervalSince1970: 1_800_000_000)
+        var items: [Item] = []
+        let trip = Item(title: "Trip")
+        items.append(trip)
+        for i in 0..<9 {
+            var s = Item(title: "Step \(i)")
+            s.parentID = trip.id
+            s.created = base.addingTimeInterval(Double(i))
+            items.append(s)
+        }
+        for i in 0..<8 { items.append(Item(title: "Loose \(i)")) }
+        for style in MapLayout.Style.allCases {
+            let p = MapLayout.layOut(style, items: items)
+            XCTAssertTrue(p.values.allSatisfy { onLattice($0) }, "\(style.title) is off the honeycomb")
+            XCTAssertFalse(MapLayout.hasOverlap(p), "\(style.title)")
+        }
+        var messy: [UUID: CGPoint] = [:]
+        for (i, item) in items.enumerated() { messy[item.id] = CGPoint(x: CGFloat(i * 37 % 500), y: CGFloat(i * 53 % 400)) }
+        let tidy = MapLayout.cleanup(items, positions: messy, pinned: [])
+        XCTAssertTrue(tidy.values.allSatisfy { onLattice($0) })
+        XCTAssertFalse(MapLayout.hasOverlap(tidy))
+        XCTAssertEqual(MapLayout.cleanup(items, positions: tidy, pinned: []), tidy)
+    }
+
+    func testDroppingSnapsToTheNearestFreeCell() {
+        let a = UUID(), b = UUID()
+        let others = [a: CGPoint.zero]
+        // Dropped almost on top of a: it goes beside it, not on it.
+        let spot = MapLayout.snapOne(b, near: CGPoint(x: 30, y: 10), others: others)
+        XCTAssertNotNil(spot)
+        XCTAssertTrue(onLattice(spot!))
+        XCTAssertFalse(MapLayout.hasOverlap([a: .zero, b: spot!]))
+        // Dropped in open space: the nearest cell.
+        XCTAssertEqual(MapLayout.snapOne(b, near: CGPoint(x: 1010, y: 410), others: others),
+                       lattice.snapped(CGPoint(x: 1010, y: 410)))
+    }
+
+    func testStepsMoveOneCellAndHopOverNeighbours() {
+        let me = UUID(), right = UUID()
+        let start = CGPoint.zero
+        let w = MapLayout.pitch.width, h = MapLayout.pitch.height
+        XCTAssertEqual(MapLayout.hexStep(me, from: start, dx: -1, dy: 0, others: [:]), CGPoint(x: -w, y: 0))
+        // Something in the next cell: hop to the one after it.
+        XCTAssertEqual(MapLayout.hexStep(me, from: start, dx: 1, dy: 0, others: [right: CGPoint(x: w, y: 0)]),
+                       CGPoint(x: 2 * w, y: 0))
+        // Up twice comes back straight above.
+        let up = MapLayout.hexStep(me, from: start, dx: 0, dy: -1, others: [:])
+        XCTAssertEqual(up.y, -h)
+        XCTAssertEqual(abs(up.x), w / 2)
+        let upAgain = MapLayout.hexStep(me, from: up, dx: 0, dy: -1, others: [:])
+        XCTAssertEqual(upAgain, CGPoint(x: 0, y: -2 * h))
+    }
+
+    func testWholeCellSqueezeKeepsChipsInTheHoneycomb() {
+        let a = UUID(), b = UUID()
+        let p = [a: lattice.point(MapHex(column: 0, row: 0)), b: lattice.point(MapHex(column: 30, row: 0))]
+        let out = MapLayout.squeeze(p, quantum: lattice.quantum)
+        XCTAssertLessThan(out[b]!.x - out[a]!.x, p[b]!.x - p[a]!.x)
+        XCTAssertTrue(out.values.allSatisfy { onLattice($0) })
+        XCTAssertFalse(MapLayout.hasOverlap(out))
+    }
+}

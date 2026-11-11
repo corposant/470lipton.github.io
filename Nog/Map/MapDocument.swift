@@ -163,7 +163,7 @@ final class MapDocument {
         // Only worth a "working on it" note for a big batch; one new chip is instant.
         if missing.count > MapLayout.bulkPlacement { isPlacing = true }
         let result = await Task.detached(priority: .userInitiated) { () -> [UUID: CGPoint] in
-            if placed.isEmpty { return MapLayout.arrange(items, sizes: sizes) }
+            if placed.isEmpty { return MapLayout.layOut(.stars, items: items, sizes: sizes) }
             if missing.count > MapLayout.bulkPlacement {
                 return MapLayout.placeBeside(newItems, existing: placed, sizes: sizes)
             }
@@ -189,7 +189,8 @@ final class MapDocument {
         let current = positions.filter { ids.contains($0.key) }
         let fixed = Set(current.keys).subtracting(moving)
         let result = await Task.detached(priority: .utility) {
-            MapLayout.separate(current, sizes: sizes, fixed: fixed)
+            // Apart, then back into the honeycomb around everything else.
+            MapLayout.snap(MapLayout.separate(current, sizes: sizes, fixed: fixed), sizes: sizes, fixed: fixed)
         }.value
         unsettled.subtract(moving)
         var changed = false
