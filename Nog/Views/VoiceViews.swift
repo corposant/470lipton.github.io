@@ -4,7 +4,10 @@ import SwiftUI
 struct VoiceNotesSection: View {
     @Environment(ItemStore.self) private var store
     let item: Item
+    /// Opens the recorder as soon as the page appears (a voice nog made from New Nog).
+    var autoRecord = false
     @State private var showRecorder = false
+    @State private var didAutoRecord = false
 
     var body: some View {
         Section {
@@ -16,7 +19,7 @@ struct VoiceNotesSection: View {
             Button {
                 showRecorder = true
             } label: {
-                Label("Record", systemImage: "mic")
+                Label(item.voiceNotes.isEmpty ? "Record" : "Record more", systemImage: "mic")
                     .foregroundStyle(Theme.pink)
                     .frame(minHeight: 32)
             }
@@ -27,10 +30,15 @@ struct VoiceNotesSection: View {
         }
         .listRowBackground(Theme.glass)
         .sheet(isPresented: $showRecorder) {
-            RecordSheet { recording in
+            RecorderPanel { recording in
                 store.attachVoiceNote(recording, to: item.id)
                 AccessibilityNotification.Announcement("Voice note saved").post()
             }
+        }
+        .onAppear {
+            guard autoRecord, !didAutoRecord else { return }
+            didAutoRecord = true
+            showRecorder = true
         }
         .onDisappear {
             if let playing = VoicePlayer.shared.playing, item.voiceNotes.contains(where: { $0.file == playing }) {
@@ -106,41 +114,34 @@ struct VoiceNoteRow: View {
     }
 }
 
-/// Records as soon as it opens. Stop saves; Cancel throws it away. Leaving the app saves too,
-/// so a recording is never lost to a notification tap.
-struct RecordSheet: View {
+/// The recorder: a glass panel that rises over the nog. Records as soon as it opens.
+/// Big digits, a live waveform, and three controls: discard, pause, Save. Save tucks the
+/// recording into the nog underneath. Leaving the app saves too, so nothing is lost.
+struct RecorderPanel: View {
     let onSave: (VoiceRecording) -> Void
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.dynamicTypeSize) private var typeSize
     @State private var recorder = VoiceRecorder()
+    @State private var confirmDiscard = false
 
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 24) {
-                Spacer(minLength: 0)
-                switch recorder.state {
-                case .denied: denied
-                case .failed: failed
-                default: recording
-                }
-                Spacer(minLength: 0)
-            }
-            .padding(24)
-            .frame(maxWidth: .infinity)
-            .background { NogBackground() }
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        recorder.cancel()
-                        dismiss()
-                    }
-                }
+        VStack(spacing: 16) {
+            switch recorder.state {
+            case .denied: denied
+            case .failed: failed
+            default: live
             }
         }
-        .presentationDetents(typeSize.isAccessibilitySize ? [.large] : [.medium, .large])
-        // A swipe down mustn't silently drop or keep a recording: Stop or Cancel decides.
-        .interactiveDismissDisabled(recorder.state == .recording || recorder.state == .asking)
+        .padding(.horizontal, 20)
+        .padding(.top, 26)
+        .padding(.bottom, 12)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        // A short sheet is Liquid Glass on its own; the nog stays visible above it.
+        .presentationDetents(typeSize.isAccessibilitySize ? [.large] : [.height(400)])
+        .presentationDragIndicator(.visible)
+        // A swipe down mustn't silently drop or keep a recording: Save or the bin decides.
+        .interactiveDismissDisabled(recorder.isLive || recorder.state == .asking)
         .task {
             VoicePlayer.shared.stop()
             await recorder.start()
@@ -149,63 +150,118 @@ struct RecordSheet: View {
             if state == .stoppedItself { save() }
         }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .background, recorder.state == .recording { save() }
+            if phase == .background, recorder.isLive { save() }
         }
         .onDisappear { recorder.cancel() }
+        .nogFeedback(.impact(weight: .medium), trigger: recorder.state) { _, new in new == .recording || new == .paused }
     }
 
-    private var recording: some View {
-        VStack(spacing: 24) {
+    // MARK: Recording
+
+    private var live: some View {
+        VStack(spacing: 16) {
             HStack(spacing: 8) {
-                Circle().fill(Theme.pink).frame(width: 10, height: 10)
+                Circle().fill(Theme.pink).frame(width: 9, height: 9)
                     .nogGlow(color: Theme.pink, radius: 4)
                     .opacity(recorder.state == .recording ? 1 : 0.3)
-                Text(recorder.state == .recording ? "RECORDING" : "STARTING")
+                Text(statusWord)
                     .font(.nogLabel)
                     .tracking(2)
-                    .foregroundStyle(Theme.pink)
+                    .foregroundStyle(recorder.state == .recording ? Theme.pink : Theme.muted)
+                Spacer()
             }
             .accessibilityElement(children: .combine)
             .accessibilityAddTraits(.isHeader)
 
-            TimelineView(.periodic(from: .now, by: 0.5)) { context in
-                let elapsed = recorder.startedAt.map { context.date.timeIntervalSince($0) } ?? 0
-                Text(VoiceNote.clock(elapsed))
-                    .nogReadout(48)
-                    .foregroundStyle(Theme.lcd)
-                    .accessibilityLabel(Duration.seconds(Int(elapsed))
-                        .formatted(.units(allowed: [.minutes, .seconds], width: .wide)))
-            }
+            // The readout: a recessed well with lit digits and the waveform under them.
+            VStack(spacing: 10) {
+                HStack(alignment: .firstTextBaseline, spacing: 0) {
+                    Text(VoiceNote.clock(recorder.elapsed.rounded(.down), padded: true))
+                        .nogReadout(50)
+                    Text(String(format: ".%d", Int(recorder.elapsed * 10) % 10))
+                        .nogReadout(28)
+                        .opacity(0.65)
+                }
+                .foregroundStyle(Theme.lcd)
+                .nogGlow(color: Theme.blue.opacity(0.5), radius: 8)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Time")
+                .accessibilityValue(Duration.seconds(Int(recorder.elapsed))
+                    .formatted(.units(allowed: [.minutes, .seconds], width: .wide)))
 
-            // How loud it's hearing you; just a reassurance that it's working.
-            Capsule()
-                .fill(Theme.edge)
-                .frame(maxWidth: 220, maxHeight: 6)
-                .overlay(alignment: .leading) {
-                    GeometryReader { proxy in
-                        Capsule().fill(Theme.synth)
-                            .frame(width: proxy.size.width * recorder.level)
+                Waveform(levels: recorder.levels, paused: recorder.state == .paused)
+                    .frame(height: 64)
+                    .accessibilityHidden(true)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity)
+            .background(Color.black.opacity(0.32), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(Theme.edge, lineWidth: 1))
+
+            HStack {
+                Button {
+                    if recorder.elapsed < 3 { discard() } else { confirmDiscard = true }
+                } label: {
+                    Image(systemName: "trash")
+                        .nogFont(19, weight: .medium)
+                        .foregroundStyle(Theme.muted)
+                        .nogFrame(width: 56, height: 56)
+                        .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .glassEffect(.regular.interactive(), in: .circle)
+                .accessibilityLabel("Discard recording")
+                .confirmationDialog("Discard this recording?", isPresented: $confirmDiscard, titleVisibility: .visible) {
+                    Button("Discard", role: .destructive, action: discard)
+                    Button("Keep recording", role: .cancel) {}
+                }
+                .frame(maxWidth: .infinity)
+
+                Button(action: recorder.togglePause) {
+                    ZStack {
+                        Circle().strokeBorder(.primary.opacity(0.85), lineWidth: 3)
+                        Circle().fill(Color(red: 1, green: 0.23, blue: 0.42)).padding(8)
+                        Image(systemName: recorder.state == .paused ? "mic.fill" : "pause.fill")
+                            .nogFont(24, weight: .bold)
+                            .foregroundStyle(.white)
                     }
+                    .nogFrame(width: 80, height: 80)
+                    .nogGlow(color: Theme.pink.opacity(0.45), radius: 12)
+                    .contentShape(Circle())
                 }
-                .accessibilityHidden(true)
+                .buttonStyle(.plain)
+                .disabled(!recorder.isLive)
+                .accessibilityLabel(recorder.state == .paused ? "Resume recording" : "Pause recording")
+                .frame(maxWidth: .infinity)
 
-            Button(action: save) {
-                VStack(spacing: 8) {
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(Theme.pink)
-                        .nogFrame(width: 26, height: 26)
-                        .nogFrame(width: 76, height: 76)
-                        .overlay(Circle().strokeBorder(Theme.synth, lineWidth: 2))
-                        .nogGlow(color: Theme.pink.opacity(0.35), radius: 10)
-                    Text("STOP").font(.nogTitle(13)).tracking(2).foregroundStyle(.primary)
+                Button(action: save) {
+                    Text("SAVE")
+                        .font(.nogTitle(13))
+                        .tracking(2)
+                        .foregroundStyle(.primary)
+                        .padding(.horizontal, 20)
+                        .frame(minHeight: 56)
+                        .contentShape(Capsule())
                 }
-                .contentShape(Rectangle())
+                .buttonStyle(.plain)
+                .glassEffect(.regular.tint(Theme.violet.opacity(0.45)).interactive(), in: .capsule)
+                .disabled(!recorder.isLive)
+                .accessibilityLabel("Save recording")
+                .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.plain)
-            .disabled(recorder.state != .recording)
-            .accessibilityLabel("Stop and save")
         }
     }
+
+    private var statusWord: String {
+        switch recorder.state {
+        case .recording: "RECORDING"
+        case .paused: "PAUSED"
+        default: "STARTING"
+        }
+    }
+
+    // MARK: Problems
 
     private var denied: some View {
         VStack(spacing: 16) {
@@ -218,7 +274,9 @@ struct RecordSheet: View {
                 if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
             }
             .buttonStyle(OutlineButtonStyle(expands: false))
+            Button("Close") { dismiss() }
         }
+        .frame(maxHeight: .infinity)
     }
 
     private var failed: some View {
@@ -228,13 +286,104 @@ struct RecordSheet: View {
             Text("Couldn't record. Try again.")
                 .font(.headline)
                 .multilineTextAlignment(.center)
+            Button("Close") { dismiss() }
         }
+        .frame(maxHeight: .infinity)
     }
 
     private func save() {
-        if let recording = recorder.stop() {
-            onSave(recording)
+        if let recording = recorder.stop() { onSave(recording) }
+        dismiss()
+    }
+
+    private func discard() {
+        recorder.cancel()
+        dismiss()
+    }
+}
+
+/// The last few seconds of loudness as bars, newest at the right, scrolling left as you talk.
+/// With Reduce Motion or Low stimulation it's one steady level bar instead.
+struct Waveform: View {
+    let levels: [Float]
+    var paused = false
+
+    var body: some View {
+        if Calm.reducesMotion {
+            GeometryReader { proxy in
+                Capsule().fill(Theme.edgeStrong)
+                    .overlay(alignment: .leading) {
+                        Capsule().fill(Theme.synth)
+                            .frame(width: proxy.size.width * CGFloat(paused ? 0 : levels.last ?? 0))
+                    }
+                    .frame(height: 6)
+                    .frame(maxHeight: .infinity)
+            }
+        } else {
+            Canvas { context, size in
+                let step: CGFloat = 5, barWidth: CGFloat = 3
+                let count = Int(size.width / step)
+                let shown = levels.suffix(count)
+                let mid = size.height / 2
+                // Bars fill from the left until the well is full, then scroll.
+                for (i, level) in shown.enumerated() {
+                    let h = max(3, CGFloat(level) * size.height)
+                    let rect = CGRect(x: CGFloat(i) * step, y: mid - h / 2, width: barWidth, height: h)
+                    let recent = shown.count - i <= 6
+                    context.fill(Path(roundedRect: rect, cornerRadius: 1.5),
+                                 with: .color(paused ? Theme.muted : recent ? Theme.pink : Theme.violet))
+                }
+                // The baseline still to come.
+                let startX = CGFloat(shown.count) * step
+                if startX < size.width {
+                    context.fill(Path(CGRect(x: startX, y: mid - 0.5, width: size.width - startX, height: 1)),
+                                 with: .color(Theme.edgeStrong))
+                }
+            }
         }
+    }
+}
+
+/// Which voice nog the sheet is showing.
+struct VoiceNogID: Identifiable {
+    let id: UUID
+}
+
+/// A brand-new voice nog, opened from the mic on New Nog: the nog's page in a sheet, already
+/// recording. Cancel throws the nog away; Save keeps it. (It's saved from the start, so a
+/// swipe down or a crash keeps it too.)
+struct VoiceNogSheet: View {
+    @Environment(ItemStore.self) private var store
+    @Environment(\.dismiss) private var dismiss
+    let id: UUID
+    var onCancel: () -> Void = {}
+    @State private var confirmCancel = false
+
+    var body: some View {
+        NavigationStack {
+            ItemDetailView(id: id, autoRecord: true, showsMenu: false)
+                .navigationDestination(for: UUID.self) { ItemDetailView(id: $0) }
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") {
+                            if store.items[id]?.voiceNotes.isEmpty == false { confirmCancel = true } else { cancel() }
+                        }
+                        .confirmationDialog("Delete this voice nog?", isPresented: $confirmCancel, titleVisibility: .visible) {
+                            Button("Delete", role: .destructive, action: cancel)
+                            Button("Keep", role: .cancel) {}
+                        }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Save") { dismiss() }
+                    }
+                }
+        }
+    }
+
+    private func cancel() {
+        VoicePlayer.shared.stop()
+        store.delete(id)
+        onCancel()
         dismiss()
     }
 }

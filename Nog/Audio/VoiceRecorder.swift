@@ -6,7 +6,7 @@ import Observation
 @MainActor @Observable
 final class VoiceRecorder: NSObject, AVAudioRecorderDelegate {
     enum State: Equatable {
-        case idle, asking, recording
+        case idle, asking, recording, paused
         /// Hit the length limit (or iOS stopped it): save what we have.
         case stoppedItself
         /// Microphone access is off in Settings.
@@ -15,9 +15,15 @@ final class VoiceRecorder: NSObject, AVAudioRecorderDelegate {
     }
 
     private(set) var state: State = .idle
-    private(set) var startedAt: Date?
-    /// Loudness, 0…1, for the level bar.
+    /// Recorded so far, in seconds (stands still while paused).
+    private(set) var elapsed: TimeInterval = 0
+    /// Loudness, 0…1, right now.
     private(set) var level: Double = 0
+    /// Loudness over time, one sample every `sampleInterval`, for the waveform.
+    private(set) var levels: [Float] = []
+
+    static let sampleInterval: Duration = .milliseconds(50)
+    var isLive: Bool { state == .recording || state == .paused }
 
     @ObservationIgnored private var recorder: AVAudioRecorder?
     @ObservationIgnored private var meterTask: Task<Void, Never>?
@@ -50,13 +56,26 @@ final class VoiceRecorder: NSObject, AVAudioRecorderDelegate {
             recorder.isMeteringEnabled = true
             guard recorder.record(forDuration: Self.maxSeconds) else { throw CocoaError(.fileWriteUnknown) }
             self.recorder = recorder
-            startedAt = .now
+            elapsed = 0
+            levels = []
             state = .recording
             startMetering()
         } catch {
             print("Nog: couldn't record: \(error)")
             state = .failed
             Self.deactivateSession()
+        }
+    }
+
+    /// Pause, or carry on. The same file keeps growing.
+    func togglePause() {
+        guard let recorder else { return }
+        if state == .recording {
+            recorder.pause()
+            level = 0
+            state = .paused
+        } else if state == .paused, recorder.record(forDuration: max(1, Self.maxSeconds - elapsed)) {
+            state = .recording
         }
     }
 
@@ -89,7 +108,7 @@ final class VoiceRecorder: NSObject, AVAudioRecorderDelegate {
         meterTask = nil
         level = 0
         recorder = nil
-        if state == .recording || state == .stoppedItself { state = .idle }
+        if isLive || state == .stoppedItself { state = .idle }
         Self.deactivateSession()
     }
 
@@ -97,10 +116,15 @@ final class VoiceRecorder: NSObject, AVAudioRecorderDelegate {
         meterTask = Task { [weak self] in
             while !Task.isCancelled {
                 guard let self, let recorder = self.recorder else { return }
-                recorder.updateMeters()
-                // -50 dB (quiet room) … 0 dB (shouting) → 0…1
-                self.level = Double(max(0, min(1, (recorder.averagePower(forChannel: 0) + 50) / 50)))
-                try? await Task.sleep(for: .milliseconds(100))
+                if self.state == .recording {
+                    recorder.updateMeters()
+                    // -50 dB (quiet room) … 0 dB (shouting) → 0…1
+                    let level = max(0, min(1, (recorder.averagePower(forChannel: 0) + 50) / 50))
+                    self.level = Double(level)
+                    self.levels.append(level)
+                    self.elapsed = recorder.currentTime
+                }
+                try? await Task.sleep(for: Self.sampleInterval)
             }
         }
     }
@@ -114,7 +138,7 @@ final class VoiceRecorder: NSObject, AVAudioRecorderDelegate {
     nonisolated func audioRecorderDidFinishRecording(_ recorder: AVAudioRecorder, successfully flag: Bool) {
         let url = recorder.url
         Task { @MainActor [weak self] in
-            guard let self, self.recorder?.url == url, self.state == .recording else { return }
+            guard let self, self.recorder?.url == url, self.isLive else { return }
             self.meterTask?.cancel()
             self.state = .stoppedItself
         }

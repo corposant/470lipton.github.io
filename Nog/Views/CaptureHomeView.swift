@@ -16,7 +16,8 @@ struct CaptureHomeView: View {
     @State private var showKindHelp = false
     @State private var showHowTo = false
     @State private var showParentPicker = false
-    @State private var showRecorder = false
+    /// The voice nog just made with the mic, open in its sheet.
+    @State private var voiceNog: VoiceNogID?
     @State private var confirmation: (text: String, id: UUID)?
     /// Apple's Siri tip ("Say 'Take a Nog'"); hidden for good once dismissed.
     @AppStorage("siriTip.capture") private var showSiriTip = true
@@ -42,13 +43,12 @@ struct CaptureHomeView: View {
         NavigationStack(path: $router.capturePath) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    composer
-                    if showSubItems || !draft.subItems.isEmpty { subItemList }
                     HStack(spacing: 10) {
-                        saveButton
-                        recordButton
+                        composer
+                        micButton
                     }
-                    .fixedSize(horizontal: false, vertical: true)
+                    if showSubItems || !draft.subItems.isEmpty { subItemList }
+                    saveButton
                     readout
                     if draft.isEmpty && focus == nil {
                         hint
@@ -82,7 +82,9 @@ struct CaptureHomeView: View {
             .sheet(isPresented: $showKindHelp) { NogKindSheet() }
             .sheet(isPresented: $showHowTo) { HowToNogSheet() }
             .sheet(isPresented: $showParentPicker) { CaptureParentPicker(selection: $draft.parentID) }
-            .sheet(isPresented: $showRecorder) { RecordSheet { saveNog(voice: $0) } }
+            .sheet(item: $voiceNog) { nog in
+                VoiceNogSheet(id: nog.id) { confirmation = nil }
+            }
             // The keyboard opens only when you tap the box (or ask for Quick Capture).
             .onChange(of: router.captureFocusRequest) { focus = .title }
             .nogFeedback(.success, trigger: confirmation?.id)
@@ -131,25 +133,24 @@ struct CaptureHomeView: View {
         .accessibilityHint(draft.isEmpty ? "Type something first." : "")
     }
 
-    /// Records a voice nog. With words typed, the recording goes on that nog; without,
-    /// the nog is named "Voice nog 8:44 AM". The tray's choices apply either way.
-    private var recordButton: some View {
+    /// A quiet round mic beside the box. One tap makes a nog and opens it, already recording.
+    /// With words typed, they're the nog's name; without, it's "Voice nog 8:44 AM".
+    /// The tray's choices apply either way.
+    private var micButton: some View {
         Button {
             focus = nil
-            showRecorder = true
+            if let item = saveNog(forVoice: true) { voiceNog = VoiceNogID(id: item.id) }
         } label: {
-            Image(systemName: "mic.fill")
-                .nogFont(17, weight: .semibold)
+            Image(systemName: "mic")
+                .nogFont(20, weight: .medium)
                 .foregroundStyle(Theme.pink)
-                .padding(.vertical, 15)
-                .padding(.horizontal, 20)
-                .frame(maxHeight: .infinity)
-                .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .strokeBorder(Theme.pink.opacity(0.7), lineWidth: 1.5))
-                .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .nogFrame(width: 56, height: 56)
+                .nogPanel(cornerRadius: 28)
+                .contentShape(Circle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Record voice nog")
+        .accessibilityHint("Makes a nog and starts recording.")
     }
 
     /// Sub-nogs typed straight in. Each one has its own line with a remove button, and the
@@ -329,14 +330,15 @@ struct CaptureHomeView: View {
 
     // MARK: Saving
 
-    private func submit() { saveNog(voice: nil) }
+    private func submit() { saveNog(forVoice: false) }
 
-    private func saveNog(voice: VoiceRecording?) {
-        guard !draft.isEmpty || voice != nil else { return }
+    @discardableResult
+    private func saveNog(forVoice voice: Bool) -> Item? {
+        guard !draft.isEmpty || voice else { return nil }
         let now = Date.now
         var result = draft.resolved(defaults: defaults, now: now)
         // Only a recording: name it for what it is, so it's easy to spot later.
-        if voice != nil, result.title.isEmpty { result.title = VoiceNote.captureTitle(now) }
+        if voice, result.title.isEmpty { result.title = VoiceNote.captureTitle(now) }
         let own = draft.choseOwnRhythm(defaults: defaults, now: now)
         let pending = newSubItem.trimmingCharacters(in: .whitespacesAndNewlines)
         let subItems = draft.subItems + (pending.isEmpty ? [] : [pending])
@@ -345,23 +347,20 @@ struct CaptureHomeView: View {
             created = store.add(result, parent: draft.parentID, ownRhythm: own, now: now)
             if let parent = created {
                 for line in subItems { store.capture(line, parent: parent.id, now: now) }
-                if let voice { store.attachVoiceNote(voice, to: parent.id) }
             }
         }
-        guard let item = created else {
-            if let voice { try? FileManager.default.removeItem(at: voice.url) }
-            return
-        }
+        guard let item = created else { return nil }
         draft = CaptureDraft()
         newSubItem = ""
         showSubItems = false
         panel = nil
-        if voice == nil { focus = .title } // keep the keyboard up for the next thought
+        if !voice { focus = .title } // keep the keyboard up for the next thought
         // Stays until you start the next one (no timer to race), and VoiceOver hears it.
         withNogAnimation {
             confirmation = ("✓ Saved · " + Self.summary(result, subItems: subItems.count, parent: nil).uppercased(), item.id)
         }
-        AccessibilityNotification.Announcement("Saved \(result.title)").post()
+        if !voice { AccessibilityNotification.Announcement("Saved \(result.title)").post() }
+        return item
     }
 
     // MARK: Tray

@@ -26,9 +26,10 @@ struct VoiceNote: Hashable {
     /// "0:42", "12:05"
     var clock: String { Self.clock(TimeInterval(seconds)) }
 
-    static func clock(_ time: TimeInterval) -> String {
+    /// `padded`: "00:42", for the recorder's digits (they don't shift as the minutes arrive).
+    static func clock(_ time: TimeInterval, padded: Bool = false) -> String {
         let s = max(0, Int(time.rounded()))
-        return String(format: "%d:%02d", s / 60, s % 60)
+        return String(format: padded ? "%02d:%02d" : "%d:%02d", s / 60, s % 60)
     }
 
     /// "42 seconds", "1 minute, 5 seconds": for VoiceOver.
