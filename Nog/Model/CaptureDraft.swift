@@ -35,15 +35,15 @@ enum NogKind: String, CaseIterable, Identifiable {
 
     /// What will happen, in a sentence, for this reminder.
     static func promise(for reminder: Reminder?, now: Date = .now) -> String {
-        guard let r = reminder else { return "Never reminds you. It waits under No reminder on the List tab." }
+        guard let r = reminder else { return "Never nogs. Just a note." }
         let time = DayFormat.label(r.start) == "Today"
             ? r.start.formatted(date: .omitted, time: .shortened)
             : "\(DayFormat.label(r.start)) \(r.start.formatted(date: .omitted, time: .shortened))"
-        let then = r.repeatSummary.map { ", then \($0) until you nog it" } ?? ", once"
+        let then = r.repeatSummary.map { ", then \($0) until done" } ?? ", once"
         if r.alarm {
-            return "Rings at \(time) like the Clock app, even on Silent and in Focus\(then)."
+            return "Rings at \(time)\(then), even on Silent and in Focus."
         }
-        return "A notification at \(time)\(then). Quiet on Silent and in Focus."
+        return "\(time)\(then). Quiet on Silent and in Focus."
     }
 }
 

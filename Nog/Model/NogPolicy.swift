@@ -77,6 +77,11 @@ extension NogPolicy {
     func deliveryDates(for reminder: Reminder, after date: Date, limit: Int,
                        calendar: Calendar = .current) -> [Date] {
         guard limit > 0 else { return [] }
+        // Nothing quiet or silenced ahead: the fire times are the delivery times. (The common
+        // case, and called for every row and widget entry, so skip the look-ahead below.)
+        if !quiet.enabled && !isSilenced(at: date) {
+            return reminder.fireDates(after: date, limit: limit)
+        }
         var result: [Date] = []
         var seen = Set<Date>()
         // A long quiet stretch folds many fire times into one, so look further ahead.

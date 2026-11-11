@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// A skeuomorphic rotary selector for an item's state: Open · Doing · Dream · Nogged.
-/// Twist the knob: it clicks past each position and settles into the nearest one.
+/// Twist the knob (it clicks past each position and settles into the nearest one), or tap a label.
 struct StatusDial: View {
     let status: ItemStatus
     let onSelect: (ItemStatus) -> Void
@@ -71,17 +71,20 @@ struct StatusDial: View {
         .allowsHitTesting(false)
     }
 
-    private func label(_ status: ItemStatus, at degrees: Double, isLit: Bool) -> some View {
+    /// Each position's name. Tapping it turns the knob there, so twisting is never required.
+    private func label(_ stop: ItemStatus, at degrees: Double, isLit: Bool) -> some View {
         let a = degrees * .pi / 180
-        let tint = Self.tint(status)
-        return Text(status.label.uppercased())
+        let tint = Self.tint(stop)
+        return Text(stop.label.uppercased())
             .font(.nogLabel)
             .tracking(1.4)
             .foregroundStyle(isLit ? tint : Theme.muted.opacity(0.75))
             .nogGlow(color: isLit ? tint.opacity(0.8) : .clear, radius: 6)
             .fixedSize()
+            .padding(10)
+            .contentShape(Rectangle())
+            .onTapGesture { if stop != status { onSelect(stop) } }
             .position(x: center.x + sin(a) * labelRadius(degrees), y: center.y - cos(a) * labelRadius(degrees))
-            .allowsHitTesting(false)
     }
 
     // MARK: Turning
@@ -138,10 +141,10 @@ struct StatusDial: View {
 
     static func summary(_ status: ItemStatus) -> String {
         switch status {
-        case .open: "On your plate. Nogs you on schedule."
-        case .doing: "You're on it. Timer running, nogs paused."
-        case .someday: "Parked in Someday. No reminders."
-        case .done: "Finished. Kept for reference."
+        case .open: "Nogs you on schedule."
+        case .doing: "Timer running, nogs paused."
+        case .someday: "No reminders."
+        case .done: "Finished."
         }
     }
 }

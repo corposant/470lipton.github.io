@@ -34,7 +34,7 @@ struct PlacesView: View {
             } header: {
                 SectionLabel(title: "Places")
             } footer: {
-                Text("Type “when I get home” or “when I leave work” and Nog reminds you there. iOS watches for these places itself; Nog never tracks where you go, and nothing leaves your iPhone. Up to \(PlaceBook.maxWatched) places.")
+                Text("Type “when I get home”. iOS watches the place; Nog never tracks you. Up to \(PlaceBook.maxWatched).")
             }
             .listRowBackground(Theme.glass)
         }
@@ -73,7 +73,7 @@ private struct AddPlaceSheet: View {
                 } header: {
                     SectionLabel(title: "Name")
                 } footer: {
-                    Text("This is the word you'll type: “when I get to \(name.isEmpty ? "…" : name)”.")
+                    Text("“when I get to \(name.isEmpty ? "…" : name)”")
                 }
                 .listRowBackground(Theme.glass)
 
@@ -132,8 +132,8 @@ private struct AddPlaceSheet: View {
         problem = nil
         guard let location = await LocationAccess.shared.currentLocation() else {
             problem = LocationAccess.shared.isAllowed
-                ? "Couldn't find where you are. Try again, or search for the address."
-                : "Location is off for Nog. Allow it in the Settings app under Privacy › Location Services › Nog."
+                ? "Couldn't find you. Try again, or search."
+                : "Location is off. Allow it in Settings › Privacy › Location Services › Nog."
             return
         }
         picked = location.coordinate

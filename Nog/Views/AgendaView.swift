@@ -42,9 +42,7 @@ struct AgendaList: View {
             }
             if groups.isEmpty && doing.isEmpty {
                 Section {
-                    ContentUnavailableView("Nothing timed this week",
-                                           systemImage: "calendar",
-                                           description: Text("Things with a time show up here. Untimed ones wait on the List tab."))
+                    ContentUnavailableView("Nothing timed this week", systemImage: "calendar")
                         .listRowBackground(Color.clear)
                 }
             }

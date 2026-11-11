@@ -6,7 +6,7 @@ import SwiftUI
 struct HowToNogView: View {
     var body: some View {
         List {
-            section("When", footer: "Plain English works anywhere in the line.", [
+            section("When", [
                 ("lunch next tues", "Tuesday at 12:00"),
                 ("call mom tomorrow at 3", "tomorrow, 3 PM"),
                 ("dentist nov 12 at 2:30pm", "a date and time"),
@@ -14,7 +14,7 @@ struct HowToNogView: View {
                 ("report by eod", "end of today"),
                 ("stretch in 20 min", "20 minutes from now"),
             ])
-            section("Things that come back", footer: "Tap Done and it moves on to next time. Tap Skip this time on its page to skip one.", [
+            section("Things that come back", footer: "Done moves it to next time.", [
                 ("meds every morning", "every day at 9 AM"),
                 ("bins every tue", "every Tuesday"),
                 ("gym every mon and thu at 6pm", "two days a week"),
@@ -22,7 +22,7 @@ struct HowToNogView: View {
                 ("rent every month on the 1st", "monthly"),
                 ("water plants every 2 days", "every other day"),
             ])
-            section("Where", footer: "Save places first in Settings › Places. Home and Work work once they're saved.", [
+            section("Where", footer: "Save places first in Settings › Places.", [
                 ("bins when I get home", "when you arrive home"),
                 ("buy milk when I leave work", "when you leave work"),
                 ("return book when I'm at the library", "any saved place"),
@@ -33,17 +33,20 @@ struct HowToNogView: View {
             ])
             section("Tags", [
                 ("call mom #family", "adds the tag family"),
-                ("taxes #money #admin", "as many tags as you like"),
+                ("taxes #money #admin", "as many as you like"),
             ])
-            section("Shortcuts (optional)", footer: "You never need these: plain English and the tray do the same. Start typing a ! word and Nog offers to finish it.", [
-                ("@30m  @2h  @1d  @now", "start reminding after 30 min, 2 h, a day, or now"),
-                ("!8m  !2h  !1d", "remind every 8 min, 2 h, a day"),
-                ("!once", "remind once, no repeat"),
-                ("!off", "no reminder, just keep the idea"),
-                ("!alarm", "rings like a real alarm"),
-                ("!whisper  !steady  !building  !unhinged", "pick a style (first three letters are enough)"),
-                ("!hush  !teatime  !daily  !easing", "the other styles (!tea works too)"),
-                ("~30m  ~2h", "how long it'll take, for the ▶︎ timer"),
+            section("Links", [
+                ("[[Call mom]]", "in notes, links to that nog"),
+            ])
+            section("Shortcuts (optional)", footer: "Type ! for suggestions.", [
+                ("@30m  @2h  @1d  @now", "start in 30 min, 2 h, a day, or now"),
+                ("!8m  !2h  !1d", "every 8 min, 2 h, a day"),
+                ("!once", "once, no repeat"),
+                ("!off", "no reminder"),
+                ("!alarm", "rings like an alarm"),
+                ("!whisper  !steady  !building  !unhinged", "a style (three letters will do)"),
+                ("!hush  !teatime  !daily  !easing", "more styles"),
+                ("~30m  ~2h", "how long it'll take"),
             ])
         }
         .nogListStyle()

@@ -143,9 +143,8 @@ struct ItemListView: View {
         let stats = ChildStats(all)
         let query = search.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         if all.isEmpty {
-            ContentUnavailableView("Nothing captured yet",
-                                   systemImage: "tray",
-                                   description: Text("Add something on the New Nog tab. Everything nogs you until it's done."))
+            ContentUnavailableView("Nothing yet", systemImage: "tray",
+                                   description: Text("Add one on the New Nog tab."))
         } else if !query.isEmpty {
             let results = all
                 .filter { $0.title.lowercased().contains(query) || $0.body.lowercased().contains(query)
@@ -323,7 +322,7 @@ struct ItemRow: View {
         .confirmationDialog("Delete this item?", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("Delete", role: .destructive) { store.delete(item.id) }
         } message: {
-            Text("“\(item.title.isEmpty ? "Untitled" : item.title)” and its notes will be removed. Sub-nogs stay, unfiled.")
+            Text("Its notes go too. Sub-nogs stay.")
         }
     }
 
@@ -352,10 +351,9 @@ struct ItemRow: View {
         let childCount = counts.total
         var parts: [String] = []
         if let text = reminderText { parts.append(text) }
-        if let recurrence = item.recurrence, item.status != .done { parts.append("comes back \(recurrence.summary)") }
+        if let recurrence = item.recurrence, item.status != .done { parts.append("repeats \(recurrence.summary)") }
         if let place = item.place, item.isOpen {
-            parts.append("reminds you \(place.phrase)"
-                         + (PlaceBook.place(named: place.name) == nil ? " (set it up in Settings › Places)" : ""))
+            parts.append(place.phrase + (PlaceBook.place(named: place.name) == nil ? " (place not set up)" : ""))
         }
         if item.isDoing, let end = item.timeboxEnd {
             parts.append(end > now ? "Doing · \(end.formatted(.relative(presentation: .named))) left" : "Doing · time's up")
@@ -382,14 +380,12 @@ struct ItemRow: View {
         if !r.isActive(at: now) {
             let when = r.start.formatted(.relative(presentation: .named))
             if let summary = r.repeatSummary { return "Starts \(when), then \(summary)" }
-            return "Reminds once, \(r.start.formatted(date: .omitted, time: .shortened)) · \(when)"
+            return "Once, \(when)"
         }
         if r.repeatMinutes != nil, let next = r.nextFire(after: now) {
-            return "Nogging until done · next \(next.formatted(.relative(presentation: .named)))"
-                + (r.curve == .logarithmic ? " · easing off" : r.curve == .building ? " · building" : "")
-                + (r.silent ? " · silent" : "")
+            return "Next \(next.formatted(.relative(presentation: .named)))" + (r.silent ? " · silent" : "")
         }
-        return "Reminded once, \(r.start.formatted(.relative(presentation: .named)))"
+        return "Went off \(r.start.formatted(.relative(presentation: .named)))"
     }
 }
 

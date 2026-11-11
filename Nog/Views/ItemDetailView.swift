@@ -212,8 +212,6 @@ private struct ItemEditor: View {
                     NextNogCard(item: item) { showNogSheet = true }
                 }
                 actions
-            } footer: {
-                Text("Hold Start to pick another timebox.")
             }
             .listRowBackground(Color.clear)
             .listRowInsets(EdgeInsets(top: 4, leading: 4, bottom: 4, trailing: 4))
@@ -257,7 +255,7 @@ private struct ItemEditor: View {
                 .scrollContentBackground(.hidden)
                 .overlay(alignment: .topLeading) {
                     if item.body.isEmpty {
-                        Text(verbatim: "Link to other items with [[Their title]].")
+                        Text(verbatim: "Notes. [[Title]] links a nog.")
                             .italic()
                             .foregroundStyle(Theme.muted.opacity(0.6))
                             .padding(.top, 8)
@@ -449,8 +447,6 @@ private struct ItemEditor: View {
             }
         } header: {
             SectionLabel(title: "Details")
-        } footer: {
-            Text("Saved as you type.")
         }
         .listRowBackground(Theme.glass)
     }
@@ -473,7 +469,7 @@ private struct ItemEditor: View {
                 Button {
                     showParentPicker = true
                 } label: {
-                    Label("Put inside another item…", systemImage: "arrow.down.right.square")
+                    Label("Put inside…", systemImage: "arrow.down.right.square")
                 }
             }
             Divider()
@@ -493,7 +489,7 @@ private struct ItemEditor: View {
                 dismiss()
             }
         } message: {
-            Text("“\(item.title)” and its notes will be removed. Sub-nogs stay, unfiled.")
+            Text("Its notes go too. Sub-nogs stay.")
         }
     }
 
@@ -559,19 +555,19 @@ private struct NextNogCard: View {
                         .nogReadout(14)
                         .foregroundStyle(Theme.blue)
                 }
-                rhythmRow(reminder.repeatSummary.map { "then \($0)" } ?? "once, no repeat", reminder: reminder)
+                rhythmRow(reminder.repeatSummary.map { "then \($0)" } ?? "once", reminder: reminder)
                 if let recurrence = item.recurrence { recurrenceRow(recurrence, start: reminder.start) }
             } else if let reminder = item.reminder {
                 // A one-off that has already gone off.
                 PanelLabel(text: "Reminded you at \(reminder.start.formatted(date: .omitted, time: .shortened))")
-                rhythmRow("no repeat · tap to pick a new time", reminder: reminder)
+                rhythmRow("pick a new time", reminder: reminder)
             } else if let place = item.place {
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
                         PanelLabel(text: "Waiting for a place", tint: Theme.violet)
-                        Text("Reminds you \(place.phrase), then keeps reminding until it's done.")
+                        Text(place.phrase.prefix(1).uppercased() + place.phrase.dropFirst())
                         if PlaceBook.place(named: place.name) == nil {
-                            Text("Nog doesn't know where \(place.name) is yet. Add it in Settings › Places.")
+                            Text("\(place.name) isn't set up. Add it in Settings › Places.")
                                 .font(.subheadline)
                                 .foregroundStyle(Theme.pink)
                         }
@@ -584,8 +580,6 @@ private struct NextNogCard: View {
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
                         PanelLabel(text: "No reminder")
-                        Text("This one never reminds you.")
-                            .foregroundStyle(Theme.muted)
                     }
                     Spacer()
                     Button("Remind me…", action: edit)
@@ -636,7 +630,7 @@ private struct NextNogCard: View {
                 .font(.subheadline)
                 .buttonStyle(.borderless)
                 .tint(Theme.violet)
-                .accessibilityHint("Moves it to its next time without counting it as done")
+                .accessibilityHint("Moves it to next time without counting it done")
         }
         .font(.subheadline)
         .nogLineLimit(2, accessibilityLines: 4)
@@ -660,11 +654,11 @@ private struct DreamCard: View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
                 PanelLabel(text: "Someday", tint: Theme.violet)
-                Text("Parked in Someday. No reminders.")
+                Text("No reminders.")
                     .foregroundStyle(Theme.muted)
             }
             Spacer()
-            Button("Make it open", action: reopen)
+            Button("Bring back", action: reopen)
                 .buttonStyle(OutlineButtonStyle(tint: Theme.pink, expands: false))
         }
         .padding(.horizontal, 16)

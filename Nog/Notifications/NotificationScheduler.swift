@@ -177,6 +177,8 @@ final class NotificationScheduler {
             trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
         case .every(let seconds):
             trigger = UNTimeIntervalNotificationTrigger(timeInterval: max(60, seconds), repeats: true)
+        case .daily(let hour, let minute):
+            trigger = UNCalendarNotificationTrigger(dateMatching: DateComponents(hour: hour, minute: minute), repeats: true)
         case .place(let latitude, let longitude, let radius, let leaving):
             let region = CLCircularRegion(center: CLLocationCoordinate2D(latitude: latitude, longitude: longitude),
                                           radius: radius, identifier: planned.identifier)

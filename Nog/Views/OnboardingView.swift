@@ -54,14 +54,14 @@ struct OnboardingView: View {
             Text("This is an unhinged reminder app on steroids. If your brain needs something this strong: I'm sorry, and I hope you enjoy it.")
                 .font(.title3)
                 .foregroundStyle(.secondary)
-            point("square.and.pencil", "Type it the way you'd say it",
-                  "“Call mom tomorrow at 3” or “meds every morning”. Nog works out the when.")
-            point("bell.badge", "It keeps reminding you",
-                  "Not just once. Nog reminds you again and again until you tap Done or Snooze.")
+            point("square.and.pencil", "Type it like you'd say it",
+                  "“Call mom tomorrow at 3”")
+            point("bell.badge", "It keeps at you",
+                  "Again and again, until you tap Done.")
             point("repeat", "Routines come back",
-                  "Things you do again and again, like meds or bins, come back after you tap Done.")
-            point("hand.raised", "You stay in charge",
-                  "Snooze anything, set quiet hours, or silence everything for a while.")
+                  "Meds, bins: Done sends them to next time.")
+            point("hand.raised", "You're in charge",
+                  "Snooze, quiet hours, or silence it all.")
         }
     }
 
@@ -70,7 +70,7 @@ struct OnboardingView: View {
             Text("How firm should Nog be?")
                 .font(.nogTitle(30))
                 .accessibilityAddTraits(.isHeader)
-            Text("This is the starting point for everything you add. You can change it any time, or for one item.")
+            Text("For new nogs. Change it any time.")
                 .foregroundStyle(.secondary)
             ForEach(NogProfile.onboardingChoices) { choice in
                 Button {
@@ -112,12 +112,12 @@ struct OnboardingView: View {
             Text("Let Nog reach you")
                 .font(.nogTitle(30))
                 .accessibilityAddTraits(.isHeader)
-            Text("iOS asks once for each. You can change your mind later in the Settings app.")
+            Text("You can change these later in the Settings app.")
                 .foregroundStyle(.secondary)
 
             permissionCard(
                 icon: "bell.badge", title: "Notifications", required: true,
-                why: "This is how Nog reminds you. Without it, nothing can reach you.",
+                why: "How Nog reaches you. Without it, nothing can.",
                 granted: notifications == .authorized || notifications == .provisional,
                 denied: notifications == .denied) {
                     Task {
@@ -128,12 +128,12 @@ struct OnboardingView: View {
 
             permissionCard(
                 icon: "alarm", title: "Alarms (optional)", required: false,
-                why: "For the things you really can't miss. An alarm rings through Silent mode and Focus, like the Clock app. Nog only uses it when you ask.",
+                why: "For things you can't miss. Rings through Silent and Focus, only when you ask.",
                 granted: alarmsAllowed, denied: false) {
                     Task { alarmsAllowed = await AlarmScheduler.shared.requestAuthorization() }
                 }
 
-            Text("Tip: to let reminders through Focus too, turn on Time Sensitive in the Settings app under Notifications › Nog.")
+            Text("To get through Focus, turn on Time Sensitive in Settings › Notifications › Nog.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         }
@@ -165,7 +165,7 @@ struct OnboardingView: View {
                     .foregroundStyle(StatusDial.tint(.done))
                     .font(.subheadline.weight(.semibold))
             } else if denied {
-                Text("Turned off. You can allow it in the Settings app under Notifications › Nog.")
+                Text("Off. Allow it in Settings › Notifications › Nog.")
                     .font(.subheadline)
                     .foregroundStyle(Theme.pink)
             } else {
@@ -213,7 +213,7 @@ extension NogProfile {
         switch self {
         case .whisper: "Gentle"
         case .steady: "Steady (recommended)"
-        case .unhinged: "Relentless"
+        case .unhinged: "Unhinged"
         default: label
         }
     }

@@ -330,8 +330,28 @@ final class LogarithmicReminderTests: XCTestCase {
         let plan = NogPlanner.plan(items: [easing], now: minutes(10), maxFollowUpsPerItem: 2)
         XCTAssertEqual(plan.map(\.fireDate), [24, 56, 120].map(minutes))
 
+        // Settled at a day: a daily trigger at the item's own time of day, not "a day from now".
         let settledPlan = NogPlanner.plan(items: [easing], now: minutes(5000))
-        XCTAssertEqual(settledPlan.map(\.trigger), [.every(86_400)])
+        let next = try! XCTUnwrap(log8.nextFire(after: minutes(5000)))
+        let time = Calendar.current.dateComponents([.hour, .minute], from: next)
+        XCTAssertEqual(settledPlan.map(\.trigger), [.daily(hour: time.hour!, minute: time.minute!)])
+    }
+
+    func testDailyKeepsItsTimeAndEveryOtherDayUsesExactTimes() throws {
+        let now = Date(timeIntervalSince1970: 1_900_000_000)
+        let daily = Item(title: "meds", reminder: Reminder(start: now.addingTimeInterval(-3 * 86_400 + 1800), repeatMinutes: 1440))
+        let plan = NogPlanner.plan(items: [daily], now: now)
+        let time = Calendar.current.dateComponents([.hour, .minute], from: now.addingTimeInterval(1800))
+        XCTAssertEqual(plan.map(\.trigger), [.daily(hour: time.hour!, minute: time.minute!)])
+
+        let tea = Item(title: "call grandma", reminder: NogProfile.teatime.apply(to: Reminder(start: now.addingTimeInterval(-86_400))))
+        let teaPlan = NogPlanner.plan(items: [tea], now: now, maxFollowUpsPerItem: 3)
+        XCTAssertEqual(teaPlan.map(\.fireDate), [1, 3, 5, 7].map { now.addingTimeInterval(Double($0) * 86_400) })
+    }
+
+    func testTeatimeNeverNogsEveryMinute() {
+        XCTAssertEqual(NogProfile.teatime.repeatMinutes, 2880)
+        XCTAssertEqual(NogProfile.matching(NogProfile.teatime.reminder(from: .now)), .teatime)
     }
 
     func testCaptureTokenAndFileRoundTrip() throws {

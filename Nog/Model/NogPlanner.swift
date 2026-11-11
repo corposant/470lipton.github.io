@@ -7,6 +7,9 @@ struct PlannedNotification: Hashable {
         case at(Date)
         /// Fire every N seconds, forever, until removed (iOS minimum is 60s).
         case every(TimeInterval)
+        /// Fire every day at this time of day, forever, until removed. Unlike `.every(86_400)`,
+        /// which counts from whenever it was scheduled, this keeps "same time each day".
+        case daily(hour: Int, minute: Int)
         /// Fire when you arrive at (or leave) a saved place.
         case place(latitude: Double, longitude: Double, radius: Double, leaving: Bool)
     }
@@ -91,7 +94,7 @@ enum NogPlanner {
         for (item, r) in candidates {
             let doing = item.isDoing
             let body = doing
-                ? (item.timeboxMinutes != nil ? "Time's up. Done, or 10 more minutes?" : "Still on it?")
+                ? (item.timeboxMinutes != nil ? "Time's up. Done, or 10 more?" : "Still on it?")
                 : (r.repeatSummary.map { "Nogging \($0) until done" } ?? "Reminder")
             let category = doing ? categoryDoing : self.category(for: item.reminder)
             // A change of category (its buttons) must replace already-scheduled nogs.
@@ -122,8 +125,21 @@ enum NogPlanner {
             let ringing = Set(alarmDates[item.id] ?? [])
             let needsExactTimes = policy.quiet.enabled || !ringing.isEmpty || policy.isSilenced(at: now)
 
-            if !needsExactTimes, let settled = r.settledPhase, settled.since <= now {
-                // Gap no longer changes: one trigger iOS repeats forever.
+            // Gap no longer changes: one trigger iOS repeats forever. A day-long gap uses a daily
+            // calendar trigger so it stays at the item's time of day (a time-interval trigger
+            // counts from when it was scheduled, so it would drift to whenever the app last ran).
+            // Gaps over a day (Teatime's every other day) have no repeating trigger that keeps
+            // their time, so they use exact one-shots below.
+            var settled: (since: Date, gap: TimeInterval)?
+            if !needsExactTimes, let phase = r.settledPhase, phase.since <= now, phase.gap <= 86_400 { settled = phase }
+            if let settled, settled.gap == 86_400, let next = r.nextFire(after: now) {
+                let time = calendar.dateComponents([.hour, .minute], from: next)
+                let hour = time.hour ?? 9, minute = time.minute ?? 0
+                primaries.append(PlannedNotification(
+                    identifier: "\(base).daily.\(hour).\(minute).\(titleTag)",
+                    itemID: item.id, title: item.title, body: body, trigger: .daily(hour: hour, minute: minute),
+                    category: category, silent: r.silent))
+            } else if let settled {
                 let seconds = max(60, settled.gap)
                 primaries.append(PlannedNotification(
                     identifier: "\(base).every.\(Int(seconds)).\(Int(settled.since.timeIntervalSince1970)).\(titleTag)",
@@ -169,7 +185,7 @@ enum NogPlanner {
         var repeatingForever = Set<UUID>()
         for p in plan where !p.isHeadsUp {
             switch p.trigger {
-            case .every: repeatingForever.insert(p.itemID)
+            case .every, .daily: repeatingForever.insert(p.itemID)
             case .at(let date): lastByItem[p.itemID] = max(lastByItem[p.itemID] ?? date, date)
             case .place: break
             }
@@ -185,7 +201,7 @@ enum NogPlanner {
             identifier: "\(prefix)pause.\(Int(when.timeIntervalSince1970))",
             itemID: earliest.key,
             title: "Open Nog to keep nogging",
-            body: "Nog has run out of nogs lined up ahead. Open the app and they'll carry on.",
+            body: "Reminders pause until you do.",
             trigger: .at(when),
             category: categoryPause)
     }

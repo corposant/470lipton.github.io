@@ -81,13 +81,13 @@ struct NogKindSheet: View {
                         .padding(12)
                         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                         .accessibilityHidden(true)
-                        Text("9:00 · 9:08 · 9:16 · 9:24 … until you nog it")
+                        Text("9:00 · 9:08 · 9:16 · 9:24 … until done")
                             .nogReadout(12)
                             .foregroundStyle(NogKind.nog.tint)
                         bullets([
-                            "A notification with a sound, like a message.",
-                            "Silent switch on: it buzzes, no sound.",
-                            "In a Focus: stays quiet unless Nog is allowed through.",
+                            "A notification, like a message.",
+                            "On Silent: buzzes only.",
+                            "In a Focus: quiet unless Nog is allowed.",
                         ])
                     }
                     card(.alarm, note: "for things you can't miss") {
@@ -110,12 +110,12 @@ struct NogKindSheet: View {
                                     in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                         .accessibilityHidden(true)
                         bullets([
-                            "Rings full screen like the Clock app until you stop it.",
-                            "Rings even on Silent and in a Focus.",
-                            "Stop quiets this ring; it rings again on schedule. Done ends it.",
+                            "Rings full screen, like the Clock app.",
+                            "Even on Silent and in a Focus.",
+                            "Stop: rings again later. Done: finished.",
                         ])
                     }
-                    Label("Ignoring a Nog? It can turn into an Alarm: Unhinged does after 3 unanswered nogs, or set it for everything in Settings → Nogs & alerts.",
+                    Label("Ignored nogs can turn into alarms: Unhinged does after 3. Set it for all in Settings › Advanced › Timing & alerts.",
                           systemImage: "chart.line.uptrend.xyaxis")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
@@ -125,7 +125,7 @@ struct NogKindSheet: View {
                 .padding()
             }
             .background { NogBackground() }
-            .navigationTitle("How should it get you?")
+            .navigationTitle("Nog or alarm?")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) { Button("Got it") { dismiss() } }
