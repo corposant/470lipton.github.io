@@ -79,13 +79,18 @@ private struct ItemEditor: View {
                 hero
                 stateSection
                 notesSection(proxy)
-                VoiceNotesSection(item: item, autoRecord: autoRecord)
                 childrenSection
                 tagsSection
                 detailsSection
                 linksSection
             }
             .scrollDismissesKeyboard(.interactively)
+        }
+        // Leaving the page stops this nog's voice note if one is playing.
+        .onDisappear {
+            if let playing = VoicePlayer.shared.playing, item.voiceNotes.contains(where: { $0.file == playing }) {
+                VoicePlayer.shared.stop()
+            }
         }
         .nogListStyle()
         .listSectionSpacing(14)
@@ -310,6 +315,8 @@ private struct ItemEditor: View {
                 }
                 .foregroundStyle(item.status == .done ? Theme.muted : .primary)
                 .accessibilityLabel("Notes")
+            // Spoken notes live with the typed ones.
+            VoiceNoteRows(item: item, autoRecord: autoRecord)
         } header: {
             SectionLabel(title: "Notes")
         }
