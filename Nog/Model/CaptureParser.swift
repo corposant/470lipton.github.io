@@ -7,6 +7,8 @@ struct CaptureDefaults: Equatable {
     var escalateAfter: Int? = nil
     /// Hush: no sound, no Time Sensitive.
     var silent = false
+    /// Teatime: first reminder at this time of day (minutes after midnight) instead of after the delay.
+    var timeOfDay: Int? = nil
     /// Saved place names, so "when I get to Mum's" finds Mum's.
     var places: [String] = []
 }
@@ -29,9 +31,9 @@ struct CaptureResult: Equatable {
 ///   `!once` `!norepeat` remind once, don't repeat
 ///   `!log`              logarithmic: gaps double each time (8, 16, 32…), capped at daily
 ///   `!alarm`            ring like a real alarm (through Silent and Focus)
-///   `!hush` `!whisper` `!daily` `!easing` `!steady` `!building` `!hyperfocus` `!unhinged`
+///   `!hush` `!teatime` `!whisper` `!daily` `!easing` `!steady` `!building` `!unhinged`
 ///                       use a nog profile (or just its first three letters: `!hus` `!unh`…;
-///                       `!gentle` = Whisper, `!break` = Hyperfocus)
+///                       `!gentle` = Whisper, `!tea` = Teatime)
 ///   `!off` / `!idea`    no reminder at all
 ///   `@30m` `@2h` `@1d`  start nogging in 30 minutes / 2 hours / 1 day
 ///   `@now`              start now
@@ -116,7 +118,7 @@ enum CaptureParser {
         }
         let effective = profile.map {
             CaptureDefaults(firstDelayMinutes: $0.firstDelayMinutes, repeatMinutes: $0.repeatMinutes,
-                            curve: $0.curve, escalateAfter: $0.escalateAfter, silent: $0.silent)
+                            curve: $0.curve, escalateAfter: $0.escalateAfter, silent: $0.silent, timeOfDay: $0.timeOfDay)
         } ?? defaults
         let start: Date
         if let delayOverride {
@@ -124,7 +126,8 @@ enum CaptureParser {
         } else if let naturalStart = natural.start {
             start = naturalStart
         } else {
-            start = now.addingTimeInterval(TimeInterval(effective.firstDelayMinutes * 60))
+            start = NogProfile.firstStart(delayMinutes: effective.firstDelayMinutes, timeOfDay: effective.timeOfDay,
+                                          from: now, calendar: calendar)
         }
         let repeatMinutes = once ? nil : (repeatOverride ?? natural.repeatMinutes ?? effective.repeatMinutes)
         let reminder = Reminder(start: start, repeatMinutes: repeatMinutes,

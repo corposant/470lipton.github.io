@@ -257,17 +257,21 @@ private struct ItemEditor: View {
                 .scrollContentBackground(.hidden)
                 .overlay(alignment: .topLeading) {
                     if item.body.isEmpty {
-                        Text(verbatim: "Notes. Link to other items with [[Their title]].")
-                            .foregroundStyle(Theme.muted.opacity(0.8))
+                        Text(verbatim: "Link to other items with [[Their title]].")
+                            .italic()
+                            .foregroundStyle(Theme.muted.opacity(0.6))
                             .padding(.top, 8)
                             .padding(.leading, 5)
                             .allowsHitTesting(false)
+                            .accessibilityHidden(true)
                     }
                 }
                 .foregroundStyle(item.status == .done ? Theme.muted : .primary)
+                .accessibilityLabel("Notes")
+        } header: {
+            SectionLabel(title: "Notes")
         }
-        .listRowBackground(Color.clear)
-        .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+        .listRowBackground(Theme.glass)
     }
 
     private var childrenSection: some View {
@@ -591,13 +595,13 @@ private struct NextNogCard: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
-        .recessedWell(cornerRadius: 14)
+        .nogPanel(cornerRadius: 14)
     }
 
     private func rhythmRow(_ text: String, reminder: Reminder) -> some View {
         Button(action: edit) {
             HStack(spacing: 4) {
-                Text(text).foregroundStyle(Color(white: 0.85))
+                Text(text).foregroundStyle(.primary)
                 // A one-off has no rhythm, so no profile to name.
                 if reminder.repeatMinutes != nil {
                     Text("· \(NogProfile.matching(reminder)?.label ?? "Custom")").foregroundStyle(Theme.violet)
@@ -626,7 +630,7 @@ private struct NextNogCard: View {
                 .accessibilityHidden(true)
             Text("Comes back \(recurrence.summary(at: start))"
                  + (item.timesDone > 0 ? " · done \(item.timesDone) time\(item.timesDone == 1 ? "" : "s")" : ""))
-                .foregroundStyle(Color(white: 0.85))
+                .foregroundStyle(.primary)
             Spacer()
             Button("Skip this time") { store.skipOccurrence(item.id) }
                 .font(.subheadline)
@@ -665,7 +669,7 @@ private struct DreamCard: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
-        .recessedWell(cornerRadius: 14)
+        .nogPanel(cornerRadius: 14)
     }
 }
 
@@ -679,7 +683,7 @@ private struct NoggedCard: View {
             VStack(alignment: .leading, spacing: 4) {
                 PanelLabel(text: "Done · \(DayFormat.label(item.completed ?? .now))")
                 GlowReadout(text: (item.completed ?? .now).formatted(date: .omitted, time: .shortened),
-                            size: 28, color: Color(red: 0.78, green: 0.96, blue: 0.87), glow: StatusDial.tint(.done))
+                            size: 28, color: StatusDial.tint(.done), glow: StatusDial.tint(.done))
                 if item.totalTimeSpent() >= 60 {
                     Text("took \(DurationFormat.short(item.totalTimeSpent()))")
                         .font(.subheadline)
@@ -695,7 +699,7 @@ private struct NoggedCard: View {
             .buttonStyle(OutlineButtonStyle(tint: Theme.violet, expands: false))
         }
         .padding(16)
-        .recessedWell(cornerRadius: 14)
+        .nogPanel(cornerRadius: 14)
     }
 }
 

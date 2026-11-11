@@ -638,7 +638,7 @@ final class ProfileTests: XCTestCase {
             XCTAssertEqual(NogProfile.token("!" + profile.rawValue), profile)
             XCTAssertEqual(NogProfile.token("!" + profile.rawValue.prefix(3)), profile, "3-letter token for \(profile.label)")
         }
-        XCTAssertEqual(NogProfile.token("!break"), .hyperfocus)
+        XCTAssertEqual(NogProfile.token("!tea"), .teatime)
     }
 
     func testBuildingGapsShrinkToFourMinutes() {
@@ -672,11 +672,17 @@ final class ProfileTests: XCTestCase {
         XCTAssertFalse(NogProfile.steady.apply(to: try XCTUnwrap(item.reminder)).silent)
     }
 
-    func testHyperfocusRingsAfterOneIgnoredNog() {
-        let reminder = NogProfile.hyperfocus.apply(to: Reminder(start: now.addingTimeInterval(-60)))
-        let item = Item(title: "stop coding", reminder: reminder)
-        let alarms = AlarmScheduler.alarmDates(for: item, policy: .standard, now: now, limit: 1)
-        XCTAssertEqual(alarms, [now.addingTimeInterval(-60 + 5 * 60)])
+    func testTeatimeStartsAtFourAndComesEveryOtherDay() throws {
+        let defaults = CaptureDefaults(firstDelayMinutes: 15, repeatMinutes: 8)
+        let r = try XCTUnwrap(CaptureParser.parse("call grandma !tea", defaults: defaults, now: now).reminder)
+        let start = r.start
+        XCTAssertEqual(Calendar.current.component(.hour, from: start), 16)
+        XCTAssertEqual(Calendar.current.component(.minute, from: start), 0)
+        XCTAssertGreaterThan(start, now)
+        XCTAssertLessThanOrEqual(start, now.addingTimeInterval(86_400))
+        XCTAssertEqual(r.repeatMinutes, 2880)
+        XCTAssertEqual(r.escalateAfter, 0)
+        XCTAssertEqual(NogProfile.matching(r), .teatime)
     }
 
     func testDailyNogsOnceADayFromTheTimeYouType() throws {

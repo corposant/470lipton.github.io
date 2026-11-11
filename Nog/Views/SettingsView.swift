@@ -16,7 +16,7 @@ struct SettingsView: View {
     @AppStorage(NogSettings.curveKey) private var curve: RepeatCurve = .steady
     @AppStorage(NogSettings.escalateKey) private var profileEscalate = -1
     @AppStorage(NogSettings.silentKey) private var profileSilent = false
-    @State private var showMoreStyles = false
+    @AppStorage(NogSettings.timeOfDayKey) private var profileTimeOfDay = -1
     // Quiet hours
     @AppStorage(NogSettings.Key.quietEnabled) private var quietEnabled = false
     @AppStorage(NogSettings.Key.quietStart) private var quietStart = 22 * 60
@@ -33,7 +33,7 @@ struct SettingsView: View {
         NogProfile.allCases.first {
             $0.firstDelayMinutes == firstDelay && $0.repeatMinutes == repeatMinutes
                 && $0.curve == curve && ($0.escalateAfter ?? -1) == profileEscalate
-                && $0.silent == profileSilent
+                && $0.silent == profileSilent && ($0.timeOfDay ?? -1) == profileTimeOfDay
         }
     }
 
@@ -78,26 +78,16 @@ struct SettingsView: View {
 
     private var style: some View {
         let current = currentProfile
-        // The main four, plus the current one if it's one of the others.
-        let shown = showMoreStyles ? NogProfile.allCases
-            : NogProfile.mainCases + (current.map { NogProfile.mainCases.contains($0) ? [] : [$0] } ?? [])
         return Section {
-            ForEach(shown) { profile in
+            // All eight, gentlest to loudest.
+            ForEach(NogProfile.allCases) { profile in
                 Button {
-                    firstDelay = profile.firstDelayMinutes
-                    repeatMinutes = profile.repeatMinutes
-                    curve = profile.curve
-                    profileEscalate = profile.escalateAfter ?? -1
-                    profileSilent = profile.silent
+                    NogSettings.setDefaultProfile(profile)
                 } label: {
                     ProfileCard(profile: profile, isSelected: current == profile)
                 }
                 .buttonStyle(.plain)
             }
-            Button(showMoreStyles ? "Fewer styles" : "More styles") {
-                withNogAnimation(.snappy) { showMoreStyles.toggle() }
-            }
-            .font(.subheadline)
         } header: {
             SectionLabel(title: "How firm")
         } footer: {
@@ -402,6 +392,7 @@ private struct NogsAlertsPage: View {
     @AppStorage(NogSettings.curveKey) private var curve: RepeatCurve = .steady
     @AppStorage(NogSettings.escalateKey) private var profileEscalate = -1
     @AppStorage(NogSettings.silentKey) private var profileSilent = false
+    @AppStorage(NogSettings.timeOfDayKey) private var profileTimeOfDay = -1
     @State private var showFineTune = false
     // Quiet hours
     @AppStorage(NogSettings.Key.quietEnabled) private var quietEnabled = false
@@ -479,6 +470,8 @@ private struct NogsAlertsPage: View {
         .nogListStyle()
         .tint(Theme.pink)
         .navigationTitle("Timing & alerts")
+        // Setting the first reminder by hand replaces Teatime's fixed time of day.
+        .onChange(of: firstDelay) { profileTimeOfDay = -1 }
         .onDisappear {
             NotificationScheduler.shared.registerCategories()
             Task { await store.syncNow() }
@@ -491,7 +484,7 @@ extension NogsAlertsPage {
         NogProfile.allCases.first {
             $0.firstDelayMinutes == firstDelay && $0.repeatMinutes == repeatMinutes
                 && $0.curve == curve && ($0.escalateAfter ?? -1) == profileEscalate
-                && $0.silent == profileSilent
+                && $0.silent == profileSilent && ($0.timeOfDay ?? -1) == profileTimeOfDay
         }
     }
 }
@@ -522,9 +515,9 @@ struct ProfileCard: View {
 
     private var tint: Color {
         switch profile {
-        case .hush, .whisper, .daily: Theme.blue
+        case .hush, .teatime, .whisper, .daily: Theme.blue
         case .steady, .easing, .building: Theme.violet
-        case .hyperfocus, .unhinged: Theme.pink
+        case .unhinged: Theme.pink
         }
     }
 }

@@ -36,6 +36,13 @@ enum NogSettings {
 
     static let escalateKey = "defaultEscalateAfter" // -1 = follow the global setting
     static let silentKey = "defaultSilent"
+    /// Teatime: new captures first remind you at this time of day (minutes after midnight; -1 = after the delay).
+    static let timeOfDayKey = "defaultTimeOfDay"
+
+    static var defaultTimeOfDay: Int? {
+        let v = UserDefaults.standard.object(forKey: timeOfDayKey) as? Int ?? -1
+        return v >= 0 ? v : nil
+    }
 
     /// New captures arrive silent (the default profile is Hush).
     static var silent: Bool { UserDefaults.standard.bool(forKey: silentKey) }
@@ -48,11 +55,12 @@ enum NogSettings {
 
     static var captureDefaults: CaptureDefaults {
         CaptureDefaults(firstDelayMinutes: firstDelayMinutes, repeatMinutes: repeatMinutes, curve: curve,
-                        escalateAfter: defaultEscalateAfter, silent: silent, places: PlaceBook.savedNames)
+                        escalateAfter: defaultEscalateAfter, silent: silent, timeOfDay: defaultTimeOfDay,
+                        places: PlaceBook.savedNames)
     }
 
     static var defaultReminderFromNow: Reminder {
-        Reminder(start: .now.addingTimeInterval(TimeInterval(firstDelayMinutes * 60)),
+        Reminder(start: NogProfile.firstStart(delayMinutes: firstDelayMinutes, timeOfDay: defaultTimeOfDay, from: .now),
                  repeatMinutes: repeatMinutes, curve: curve, silent: silent, escalateAfter: defaultEscalateAfter)
     }
 
@@ -61,6 +69,7 @@ enum NogSettings {
         NogProfile.allCases.first {
             $0.firstDelayMinutes == firstDelayMinutes && $0.repeatMinutes == repeatMinutes
                 && $0.curve == curve && $0.escalateAfter == defaultEscalateAfter && $0.silent == silent
+                && $0.timeOfDay == defaultTimeOfDay
         }
     }
 
@@ -72,6 +81,7 @@ enum NogSettings {
         d.set(profile.curve.rawValue, forKey: curveKey)
         d.set(profile.escalateAfter ?? -1, forKey: escalateKey)
         d.set(profile.silent, forKey: silentKey)
+        d.set(profile.timeOfDay ?? -1, forKey: timeOfDayKey)
     }
 
     /// Choices offered in pickers (0 = once).

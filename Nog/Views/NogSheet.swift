@@ -9,7 +9,6 @@ struct NogSheet: View {
     let id: UUID
     @State private var showCalendar = false
     @State private var showKindHelp = false
-    @State private var showMoreStyles = false
     @State private var showFineTune = false
 
     private var item: Item? { store.items[id] }
@@ -153,16 +152,17 @@ struct NogSheet: View {
         let current = NogProfile.matching(reminder)
         // Four across normally; two by two at the accessibility text sizes so names fit.
         let columns = Array(repeating: GridItem(.flexible(), spacing: 6), count: typeSize.isAccessibilitySize ? 2 : 4)
-        // The main four; the rest behind More styles (or shown if this item already uses one).
-        let shown = showMoreStyles ? NogProfile.allCases
-            : NogProfile.mainCases + (current.map { NogProfile.mainCases.contains($0) ? [] : [$0] } ?? [])
         return Section {
             LazyVGrid(columns: columns, spacing: 6) {
-                ForEach(shown) { profile in
+                ForEach(NogProfile.allCases) { profile in
                     let isOn = profile == current
-                    let tint = profile == .unhinged || profile == .hyperfocus ? Theme.pink : Theme.violet
+                    let tint = profile == .unhinged ? Theme.pink : Theme.violet
                     Button {
-                        edit { $0 = profile.apply(to: $0) }
+                        edit {
+                            $0 = profile.apply(to: $0)
+                            // Teatime moves the next reminder to tea time.
+                            if profile.timeOfDay != nil { $0.start = profile.firstStart(from: .now) }
+                        }
                     } label: {
                         VStack(spacing: 5) {
                             Image(systemName: profile.systemImage)
@@ -186,12 +186,6 @@ struct NogSheet: View {
                     .accessibilityHint(profile.summary)
                 }
             }
-            Button(showMoreStyles ? "Fewer styles" : "More styles") {
-                withNogAnimation(.snappy) { showMoreStyles.toggle() }
-            }
-            .font(.subheadline)
-            .buttonStyle(.borderless)
-            .tint(Theme.violet)
         } header: {
             SectionLabel(title: "How firm")
         } footer: {

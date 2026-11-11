@@ -42,7 +42,7 @@ struct HowToNogView: View {
                 ("!off", "no reminder, just keep the idea"),
                 ("!alarm", "rings like a real alarm"),
                 ("!whisper  !steady  !building  !unhinged", "pick a style (first three letters are enough)"),
-                ("!hush  !daily  !easing  !hyperfocus", "the other styles"),
+                ("!hush  !teatime  !daily  !easing", "the other styles (!tea works too)"),
                 ("~30m  ~2h", "how long it'll take, for the ▶︎ timer"),
             ])
         }

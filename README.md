@@ -37,7 +37,7 @@ As you type, a line above the capture field shows how Nog understood it. A day w
 - **Calm** (Control Panel): **Low stimulation** turns off glows, the background haze and grid, motion and vibration in one switch, and **Vibration** turns off just the haptics. Nog also follows the iOS **Reduce Motion** setting: no springs or slides, and panels fade in instead of moving.
 - **Two app icons**, both a nog carton with the light-and-spectrum motif: Comix (inked and cross-hatched on cream) and Neon (neon-hatched on charcoal), switchable in the Control Panel. Sources and the generator are in `design/carton/` (`python3 make4.py`, then `node render.js <name>`).
 - **Timing & alerts** (Settings › Advanced): a custom default rhythm, a **heads-up** before dated nogs, **ring as an alarm after N ignored nogs**, snooze length, what "morning" means, Time Sensitive, sound, **hide titles on the Lock Screen**, and an app icon badge. **Doing**: default timebox, how often "time's up" repeats, the open-ended check-in, and the Live Activity on/off.
-- **Settings** (gear icon, top right on every tab) leads with what people change: **How firm** (Whisper, Steady, Building, Unhinged, with More styles for the rest), **Quiet hours** and **Silence**, **Calm**, **Places** and **How to use Nog**. Everything else is under **Advanced**: timing and alerts, the Doing timer, the Map tab, appearance and app icon, storage, permissions, and Siri phrases.
+- **Settings** (gear icon, top right on every tab) leads with what people change: **How firm** (all eight styles), **Quiet hours** and **Silence**, **Calm**, **Places** and **How to use Nog**. Everything else is under **Advanced**: timing and alerts, the Doing timer, the Map tab, appearance and app icon, storage, permissions, and Siri phrases.
 
 ## iOS 27 features
 
@@ -95,20 +95,20 @@ The widgets read a small summary the app writes to a shared App Group whenever y
 
 ## Nog profiles
 
-A nagging style in one tap. Pick your default in Control Panel → Nogs & alerts, switch any item on its page, or type the token when capturing.
+Eight styles, all shown as buttons, gentlest to loudest. Pick your default in Settings › How firm, switch any item on its page, or type the token when capturing.
 
 | Profile | Token | First nog | Then | Rings as an alarm |
 |---|---|---|---|---|
 | **Hush** | `!hush` | after 15 min | every 15 min, always silent (no sound, not Time Sensitive) | never |
+| **Teatime** | `!teatime` or `!tea` | at tea time (4 PM) | every other day at 4 PM, about three times a week | never |
 | **Whisper** | `!whisper` | after 1 hr | hourly, easing off to daily | never |
 | **Daily** | `!daily` | at the time you type, or this time tomorrow | every 24 hr | never |
 | **Easing** | `!easing` | after 8 min | 8 → 16 → 32 min… up to daily | per global setting |
 | **Steady** | `!steady` (the default) | after 15 min | every 8 min | per global setting |
 | **Building** | `!building` | after 30 min, with heads-ups 15, 5 and 1 min before a set start | 30 → 15 → 8 → 4 min, then every 4 min | per global setting |
-| **Hyperfocus** | `!hyperfocus` or `!break` | after 5 min | every 5 min | after 1 ignored nog |
 | **Unhinged** | `!unhinged` | after 2 min | every 7 min, no let-up | after 3 ignored nogs |
 
-The first three letters of a token are enough (`!hyp`, `!bui`). Fine-tune anything and the item becomes **Custom**. A Hush item stays silent until you pick another profile.
+The first three letters of a token are enough (`!whi`, `!bui`). Fine-tune anything and the item becomes **Custom**. A Hush item stays silent until you pick another profile.
 
 ## Steady, logarithmic or building
 
@@ -130,7 +130,7 @@ Type these anywhere in a capture line (all optional):
 | `!once` | remind once, don't repeat |
 | `!log` | logarithmic: the gap doubles after each nog |
 | `!alarm` | ring like a real alarm |
-| `!hush` `!whisper` `!daily` `!easing` `!steady` `!building` `!hyperfocus` `!unhinged` | use a nog profile; the first three letters are enough (`!unh`) |
+| `!hush` `!whisper` `!daily` `!easing` `!steady` `!building` `!teatime` `!unhinged` | use a nog profile; the first three letters are enough (`!unh`) |
 | `~30m` `~2h` | how long it'll take (the ▶︎ timebox) |
 | `!off` or `!idea` | no reminder |
 | `@30m` `@2h` `@1d` `@now` | when to start nogging |
