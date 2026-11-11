@@ -15,18 +15,7 @@ final class VoicePlayer: NSObject, AVAudioPlayerDelegate {
     private(set) var failed: String?
 
     @ObservationIgnored private var player: AVAudioPlayer?
-
-    override init() {
-        super.init()
-        // A call or an alarm cuts in: iOS pauses the player, so stop rather than look stuck.
-        NotificationCenter.default.addObserver(
-            forName: AVAudioSession.interruptionNotification, object: nil, queue: .main) { [weak self] note in
-            let type = (note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt)
-                .flatMap(AVAudioSession.InterruptionType.init(rawValue:))
-            guard type == .began else { return }
-            MainActor.assumeIsolated { self?.stop() }
-        }
-    }
+    @ObservationIgnored private var watch: Task<Void, Never>?
 
     /// How far into the playing note, in seconds.
     var currentTime: TimeInterval { player?.currentTime ?? 0 }
@@ -49,6 +38,7 @@ final class VoicePlayer: NSObject, AVAudioPlayerDelegate {
             guard player.play() else { throw CocoaError(.fileReadUnknown) }
             self.player = player
             playing = note.file
+            watchForInterruption()
         } catch {
             print("Nog: couldn't play \(note.file): \(error)")
             failed = note.file
@@ -58,11 +48,26 @@ final class VoicePlayer: NSObject, AVAudioPlayerDelegate {
 
     func stop() {
         loading = nil
+        watch?.cancel()
+        watch = nil
         guard player != nil || playing != nil else { return }
         player?.stop()
         player = nil
         playing = nil
         VoiceRecorder.deactivateSession()
+    }
+
+    /// A call or an alarm cuts in: iOS pauses the player, so stop rather than look stuck.
+    /// (Checked here rather than through interruption notifications, whose API changed in iOS 27.)
+    private func watchForInterruption() {
+        watch?.cancel()
+        watch = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(500))
+                guard !Task.isCancelled, let self, let player = self.player else { return }
+                if !player.isPlaying { return self.stop() }
+            }
+        }
     }
 
     nonisolated func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
