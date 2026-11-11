@@ -87,11 +87,17 @@ struct SettingsView: View {
                     ProfileCard(profile: profile, isSelected: current == profile)
                 }
                 .buttonStyle(.plain)
+                .accessibilityAddTraits(current == profile ? .isSelected : [])
             }
         } header: {
             SectionLabel(title: "How firm")
         } footer: {
-            Text(current == nil ? "Custom (set in Advanced). Pick a style to reset." : "For new nogs.")
+            if current == nil {
+                Text("Custom (set in Advanced). Pick a style to reset.")
+            } else {
+                // The key for the corner mark on the icons above.
+                Text("For new nogs. \(Image(systemName: "alarm.fill")) rings through Silent and Focus.")
+            }
         }
         .listRowBackground(Theme.glass)
     }
@@ -475,6 +481,8 @@ extension NogsAlertsPage {
 struct ProfileCard: View {
     let profile: NogProfile
     let isSelected: Bool
+    /// Settings › "Ring as an alarm after": which profiles get the rings-through-Silent mark.
+    @AppStorage(NogSettings.Key.escalateAfter) private var globalEscalate = 0
 
     var body: some View {
         HStack(spacing: 12) {
@@ -483,6 +491,7 @@ struct ProfileCard: View {
                 .foregroundStyle(tint)
                 .nogFrame(width: 34, height: 34)
                 .overlay(Circle().strokeBorder(tint.opacity(0.6), lineWidth: 1))
+                .breaksSilentBadge(profile.breaksSilent(globalEscalateAfter: globalEscalate))
             VStack(alignment: .leading, spacing: 2) {
                 Text(profile.label).font(.headline)
                 Text(profile.summary).font(.caption).foregroundStyle(Theme.muted)
@@ -493,6 +502,11 @@ struct ProfileCard: View {
         }
         .padding(.vertical, 4)
         .contentShape(Rectangle())
+        // One element: "Unhinged, Rings through Silent", then the summary as the hint.
+        // Selection is the button's Selected trait, not the checkmark image.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(profile.spokenLabel(globalEscalateAfter: globalEscalate))
+        .accessibilityHint(profile.summary)
     }
 
     private var tint: Color {
@@ -675,5 +689,34 @@ private struct SiriPage: View {
             if let footer { Text(footer) }
         }
         .listRowBackground(Theme.glass)
+    }
+}
+
+/// The mark on a profile icon that can ring through Silent mode: a small alarm clock
+/// in a ring, pinned to the icon's top-right corner. It reads by shape, not just colour,
+/// and grows with text size. VoiceOver skips it; the profile's label says
+/// "Rings through Silent" instead (`NogProfile.spokenLabel`).
+struct BreaksSilentBadge: View {
+    var body: some View {
+        Image(systemName: "alarm.fill")
+            .nogFont(8, weight: .bold)
+            .foregroundStyle(Theme.pink)
+            .nogFrame(width: 15, height: 15)
+            .background(Circle().fill(Color(uiColor: .systemBackground)))
+            .overlay(Circle().strokeBorder(Theme.pink, lineWidth: 1))
+            .accessibilityHidden(true)
+    }
+}
+
+extension View {
+    /// Pins `BreaksSilentBadge` to this icon's top-right corner when `shown`.
+    func breaksSilentBadge(_ shown: Bool) -> some View {
+        overlay(alignment: .topTrailing) {
+            if shown {
+                BreaksSilentBadge()
+                    .alignmentGuide(.top) { $0.height / 2 }
+                    .alignmentGuide(.trailing) { $0.width / 2 }
+            }
+        }
     }
 }

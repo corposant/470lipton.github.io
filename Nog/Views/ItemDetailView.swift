@@ -574,6 +574,8 @@ private struct ItemEditor: View {
 /// Big glowing readout, and the rhythm underneath (tap to change it).
 private struct NextNogCard: View {
     @Environment(ItemStore.self) private var store
+    /// Settings › "Ring as an alarm after": which profiles get the rings-through-Silent mark.
+    @AppStorage(NogSettings.Key.escalateAfter) private var globalEscalate = 0
     let item: Item
     let edit: () -> Void
 
@@ -643,7 +645,16 @@ private struct NextNogCard: View {
                 Text(text).foregroundStyle(.primary)
                 // A one-off has no rhythm, so no profile to name.
                 if reminder.repeatMinutes != nil {
-                    Text("· \(NogProfile.matching(reminder)?.label ?? "Custom")").foregroundStyle(Theme.violet)
+                    let profile = NogProfile.matching(reminder)
+                    Text("· \(profile?.label ?? "Custom")").foregroundStyle(Theme.violet)
+                    // Its profile can ring through Silent: the same mark as on the profile icons.
+                    // ("Ring like an alarm" has its own icon below.)
+                    if !reminder.alarm, profile?.breaksSilent(globalEscalateAfter: globalEscalate) == true {
+                        Image(systemName: "alarm.fill")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(Theme.pink)
+                            .accessibilityLabel(NogProfile.breaksSilentSpoken)
+                    }
                 }
                 if reminder.alarm {
                     Image(systemName: "alarm.waves.left.and.right").foregroundStyle(Theme.pink)

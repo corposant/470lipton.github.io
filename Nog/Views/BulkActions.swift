@@ -6,6 +6,8 @@ struct BulkActionBar: View {
     @Binding var selection: Set<UUID>
     @State private var showAddTag = false
     @State private var confirmDelete = false
+    /// Settings › "Ring as an alarm after": which profiles get the rings-through-Silent mark.
+    @AppStorage(NogSettings.Key.escalateAfter) private var globalEscalate = 0
 
     private var selected: [Item] { selection.compactMap { store.items[$0] } }
 
@@ -61,7 +63,17 @@ struct BulkActionBar: View {
                                 item.reminder = r
                             }
                         } label: {
-                            Label(profile.label, systemImage: profile.systemImage)
+                            // Menus can't draw the corner mark, so it's a subtitle line.
+                            if profile.breaksSilent(globalEscalateAfter: globalEscalate) {
+                                Label {
+                                    Text(profile.label)
+                                    Text(NogProfile.breaksSilentSpoken)
+                                } icon: {
+                                    Image(systemName: profile.systemImage)
+                                }
+                            } else {
+                                Label(profile.label, systemImage: profile.systemImage)
+                            }
                         }
                     }
                     Button {
