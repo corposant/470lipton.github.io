@@ -95,11 +95,12 @@ struct NogitivityProvider: AppIntentTimelineProvider {
         let snapshot = WidgetStore.load()
         // Redraw when a nog starts nogging or a timebox runs out; timers tick by themselves.
         // The app reloads the widgets whenever anything else changes.
-        // Ask again at midnight (for Today) or in 6 hours at the latest.
+        // Ask again at midnight (for Today) or in 6 hours at the latest. An entry at
+        // midnight itself turns the date over on time, even if the reload comes late.
         let midnight = Calendar.current.startOfDay(for: now.addingTimeInterval(86_400))
         let reloadAt = min(midnight, now.addingTimeInterval(6 * 3600))
         let changes = snapshot.map { WidgetPicker.changeDates($0, after: now) } ?? []
-        let dates = [now] + changes.filter { $0 < reloadAt }
+        let dates = [now] + changes.filter { $0 < reloadAt } + (reloadAt == midnight ? [midnight] : [])
         let entries = dates.map { NogitivityEntry(date: $0, snapshot: snapshot, configuration: configuration) }
         return Timeline(entries: entries, policy: .after(reloadAt))
     }
@@ -315,6 +316,8 @@ private struct TimerWidget: View {
     private var header: some View {
         HStack(alignment: .firstTextBaseline) {
             Text("▶ DOING").font(W.label()).tracking(1.8).foregroundStyle(Theme.blue).widgetAccentable()
+                .layoutPriority(1)
+            TodayLabel(date: entry.date, size: 11, short: family == .systemSmall)
             Spacer(minLength: 4)
             if family != .systemSmall, let box = item.timeboxMinutes {
                 Text("\(box) MIN BOX").font(.nogMeta).foregroundStyle(Theme.muted)
@@ -495,6 +498,28 @@ private struct Rule: View {
     var body: some View { Rectangle().fill(W.rule).frame(height: 1).accessibilityHidden(true) }
 }
 
+/// Today's date beside the top label: "WED 12" when space is tight, "WED, NOV 12" otherwise.
+/// VoiceOver reads it in full ("Wednesday, November 12").
+private struct TodayLabel: View {
+    let date: Date
+    let size: CGFloat
+    var short = false
+
+    var body: some View {
+        Text(text.uppercased())
+            .font(W.label(size)).tracking(1.2)
+            .foregroundStyle(Theme.muted)
+            .lineLimit(1).minimumScaleFactor(0.8)
+            .widgetAccentable()
+            .accessibilityLabel(date.formatted(.dateTime.weekday(.wide).month(.wide).day()))
+    }
+
+    private var text: String {
+        short ? date.formatted(.dateTime.weekday(.abbreviated).day())
+              : date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day())
+    }
+}
+
 /// The + to take a new nog: a plain 44 pt circle. The small widget is one tap target,
 /// so there the + is a button that opens capture and the rest of the widget opens the nog.
 private struct AddButton: View {
@@ -588,6 +613,14 @@ private struct NowWidget: View {
         (now.first ?? later.first).flatMap { itemURL($0.id) } ?? captureURL
     }
 
+    /// The top label with today's date beside it: "NOW · 3   WED, NOV 12".
+    private func topLabel(_ text: String, color: Color, tall: Bool = false) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            sectionLabel(text, color: color, tall: tall).layoutPriority(1)
+            TodayLabel(date: entry.date, size: labelSize, short: size == .small)
+        }
+    }
+
     private func sectionLabel(_ text: String, color: Color, tall: Bool = false) -> some View {
         Text(text).font(W.label(labelSize)).tracking(1.8).foregroundStyle(color).lineLimit(1)
             .widgetAccentable()
@@ -607,8 +640,8 @@ private struct NowWidget: View {
         let nowShown = Array(now.prefix(later.isEmpty ? rows : rows - 1))
         let laterShown = Array(later.prefix(rows - nowShown.count))
         VStack(alignment: .leading, spacing: size == .large ? 0 : 5) {
-            sectionLabel(now.isEmpty ? "NOW" : "NOW · \(now.count)", color: now.isEmpty ? Theme.muted : Theme.pink,
-                         tall: size == .large)
+            topLabel(now.isEmpty ? "NOW" : "NOW · \(now.count)", color: now.isEmpty ? Theme.muted : Theme.pink,
+                     tall: size == .large)
                 .padding(.trailing, size == .small ? 0 : buttonRoom)
             if now.isEmpty { nothingOn }
             ForEach(Array(nowShown.enumerated()), id: \.element.id) { index, item in
@@ -644,8 +677,9 @@ private struct NowWidget: View {
             let more = heroIsNow ? Array(now.dropFirst()) : []
             let next = heroIsNow ? later.first : later.dropFirst().first
             VStack(alignment: .leading, spacing: 4) {
-                sectionLabel(heroIsNow ? "NOW" : (isNowList ? "NEXT" : laterTitle),
-                             color: heroIsNow ? Theme.pink : Theme.muted)
+                topLabel(heroIsNow ? "NOW" : (isNowList ? "NEXT" : laterTitle),
+                         color: heroIsNow ? Theme.pink : Theme.muted)
+                    .padding(.trailing, size == .small ? 0 : buttonRoom)
                 Link(destination: itemURL(hero.id)!) {
                     VStack(alignment: .leading, spacing: size == .large ? 4 : 2) {
                         Text(hero.title)
@@ -696,7 +730,8 @@ private struct NowWidget: View {
             }
         } else {
             VStack(alignment: .leading, spacing: 4) {
-                sectionLabel("NOW", color: Theme.muted)
+                topLabel("NOW", color: Theme.muted)
+                    .padding(.trailing, size == .small ? 0 : buttonRoom)
                 Text("Nothing on now.")
                     .font(.system(size: heroSize, weight: .semibold))
                     .padding(.trailing, size == .small ? 0 : buttonRoom)
