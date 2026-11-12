@@ -74,7 +74,7 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: How firm
+    // MARK: Default profile
 
     private var style: some View {
         let current = currentProfile
@@ -89,7 +89,7 @@ struct SettingsView: View {
                 .buttonStyle(.plain)
             }
         } header: {
-            SectionLabel(title: "How firm")
+            SectionLabel(title: "Default")
         } footer: {
             Text(current == nil ? "Custom (set in Advanced). Pick a style to reset." : "For new nogs.")
         }
