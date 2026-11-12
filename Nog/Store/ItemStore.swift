@@ -528,18 +528,38 @@ final class ItemStore {
     /// back to Open. Work happened, so the rest of today's nogs can wait: it comes back tomorrow
     /// (at its own time for a once-a-day rhythm, otherwise in the morning). Urgent ones (flagged
     /// urgent, or ringing like an alarm) keep their rhythm. Returns the seconds this session logged.
+    ///
+    /// ▶︎ on a nog starts its first sub-nog, so the nogs above a step wait until tomorrow too:
+    /// otherwise the parent you pressed ▶︎ on would carry on nogging the same afternoon.
     @discardableResult
     func stopDoing(_ id: UUID, now: Date = .now, calendar: Calendar = .current) -> TimeInterval {
         guard var item = items[id], item.isDoing else { return 0 }
         let logged = item.doingSince.map { max(0, now.timeIntervalSince($0)) } ?? 0
-        item.status = .open
-        if let resume = Self.resumeDate(for: item, now: now, calendar: calendar), var r = item.reminder {
-            r.start = resume
-            item.reminder = r
-            clearDelivered(id)
+        batch {
+            item.status = .open
+            holdUntilTomorrow(&item, now: now, calendar: calendar)
+            update(item)
+            var seen: Set<UUID> = [id]
+            var next = item.parentID
+            while let parentID = next, seen.insert(parentID).inserted, var parent = items[parentID] {
+                next = parent.parentID
+                guard parent.isOpen, holdUntilTomorrow(&parent, now: now, calendar: calendar) else { continue }
+                update(parent)
+            }
         }
-        update(item)
         return logged
+    }
+
+    /// Moves a nog's next reminder to tomorrow if `resumeDate` says so. True if it moved.
+    @discardableResult
+    private func holdUntilTomorrow(_ item: inout Item, now: Date, calendar: Calendar) -> Bool {
+        guard let resume = Self.resumeDate(for: item, now: now, calendar: calendar), var r = item.reminder else {
+            return false
+        }
+        r.start = resume
+        item.reminder = r
+        clearDelivered(item.id)
+        return true
     }
 
     /// When a nog stopped with "Done for now" next nogs, if its next nog would otherwise

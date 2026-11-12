@@ -427,10 +427,10 @@ private struct ItemEditor: View {
                 }
             }
         } footer: {
-            if children.isEmpty, item.status != .done {
-                Text(StepHint.isVague(item.title)
-                     ? "\"\(StepHint.leadingVerb(item.title) ?? "That")\" is hard to start. What's the first thing you'd physically do? Like \"open the laptop\" or \"find the form\"."
-                     : "What's the smallest thing you could physically do in two minutes? ▶︎ starts with it.")
+            // Only for a vague opening ("Deal with…"); the field's placeholder asks for the
+            // first step on every other nog, so no standing footer.
+            if children.isEmpty, item.status != .done, let vague = StepHint.leadingVerb(item.title) {
+                Text("\"\(vague)\" is hard to start. What would you physically do first?")
                     .font(.footnote)
                     .foregroundStyle(Theme.muted)
             }

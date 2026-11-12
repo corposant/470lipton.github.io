@@ -573,6 +573,28 @@ final class DoingTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(stopped.timeSpent, 0)
     }
 
+    func testDoneForNowOnAStepHoldsTheNogAboveItToo() throws {
+        let store = ItemStore(folder: FileManager.default.temporaryDirectory.appending(path: UUID().uuidString),
+                              schedulesNotifications: false)
+        let calendar = Calendar.current
+        // Noon on a day well ahead, so nothing here is in the past.
+        let noon = try XCTUnwrap(calendar.date(bySettingHour: 12, minute: 0, second: 0,
+                                               of: Date.now.addingTimeInterval(10 * 86_400)))
+        var parent = try XCTUnwrap(store.capture("sort the garage !off"))
+        parent.reminder = Reminder(start: noon.addingTimeInterval(-3600), repeatMinutes: 30)
+        store.update(parent)
+        let step = try XCTUnwrap(store.capture("open the garage door !off", parent: parent.id))
+
+        store.start(parent.id)
+        XCTAssertEqual(store.items[step.id]?.status, .doing)
+        store.stopDoing(step.id, now: noon, calendar: calendar)
+
+        XCTAssertEqual(store.items[step.id]?.status, .open)
+        let held = try XCTUnwrap(store.items[parent.id]?.reminder?.start)
+        XCTAssertGreaterThan(held, noon)
+        XCTAssertFalse(calendar.isDate(held, inSameDayAs: noon), "the parent waits until tomorrow too")
+    }
+
     func testDoneForNowLeavesTheRestOfTodayAlone() throws {
         let calendar = Calendar.current
         let day = calendar.startOfDay(for: now)
