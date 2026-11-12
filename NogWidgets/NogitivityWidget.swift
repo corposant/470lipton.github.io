@@ -75,6 +75,9 @@ struct NogitivityEntry: TimelineEntry {
     }
 
     var showsTitlesOnLockScreen: Bool { snapshot?.showTitlesOnLockScreen ?? true }
+
+    /// Settings › Low stimulation (the extension can't read the app's settings directly).
+    var lowStimulation: Bool { snapshot?.lowStimulation == true }
 }
 
 struct NogitivityProvider: AppIntentTimelineProvider {
@@ -135,17 +138,21 @@ struct NogitivityView: View {
             // Settings › Theme (Dark or Light) wins over the system's appearance, as in the app.
             // The background gets it too, or it would still follow the system.
             let scheme = entry.colorScheme
-            if entry.snapshot == nil {
-                NotSetUp().nogColorScheme(scheme)
-                    .containerBackground(for: .widget) { W.listBackground.nogColorScheme(scheme) }
-            } else if let doing = entry.doing {
-                TimerWidget(entry: entry, item: doing).nogColorScheme(scheme)
-                    .containerBackground(for: .widget) { W.timerBackground.nogColorScheme(scheme) }
-                    .widgetURL(itemURL(doing.id))
-            } else {
-                NowWidget(entry: entry).nogColorScheme(scheme)
-                    .containerBackground(for: .widget) { W.listBackground.nogColorScheme(scheme) }
+            let calm = entry.lowStimulation
+            Group {
+                if entry.snapshot == nil {
+                    NotSetUp().nogColorScheme(scheme)
+                        .containerBackground(for: .widget) { GlassBackdrop(base: W.listBackground, plain: calm).nogColorScheme(scheme) }
+                } else if let doing = entry.doing {
+                    TimerWidget(entry: entry, item: doing).nogColorScheme(scheme)
+                        .containerBackground(for: .widget) { GlassBackdrop(base: W.timerBackground, plain: calm).nogColorScheme(scheme) }
+                        .widgetURL(itemURL(doing.id))
+                } else {
+                    NowWidget(entry: entry).nogColorScheme(scheme)
+                        .containerBackground(for: .widget) { GlassBackdrop(base: W.listBackground, plain: calm).nogColorScheme(scheme) }
+                }
             }
+            .environment(\.widgetLowStimulation, calm)
         }
     }
 }
@@ -155,6 +162,63 @@ private extension View {
     @ViewBuilder
     func nogColorScheme(_ scheme: ColorScheme?) -> some View {
         if let scheme { environment(\.colorScheme, scheme) } else { self }
+    }
+}
+
+// MARK: Glass backdrop
+
+private extension EnvironmentValues {
+    /// Settings › Low stimulation, from the snapshot. `nogGlow` reads the extension's own
+    /// defaults, which never have it, so widget views check this instead.
+    @Entry var widgetLowStimulation = false
+}
+
+/// The Home Screen widget as a pane of the app's glass: the base color with the app's two
+/// hazes, its faint honeycomb, a soft sheen from the top left and a hairline edge.
+///
+/// This is the widget's container background, so iOS takes it away in the Clear and
+/// Tinted Home Screen styles and in StandBy, and draws its own glass behind the content.
+/// That's the only way a widget can be see-through: WidgetKit draws a full-colour widget
+/// opaque, and materials there don't blur the wallpaper.
+///
+/// Increase Contrast, Reduce Transparency or Low stimulation leave just the solid base,
+/// like the app's background.
+private struct GlassBackdrop: View {
+    let base: Color
+    /// Low stimulation.
+    var plain = false
+    @Environment(\.colorScheme) private var scheme
+    @Environment(\.colorSchemeContrast) private var contrast
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
+    private var isPlain: Bool { plain || contrast == .increased || reduceTransparency }
+
+    var body: some View {
+        ZStack {
+            base
+            if !isPlain {
+                GeometryReader { proxy in
+                    let reach = max(proxy.size.width, proxy.size.height)
+                    ZStack {
+                        // The app's hazes, scaled to the widget: the accent blue top right,
+                        // magenta (or apricot by day) lower left.
+                        RadialGradient(colors: [Theme.blue.opacity(scheme == .dark ? 0.20 : 0.12), .clear],
+                                       center: UnitPoint(x: 0.95, y: 0.0), startRadius: 0, endRadius: reach * 0.8)
+                        RadialGradient(colors: [NogBackground.warmHaze(scheme), .clear],
+                                       center: UnitPoint(x: 0.0, y: 0.9), startRadius: 0, endRadius: reach * 0.75)
+                        Canvas { context, size in
+                            context.stroke(NogBackground.honeycomb(in: size),
+                                           with: .color(NogBackground.honeycombLine(scheme)), lineWidth: 1)
+                        }
+                        // Sheen: light catching the top-left of the glass.
+                        LinearGradient(colors: [.white.opacity(scheme == .dark ? 0.06 : 0.30), .clear],
+                                       startPoint: .topLeading, endPoint: UnitPoint(x: 0.55, y: 0.6))
+                    }
+                }
+                ContainerRelativeShape().strokeBorder(Theme.edge, lineWidth: 1)
+            }
+        }
+        .accessibilityHidden(true)
     }
 }
 
@@ -194,6 +258,8 @@ private struct DoingTimer: View {
 }
 
 private struct GlowingTimer: View {
+    @Environment(\.widgetRenderingMode) private var renderingMode
+    @Environment(\.widgetLowStimulation) private var lowStimulation
     let item: WidgetSnapshot.Entry
     let date: Date
     let size: CGFloat
@@ -203,11 +269,15 @@ private struct GlowingTimer: View {
         DoingTimer(item: item, date: date)
             .font(.nogReadout(size))
             .foregroundStyle(W.readout)
-            .nogGlow(color: Theme.blue.opacity(0.6), radius: 6)
+            .shadow(color: glows ? Theme.blue.opacity(0.6) : .clear, radius: glows ? 6 : 0)
+            .widgetAccentable()
             .multilineTextAlignment(alignment)
             .lineLimit(1)
             .minimumScaleFactor(0.5)
     }
+
+    /// No glow in Low stimulation, or once iOS restyles the widget (Clear and Tinted).
+    private var glows: Bool { renderingMode == .fullColor && !lowStimulation }
 }
 
 private struct TimeboxBar: View {
@@ -244,7 +314,7 @@ private struct TimerWidget: View {
 
     private var header: some View {
         HStack(alignment: .firstTextBaseline) {
-            Text("▶ DOING").font(W.label()).tracking(1.8).foregroundStyle(Theme.blue)
+            Text("▶ DOING").font(W.label()).tracking(1.8).foregroundStyle(Theme.blue).widgetAccentable()
             Spacer(minLength: 4)
             if family != .systemSmall, let box = item.timeboxMinutes {
                 Text("\(box) MIN BOX").font(.nogMeta).foregroundStyle(Theme.muted)
@@ -309,12 +379,17 @@ private struct TimerWidget: View {
 }
 
 private struct SubItemRow: View {
+    @Environment(\.widgetRenderingMode) private var renderingMode
     let sub: WidgetSnapshot.SubItem
 
     var body: some View {
         HStack(spacing: 8) {
             ZStack {
-                if sub.done {
+                if sub.done && renderingMode != .fullColor {
+                    // Clear and Tinted draw everything in one color, which would hide a
+                    // check drawn on a filled circle; this symbol cuts the check out instead.
+                    Image(systemName: "checkmark.circle.fill").resizable().widgetAccentable()
+                } else if sub.done {
                     Circle().fill(Theme.blue)
                     Image(systemName: "checkmark").font(.system(size: 8, weight: .heavy)).foregroundStyle(W.timerBackground)
                 } else {
@@ -424,6 +499,7 @@ private struct Rule: View {
 /// so there the + is a button that opens capture and the rest of the widget opens the nog.
 private struct AddButton: View {
     @Environment(\.widgetFamily) private var family
+    @Environment(\.widgetRenderingMode) private var renderingMode
 
     var body: some View {
         if family == .systemSmall {
@@ -437,13 +513,26 @@ private struct AddButton: View {
         }
     }
 
+    @ViewBuilder
     private var circle: some View {
-        Image(systemName: "plus")
-            .font(.system(size: 18, weight: .bold))
-            .foregroundStyle(W.onPink)
-            .frame(width: 44, height: 44)
-            .background(Circle().fill(Theme.pink))
-            .contentShape(Circle())
+        if renderingMode == .fullColor {
+            Image(systemName: "plus")
+                .font(.system(size: 18, weight: .bold))
+                .foregroundStyle(W.onPink)
+                .frame(width: 44, height: 44)
+                .background(Circle().fill(Theme.pink))
+                .contentShape(Circle())
+        } else {
+            // Clear and Tinted draw everything in one color, so a + on a filled circle
+            // would vanish: a ring with a faint fill instead, tinted with the Home Screen.
+            Image(systemName: "plus")
+                .font(.system(size: 18, weight: .bold))
+                .frame(width: 44, height: 44)
+                .background(Circle().fill(.white.opacity(0.15)))
+                .overlay(Circle().strokeBorder(lineWidth: 1.5))
+                .contentShape(Circle())
+                .widgetAccentable()
+        }
     }
 }
 
@@ -501,6 +590,7 @@ private struct NowWidget: View {
 
     private func sectionLabel(_ text: String, color: Color, tall: Bool = false) -> some View {
         Text(text).font(W.label(labelSize)).tracking(1.8).foregroundStyle(color).lineLimit(1)
+            .widgetAccentable()
             .frame(minHeight: tall ? 44 : nil, alignment: .leading)
             .accessibilityAddTraits(.isHeader)
     }

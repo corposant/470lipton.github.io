@@ -430,15 +430,22 @@ struct NogBackground: View {
         ZStack {
             RadialGradient(colors: [(accent ?? Theme.blue).opacity(scheme == .dark ? 0.20 : 0.12), .clear],
                            center: UnitPoint(x: 0.9, y: 0.05), startRadius: 0, endRadius: 420)
-            RadialGradient(colors: [scheme == .dark ? Color(UIColor(hex: 0xFF50AA)).opacity(0.15)
-                                                    : Color(UIColor(hex: 0xE8965A)).opacity(0.14), .clear],
+            RadialGradient(colors: [Self.warmHaze(scheme), .clear],
                            center: UnitPoint(x: 0.05, y: 0.65), startRadius: 0, endRadius: 380)
             Canvas { context, size in
-                context.stroke(Self.honeycomb(in: size),
-                               with: .color(scheme == .dark ? .white.opacity(0.025) : Color(UIColor(hex: 0x5A3C1E)).opacity(0.035)),
-                               lineWidth: 1)
+                context.stroke(Self.honeycomb(in: size), with: .color(Self.honeycombLine(scheme)), lineWidth: 1)
             }
         }
+    }
+
+    /// The lower-left haze: magenta at night, apricot by day. Shared with the widgets.
+    static func warmHaze(_ scheme: ColorScheme) -> Color {
+        scheme == .dark ? Color(UIColor(hex: 0xFF50AA)).opacity(0.15) : Color(UIColor(hex: 0xE8965A)).opacity(0.14)
+    }
+
+    /// The honeycomb's line color: barely there. Shared with the widgets.
+    static func honeycombLine(_ scheme: ColorScheme) -> Color {
+        scheme == .dark ? .white.opacity(0.025) : Color(UIColor(hex: 0x5A3C1E)).opacity(0.035)
     }
 
     /// Flat-topped hexagons, 28 pt across and about 24 pt tall, so the pattern is about

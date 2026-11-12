@@ -42,6 +42,16 @@ final class WidgetSnapshotTests: XCTestCase {
         XCTAssertNil(try XCTUnwrap(WidgetStore.decode(Data(old.utf8))).appearance)
     }
 
+    func testCarriesLowStimulationForTheWidgets() throws {
+        let item = Item(title: "Call the plumber")
+        XCTAssertNil(snapshot([item]).lowStimulation)
+        let calm = WidgetSync.snapshot([item], now: now, policy: .standard, defaultTimebox: 25, showTitles: true,
+                                       lowStimulation: true, calendar: calendar)
+        XCTAssertEqual(calm.lowStimulation, true)
+        let decoded = try XCTUnwrap(WidgetStore.decode(XCTUnwrap(WidgetStore.encode(calm))))
+        XCTAssertEqual(decoded.lowStimulation, true)
+    }
+
     func testRoundTripsThroughJSON() throws {
         var item = Item(title: "Call the plumber")
         item.reminder = Reminder(start: now.addingTimeInterval(-600), repeatMinutes: 8, alarm: true)

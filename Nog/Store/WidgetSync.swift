@@ -24,7 +24,8 @@ enum WidgetSync {
         let snapshot = Self.snapshot(items, now: now, policy: policy,
                                      defaultTimebox: NogSettings.timeboxMinutes,
                                      showTitles: NogSettings.showTitles,
-                                     appearance: NogSettings.themeMode)
+                                     appearance: NogSettings.themeMode,
+                                     lowStimulation: Calm.lowStimulation)
         var comparable = snapshot
         comparable.generated = .distantPast
         for i in comparable.entries.indices { comparable.entries[i].nextNog = nil }
@@ -52,6 +53,7 @@ enum WidgetSync {
     /// Everything not yet nogged, with what the widgets need to show and start it.
     nonisolated static func snapshot(_ items: [Item], now: Date, policy: NogPolicy, defaultTimebox: Int,
                                      showTitles: Bool, appearance: ThemeMode = .auto,
+                                     lowStimulation: Bool = false,
                                      calendar: Calendar = .current) -> WidgetSnapshot {
         let byID = Dictionary(items.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
         var children: [UUID: [Item]] = [:]
@@ -91,6 +93,7 @@ enum WidgetSync {
         .sorted { $0.updated > $1.updated }
 
         return WidgetSnapshot(generated: now, entries: entries, showTitlesOnLockScreen: showTitles,
-                              appearance: appearance == .auto ? nil : appearance.rawValue)
+                              appearance: appearance == .auto ? nil : appearance.rawValue,
+                              lowStimulation: lowStimulation ? true : nil)
     }
 }
