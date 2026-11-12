@@ -321,7 +321,7 @@ private struct ItemEditor: View {
         let children = store.children(of: item.id)
         let done = children.filter { $0.status == .done }.count
         return Section {
-            ForEach(children) { child in
+            ForEach(Array(children.enumerated()), id: \.element.id) { index, child in
                 HStack {
                     Button {
                         if child.status == .done { store.reopen(child.id) } else { store.markDone(child.id) }
@@ -337,7 +337,20 @@ private struct ItemEditor: View {
                             .strikethrough(child.status == .done)
                             .foregroundStyle(child.status == .done ? Theme.muted : .primary)
                     }
+                    // Dragging needs a steady long press; these do the same in one step.
+                    .accessibilityActions {
+                        if index > 0 {
+                            Button("Move up") { moveChild(child, by: -1) }
+                        }
+                        if index < children.count - 1 {
+                            Button("Move down") { moveChild(child, by: 1) }
+                        }
+                    }
                 }
+            }
+            // Touch and hold a sub-nog, then drag it to a new place. The order is saved.
+            .onMove { source, destination in
+                store.moveChildren(of: item.id, from: source, to: destination)
             }
             HStack(spacing: 10) {
                 Image(systemName: "plus").foregroundStyle(Theme.muted)
@@ -373,6 +386,12 @@ private struct ItemEditor: View {
             }
         }
         .listRowBackground(Theme.glass)
+    }
+
+    private func moveChild(_ child: Item, by offset: Int) {
+        if let moved = withNogAnimation({ store.moveChild(child.id, by: offset) }) {
+            AccessibilityNotification.Announcement("\(child.title) moved to \(moved.place) of \(moved.of)").post()
+        }
     }
 
     /// Return adds what's typed as a sub-item and leaves the cursor ready for the next.

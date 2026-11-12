@@ -353,6 +353,8 @@ final class ItemStore {
             item.doingSince = nil
             item.timeboxMinutes = nil
         }
+        // Filed under a different parent: its old place among siblings means nothing there.
+        if old.parentID != item.parentID { item.position = nil }
         item = firingSoonIfPast(item, previous: old)
         item.updated = now
         items[item.id] = item
@@ -600,7 +602,40 @@ final class ItemStore {
     // MARK: - Queries
 
     func children(of id: UUID) -> [Item] {
-        items.values.filter { $0.parentID == id }.sorted { $0.created < $1.created }
+        items.values.filter { $0.parentID == id }.sorted(by: Item.siblingOrder)
+    }
+
+    /// Puts a nog's sub-nogs in a new order (a drag in the detail view). Every sibling
+    /// gets a position, so the order holds as more are added below.
+    func moveChildren(of parentID: UUID, from source: IndexSet, to destination: Int) {
+        setOrder(Item.reordered(children(of: parentID), from: source, to: destination))
+    }
+
+    /// Moves one sub-nog up (-1) or down (+1) among its siblings, for VoiceOver's
+    /// Move up / Move down. Returns its new place, 1-based, and how many there are.
+    @discardableResult
+    func moveChild(_ id: UUID, by offset: Int) -> (place: Int, of: Int)? {
+        guard let parentID = items[id]?.parentID else { return nil }
+        let kids = children(of: parentID)
+        guard let from = kids.firstIndex(where: { $0.id == id }) else { return nil }
+        let to = from + offset
+        guard kids.indices.contains(to) else { return nil }
+        setOrder(Item.reordered(kids, from: [from], to: offset > 0 ? to + 1 : to))
+        return (to + 1, kids.count)
+    }
+
+    /// Order is bookkeeping, not an edit: `updated` stays put so lists sorted by
+    /// recent change don't jump, and no nog changes, so notifications aren't rebuilt.
+    private func setOrder(_ ordered: [Item]) {
+        var changed = false
+        for (index, kid) in ordered.enumerated() where items[kid.id]?.position != index {
+            guard var current = items[kid.id] else { continue }
+            current.position = index
+            items[kid.id] = current
+            write(current)
+            changed = true
+        }
+        if changed { scheduleSync(nogs: false) }
     }
 
     func parent(of item: Item) -> Item? {

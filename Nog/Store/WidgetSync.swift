@@ -64,7 +64,7 @@ enum WidgetSync {
                 next = policy.deliveryDates(for: r, after: isNogging ? now : r.start.addingTimeInterval(-1),
                                             limit: 1, calendar: calendar).first
             }
-            let kids = (children[item.id] ?? []).sorted { $0.created < $1.created }
+            let kids = (children[item.id] ?? []).sorted(by: Item.siblingOrder)
             let subs = (kids.filter { $0.status != .done } + kids.filter { $0.status == .done })
                 .prefix(5)
                 .map { WidgetSnapshot.SubItem(title: $0.title, done: $0.status == .done) }
