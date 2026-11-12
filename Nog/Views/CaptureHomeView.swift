@@ -85,11 +85,9 @@ struct CaptureHomeView: View {
             .safeAreaInset(edge: .top) { SilenceBanner() }
             .nogTabTitle(.capture)
             .toolbar {
-                // The mic and the gear share the bar's row and the same button, so they're
-                // the same glass circle, side by side. The fixed spacer keeps them two
-                // separate circles instead of one shared capsule.
+                // The mic and the gear share one glass capsule in the bar, joined like the
+                // buttons on the List tab, so the bar reads the same on every tab.
                 ToolbarItem(placement: .topBarTrailing) { micButton }
-                ToolbarSpacer(.fixed, placement: .topBarTrailing)
                 SettingsToolbarItem()
             }
             // The tray sits on the keyboard while typing, and above the tab bar otherwise.

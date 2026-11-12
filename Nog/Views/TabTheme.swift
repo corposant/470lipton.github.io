@@ -59,7 +59,7 @@ extension View {
 
 /// A round icon button for a tab's navigation bar. The Settings gear and the New Nog
 /// mic both use this, and both sit in the bar, so the system draws them identically:
-/// the same glass circle, size, symbol weight and tint, on the same row.
+/// the same size, symbol weight and tint, sharing one glass capsule in the bar.
 struct BarIconButton: View {
     let systemImage: String
     let label: String
