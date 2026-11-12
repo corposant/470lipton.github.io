@@ -6,6 +6,8 @@ struct NogSheet: View {
     @Environment(ItemStore.self) private var store
     @Environment(\.dismiss) private var dismiss
     @Environment(\.dynamicTypeSize) private var typeSize
+    /// Settings › "Ring as an alarm after": which profiles get the rings-through-Silent mark.
+    @AppStorage(NogSettings.Key.escalateAfter) private var globalEscalate = 0
     let id: UUID
     @State private var showCalendar = false
     @State private var showKindHelp = false
@@ -167,6 +169,7 @@ struct NogSheet: View {
                         VStack(spacing: 5) {
                             Image(systemName: profile.systemImage)
                                 .nogFont(15, weight: .semibold)
+                                .breaksSilentBadge(profile.breaksSilent(globalEscalateAfter: globalEscalate))
                             Text(profile.label)
                                 .font(.nogTitle(12))
                                 .lineLimit(1)
@@ -182,6 +185,7 @@ struct NogSheet: View {
                     }
                     // Borderless: each card is its own tap target inside the row.
                     .buttonStyle(.borderless)
+                    .accessibilityLabel(profile.spokenLabel(globalEscalateAfter: globalEscalate))
                     .accessibilityAddTraits(isOn ? .isSelected : [])
                     .accessibilityHint(profile.summary)
                 }

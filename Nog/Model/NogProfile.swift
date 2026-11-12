@@ -122,6 +122,21 @@ enum NogProfile: String, CaseIterable, Identifiable {
     /// No sound and no Time Sensitive break-through, whatever the global settings say.
     var silent: Bool { self == .hush }
 
+    /// Can ring as a real alarm (AlarmKit), which gets through Silent mode and Focus.
+    /// Unhinged always can; Steady, Easing and Building can when Settings › "Ring as an
+    /// alarm after" is on (`globalEscalateAfter` > 0). The rest never ring.
+    func breaksSilent(globalEscalateAfter: Int) -> Bool {
+        !silent && (escalateAfter ?? globalEscalateAfter) > 0
+    }
+
+    /// What VoiceOver adds after the name of a profile that `breaksSilent`.
+    static let breaksSilentSpoken = "Rings through Silent"
+
+    /// The name VoiceOver reads: "Unhinged, Rings through Silent" when it can.
+    func spokenLabel(globalEscalateAfter: Int) -> String {
+        breaksSilent(globalEscalateAfter: globalEscalateAfter) ? "\(label), \(Self.breaksSilentSpoken)" : label
+    }
+
     /// Starts at this time of day (minutes after midnight) instead of after a delay.
     var timeOfDay: Int? { self == .teatime ? 16 * 60 : nil }
 

@@ -692,6 +692,16 @@ final class ProfileTests: XCTestCase {
         XCTAssertFalse(NogProfile.steady.apply(to: try XCTUnwrap(item.reminder)).silent)
     }
 
+    func testRingsThroughSilentMarkFollowsTheAlarmSetting() {
+        // "Ring as an alarm after: Never" (the default): only Unhinged can ring.
+        XCTAssertEqual(NogProfile.allCases.filter { $0.breaksSilent(globalEscalateAfter: 0) }, [.unhinged])
+        // With it on, the profiles that follow the setting can too; the quiet four never do.
+        XCTAssertEqual(NogProfile.allCases.filter { $0.breaksSilent(globalEscalateAfter: 3) },
+                       [.easing, .steady, .building, .unhinged])
+        XCTAssertEqual(NogProfile.unhinged.spokenLabel(globalEscalateAfter: 0), "Unhinged, Rings through Silent")
+        XCTAssertEqual(NogProfile.hush.spokenLabel(globalEscalateAfter: 3), "Hush")
+    }
+
     func testTeatimeStartsAtFourAndComesEveryOtherDay() throws {
         let defaults = CaptureDefaults(firstDelayMinutes: 15, repeatMinutes: 8)
         let r = try XCTUnwrap(CaptureParser.parse("call grandma !tea", defaults: defaults, now: now).reminder)

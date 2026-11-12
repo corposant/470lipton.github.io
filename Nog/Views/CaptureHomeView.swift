@@ -22,6 +22,8 @@ struct CaptureHomeView: View {
     @State private var justNogged: [JustNogged] = []
     /// Apple's Siri tip ("Say 'Take a Nog'"); hidden for good once dismissed.
     @AppStorage("siriTip.capture") private var showSiriTip = true
+    /// Settings › "Ring as an alarm after": which profiles get the rings-through-Silent mark.
+    @AppStorage(NogSettings.Key.escalateAfter) private var globalEscalate = 0
     @FocusState private var focus: Field?
 
     private enum Field: Hashable { case title, subItem, tag }
@@ -661,7 +663,10 @@ struct CaptureHomeView: View {
                 // Eight profiles: wrap onto more lines rather than squeeze.
                 FlowLayout(spacing: 6) {
                     ForEach(NogProfile.allCases) { profile in
-                        smallChip(profile.label, isOn: profile == current) { draft.profile = profile }
+                        smallChip(profile.label, isOn: profile == current,
+                                  breaksSilent: profile.breaksSilent(globalEscalateAfter: globalEscalate)) {
+                            draft.profile = profile
+                        }
                     }
                 }
             }
@@ -714,19 +719,31 @@ struct CaptureHomeView: View {
         draft.extraTags.append(tag)
     }
 
-    private func smallChip(_ title: String, isOn: Bool, action: @escaping () -> Void) -> some View {
+    /// `breaksSilent`: a profile chip that can ring through Silent gets the same
+    /// alarm mark as the profile icons, and says so to VoiceOver.
+    private func smallChip(_ title: String, isOn: Bool, breaksSilent: Bool = false,
+                           action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Text(title)
-                .font(.subheadline)
-                .lineLimit(1)
-                .foregroundStyle(isOn ? Theme.blue : Color.primary.opacity(0.85))
-                .padding(.horizontal, 11)
-                .frame(minHeight: 32)
-                .background(isOn ? Theme.blue.opacity(0.14) : .clear, in: Capsule())
-                .overlay(Capsule().strokeBorder(isOn ? Theme.blue : Theme.edgeStrong, lineWidth: 1))
-                .contentShape(Capsule())
+            HStack(spacing: 4) {
+                Text(title)
+                if breaksSilent {
+                    Image(systemName: "alarm.fill")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(Theme.pink)
+                        .accessibilityHidden(true)
+                }
+            }
+            .font(.subheadline)
+            .lineLimit(1)
+            .foregroundStyle(isOn ? Theme.blue : Color.primary.opacity(0.85))
+            .padding(.horizontal, 11)
+            .frame(minHeight: 32)
+            .background(isOn ? Theme.blue.opacity(0.14) : .clear, in: Capsule())
+            .overlay(Capsule().strokeBorder(isOn ? Theme.blue : Theme.edgeStrong, lineWidth: 1))
+            .contentShape(Capsule())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(breaksSilent ? "\(title), \(NogProfile.breaksSilentSpoken)" : title)
         .accessibilityAddTraits(isOn ? .isSelected : [])
     }
 }
