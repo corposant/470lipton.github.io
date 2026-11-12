@@ -236,6 +236,9 @@ struct Reminder: Hashable {
     var followsParent = true
     /// A parent: its rhythm flows down to sub-items that follow it.
     var passesDown = true
+    /// Balanced: when its once / twice / three-times-a-day ramp began, if `start` has moved since
+    /// (a snooze, Skip today, Done for now). nil = the ramp began at `start`.
+    var rampSince: Date? = nil
 
     /// Logarithmic gaps stop growing here.
     static let logarithmicCapMinutes = 1440
@@ -275,8 +278,34 @@ struct Reminder: Hashable {
             }
             return TimeInterval(minutes * 60)
         case .balanced:
-            return TimeInterval(Self.balancedGapMinutes(after: k) * 60)
+            return TimeInterval(Self.balancedGapMinutes(after: k + balancedOffset) * 60)
         }
+    }
+
+    /// How far into Balanced's ramp `start` already is: whole days since `rampSince`, as a count
+    /// of nogs, always landing on the first nog of a day so the times of day hold.
+    var balancedOffset: Int {
+        guard let since = rampSince, since < start else { return 0 }
+        var days = Int(start.timeIntervalSince(since) / 86_400)
+        var offset = 0
+        for (step, pattern) in Self.balancedDayPatterns.enumerated() {
+            if step == Self.balancedDayPatterns.count - 1 || days < Self.balancedDaysPerStep {
+                // The last step repeats forever, so being anywhere in it is the same.
+                return offset + (step == Self.balancedDayPatterns.count - 1 ? 0 : days * pattern.count)
+            }
+            offset += Self.balancedDaysPerStep * pattern.count
+            days -= Self.balancedDaysPerStep
+        }
+        return offset
+    }
+
+    /// This reminder starting at `date` instead (a snooze, Skip today, Done for now). A Balanced
+    /// one remembers when its ramp began, so moving it doesn't send it back to once a day.
+    func moved(to date: Date) -> Reminder {
+        var r = self
+        if curve == .balanced, rampSince == nil, start < date { r.rampSince = start }
+        r.start = date
+        return r
     }
 
     /// Balanced: nogs a day in week one, then two, then three.
@@ -322,7 +351,8 @@ struct Reminder: Hashable {
         while result.count < limit && k < 100_000 {
             guard let g = gap(after: k) else { break }
             // In a steady stretch that's still in the past, jump ahead instead of stepping.
-            if t <= date, let next = gap(after: k + 1), next == g {
+            // (Not Balanced: its week of equal day-long gaps is followed by a different pattern.)
+            if curve != .balanced, t <= date, let next = gap(after: k + 1), next == g {
                 let skip = (date.timeIntervalSince(t) / g).rounded(.down)
                 if skip >= 1 {
                     t = t.addingTimeInterval(skip * g)

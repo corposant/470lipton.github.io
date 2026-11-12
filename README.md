@@ -104,7 +104,7 @@ Eight styles, all shown as buttons, gentlest to loudest. Pick your default in Se
 | **Hush** | `!hush` | after 15 min | every 15 min, always silent (no sound, not Time Sensitive) | never |
 | **Teatime** | `!teatime` or `!tea` | at tea time (4 PM) | every other day at 4 PM, about three times a week | never |
 | **Whisper** | `!whisper` | after 1 hr | hourly, easing off to daily | never |
-| **Balanced** | `!balanced` (or `!daily`) | at the time you type, or this time tomorrow | once a day for a week, then twice a day (6 hr apart) for a week, then three times a day (4 hr apart) | never |
+| **Balanced** | `!balanced` (or `!daily`) | at the time you type, or this time tomorrow | once a day for a week, then twice a day (6 hr apart) for a week, then three times a day (4 hr apart). Skipping, snoozing or Done for now keeps its place in that build-up | never |
 | **Easing** | `!easing` | after 8 min | 8 → 16 → 32 min… up to daily | per global setting |
 | **Steady** | `!steady` (the default) | after 15 min | every 8 min | per global setting |
 | **Building** | `!building` | after 30 min, with heads-ups 15, 5 and 1 min before a set start | 30 → 15 → 8 → 4 min, then every 4 min | per global setting |

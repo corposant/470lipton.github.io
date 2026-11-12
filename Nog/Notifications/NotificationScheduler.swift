@@ -83,8 +83,7 @@ final class NotificationScheduler {
         categories.insert(UNNotificationCategory(
             identifier: NogPlanner.categoryDoing,
             actions: [action(.stopDoing, "Done for now", "pause.fill"),
-                      action(.done, "Complete", "checkmark"),
-                      action(.extend, "+10 minutes", "plus")],
+                      action(.done, "Complete", "checkmark")],
             intentIdentifiers: [], options: []))
         center.setNotificationCategories(categories)
     }
