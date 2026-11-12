@@ -115,14 +115,16 @@ final class NotificationScheduler {
     private func performSync(items: [Item]) async {
         registerCategories(items: items)
         let policy = NogSettings.policy
-        let ringing = await AlarmScheduler.shared.sync(items: items, policy: policy)
+        // Sub-nogs name their parent; long parent titles are shortened before anything is lined up.
+        let shortParents = await ParentLabelCache.refresh(items: items)
+        let ringing = await AlarmScheduler.shared.sync(items: items, policy: policy, shortParents: shortParents)
         let now = Date.now
         // Places first (they wait for you, not the clock); one slot stays free for the
         // "open Nog to keep nogging" notice.
         let places = NogPlanner.placeNotifications(items: items, places: PlaceBook.shared.places,
-                                                   limit: PlaceBook.maxWatched)
+                                                   limit: PlaceBook.maxWatched, shortParents: shortParents)
         let plan = NogPlanner.plan(items: items, now: now, budget: NogPlanner.defaultBudget - 1 - places.count,
-                                   policy: policy, alarmDates: ringing)
+                                   policy: policy, alarmDates: ringing, shortParents: shortParents)
         var desired: [String: PlannedNotification] = [:]
         for p in plan + places { desired[p.identifier] = p }
         if let pause = NogPlanner.pauseNotice(for: plan, items: items, now: now, policy: policy) {

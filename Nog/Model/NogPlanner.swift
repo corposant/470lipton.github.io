@@ -102,9 +102,12 @@ enum NogPlanner {
                      maxFollowUpsPerItem: Int = 24,
                      policy: NogPolicy = .standard,
                      alarmDates: [UUID: [Date]] = [:],
+                     shortParents: [String: String] = [:],
                      calendar: Calendar = .current) -> [PlannedNotification] {
         // Silenced until turned back on: nothing at all.
         if policy.isSilencedIndefinitely(at: now) { return [] }
+        // A sub-nog's banner names its parent: "Call back (Get the oil changed)".
+        let titles = ParentContext.titles(for: items, shortened: shortParents)
         let candidates: [(Item, Reminder)] = items
             .compactMap { item -> (Item, Reminder)? in
                 guard let r = item.effectiveReminder(policy: policy) else { return nil }
@@ -118,6 +121,7 @@ enum NogPlanner {
         var followUps: [PlannedNotification] = []
 
         for (item, r) in candidates {
+            let title = titles[item.id] ?? item.title
             let doing = item.isDoing
             let body = doing
                 ? (item.timeboxMinutes != nil ? "Time's up. Done, or 10 more?" : "Still on it?")
@@ -125,13 +129,14 @@ enum NogPlanner {
             let category = doing ? categoryDoing : self.category(for: item.reminder)
             // A change of category (its buttons) must replace already-scheduled nogs.
             // So does turning Hush on or off (the sound is baked into each request), or a new banner line.
-            let titleTag = stableHash((category == categoryNog || doing ? item.title : item.title + "|" + category)
+            // The title includes the parent, so renaming the parent (or its shorter label arriving) replaces them too.
+            let titleTag = stableHash((category == categoryNog || doing ? title : title + "|" + category)
                                       + (r.silent ? "|silent" : "") + "|" + body)
             let base = "\(prefix)\(item.id.uuidString)\(doing ? ".doing" : "")"
 
             func oneShot(_ date: Date, body: String = body, kind: String = "at") -> PlannedNotification {
                 PlannedNotification(identifier: "\(base).\(kind).\(Int(date.timeIntervalSince1970)).\(titleTag)",
-                                    itemID: item.id, title: item.title, body: body, trigger: .at(date),
+                                    itemID: item.id, title: title, body: body, trigger: .at(date),
                                     category: kind == "heads" ? categoryHeadsUp : category,
                                     isHeadsUp: kind == "heads", silent: r.silent)
             }
@@ -164,13 +169,13 @@ enum NogPlanner {
                 let hour = time.hour ?? 9, minute = time.minute ?? 0
                 primaries.append(PlannedNotification(
                     identifier: "\(base).daily.\(hour).\(minute).\(titleTag)",
-                    itemID: item.id, title: item.title, body: body, trigger: .daily(hour: hour, minute: minute),
+                    itemID: item.id, title: title, body: body, trigger: .daily(hour: hour, minute: minute),
                     category: category, silent: r.silent))
             } else if let settled {
                 let seconds = max(60, settled.gap)
                 primaries.append(PlannedNotification(
                     identifier: "\(base).every.\(Int(seconds)).\(Int(settled.since.timeIntervalSince1970)).\(titleTag)",
-                    itemID: item.id, title: item.title, body: body, trigger: .every(seconds),
+                    itemID: item.id, title: title, body: body, trigger: .every(seconds),
                     category: category, silent: r.silent))
             } else {
                 // Exact times: skip the ones an alarm already covers, push quiet-hour ones to when quiet ends.
@@ -245,18 +250,21 @@ enum NogPlanner {
     /// Unknown places (not saved yet) are skipped. iOS watches at most 20 regions per app.
     static let placePrefix = prefix + "place."
 
-    static func placeNotifications(items: [Item], places: [SavedPlace], limit: Int) -> [PlannedNotification] {
+    static func placeNotifications(items: [Item], places: [SavedPlace], limit: Int,
+                                   shortParents: [String: String] = [:]) -> [PlannedNotification] {
+        let titles = ParentContext.titles(for: items, shortened: shortParents)
         let byName = Dictionary(places.map { ($0.name.lowercased(), $0) }, uniquingKeysWith: { a, _ in a })
         return items
             .filter { $0.isOpen && $0.place != nil }
             .sorted { $0.created < $1.created }
             .compactMap { item -> PlannedNotification? in
                 guard let trigger = item.place, let place = byName[trigger.name.lowercased()] else { return nil }
+                let title = titles[item.id] ?? item.title
                 let key = String(format: "%.5f,%.5f,%.0f,%@", place.latitude, place.longitude, place.radius,
                                  trigger.leaving ? "x" : "e")
                 return PlannedNotification(
-                    identifier: "\(placePrefix)\(item.id.uuidString).\(stableHash(key + "|" + item.title))",
-                    itemID: item.id, title: item.title,
+                    identifier: "\(placePrefix)\(item.id.uuidString).\(stableHash(key + "|" + title))",
+                    itemID: item.id, title: title,
                     body: trigger.leaving ? "You're leaving \(place.name)." : "You're at \(place.name).",
                     trigger: .place(latitude: place.latitude, longitude: place.longitude,
                                     radius: place.radius, leaving: trigger.leaving),
