@@ -52,7 +52,9 @@ final class AlarmScheduler {
         let titles = ParentContext.titles(for: items, shortened: shortParents)
         var desired: [UUID: (item: Item, title: String, date: Date)] = [:]
         var ringing: [UUID: [Date]] = [:]
-        for item in items {
+        // A nog whose sub-nog is being worked on doesn't ring either.
+        let paused = NogPlanner.pausedAncestors(in: items)
+        for item in items where !paused.contains(item.id) {
             let dates = Self.alarmDates(for: item, policy: policy, now: now)
             let title = titles[item.id] ?? item.title
             for date in dates {

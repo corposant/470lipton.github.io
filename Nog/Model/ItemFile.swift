@@ -47,6 +47,7 @@ enum ItemFile {
             if let m = r.morningMinutes { lines.append("snooze_morning: \(String(format: "%02d:%02d", m / 60, m % 60))") }
             if !r.followsParent { lines.append("follows_parent: false") }
             if !r.passesDown { lines.append("pass_down: false") }
+            if let since = r.rampSince { lines.append("ramp_since: \(iso(since))") }
         }
         if let rec = item.recurrence { lines.append("repeats: \(rec.encoded)") }
         if let last = item.lastDone { lines.append("last_done: \(iso(last))") }
@@ -125,7 +126,8 @@ enum ItemFile {
                                      snoozeMinutes: fields["snooze_minutes"].flatMap { Int($0) }.flatMap { $0 > 0 ? $0 : nil },
                                      morningMinutes: fields["snooze_morning"].flatMap(Self.clockMinutes),
                                      followsParent: fields["follows_parent"] != "false",
-                                     passesDown: fields["pass_down"] != "false")
+                                     passesDown: fields["pass_down"] != "false",
+                                     rampSince: fields["ramp_since"].flatMap(date))
         }
         item.recurrence = fields["repeats"].flatMap(Recurrence.init(encoded:))
         item.lastDone = fields["last_done"].flatMap(date)

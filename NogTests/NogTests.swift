@@ -608,9 +608,13 @@ final class DoingTests: XCTestCase {
         XCTAssertEqual(resume, NogSettings.nextMorning(after: tomorrow.addingTimeInterval(-1)))
 
         // Once a day at 6 PM: back at 6 PM tomorrow, not in the morning.
-        item.reminder = Reminder(start: afternoon.addingTimeInterval(4 * 3600), repeatMinutes: 1440)
+        item.reminder = Reminder(start: afternoon.addingTimeInterval(-20 * 3600), repeatMinutes: 1440)
         XCTAssertEqual(ItemStore.resumeDate(for: item, now: afternoon, calendar: calendar),
                        afternoon.addingTimeInterval(28 * 3600))
+
+        // Hasn't started nogging yet ("call at 3 PM", worked on at 2): keeps the time you gave it.
+        item.reminder = Reminder(start: afternoon.addingTimeInterval(3600), repeatMinutes: 8)
+        XCTAssertNil(ItemStore.resumeDate(for: item, now: afternoon, calendar: calendar))
 
         // Urgent (rings like an alarm): keeps its rhythm.
         item.reminder = Reminder(start: afternoon, repeatMinutes: 30, alarm: true)
@@ -929,6 +933,46 @@ final class ProfileTests: XCTestCase {
         // Every day still starts at the first nog's time of day.
         XCTAssertEqual(dates[21], now.addingTimeInterval(21 * 86_400))
         XCTAssertNil(r.settledPhase, "never one fixed gap, so the planner uses exact times")
+
+        // Asked from the middle of week two or four, the times of day still hold.
+        func hours(_ from: Double, _ count: Int) -> [Double] {
+            r.fireDates(after: now.addingTimeInterval(from * 86_400), limit: count).map { $0.timeIntervalSince(now) / 3600 }
+        }
+        XCTAssertEqual(hours(8.2, 3), [8 * 24 + 6, 9 * 24, 9 * 24 + 6])
+        XCTAssertEqual(hours(22.1, 3), [22 * 24 + 4, 22 * 24 + 8, 23 * 24])
+    }
+
+    func testBalancedKeepsItsPlaceWhenMoved() {
+        let r = NogProfile.balanced.apply(to: Reminder(start: now))
+        func gaps(_ r: Reminder, _ count: Int) -> [Int] {
+            let dates = r.fireDates(after: r.start.addingTimeInterval(-1), limit: count + 1)
+            return zip(dates, dates.dropFirst()).map { Int($1.timeIntervalSince($0) / 60) }
+        }
+        // Skipped on day 8 (twice a day by then) to day 9: still twice a day.
+        let skipped = r.moved(to: now.addingTimeInterval(9 * 86_400))
+        XCTAssertEqual(skipped.rampSince, now)
+        XCTAssertEqual(gaps(skipped, 4), [360, 1080, 360, 1080])
+        // Moved again in week four: three times a day, and the ramp's beginning is remembered.
+        let later = skipped.moved(to: now.addingTimeInterval(22 * 86_400))
+        XCTAssertEqual(later.rampSince, now)
+        XCTAssertEqual(gaps(later, 3), [240, 240, 960])
+        XCTAssertEqual(ItemFile.decode(ItemFile.encode(Item(title: "x", reminder: later)))?.reminder?.rampSince, now)
+        XCTAssertEqual(NogProfile.matching(later), .balanced)
+        // Picking the profile again starts it over.
+        XCTAssertNil(NogProfile.balanced.apply(to: later).rampSince)
+    }
+
+    func testANogWaitsWhileItsSubNogIsBeingWorkedOn() {
+        let parent = Item(title: "Do the oil change", reminder: Reminder(start: now.addingTimeInterval(-600), repeatMinutes: 8))
+        var step = Item(title: "Buy filter", status: .doing, parentID: parent.id)
+        step.doingSince = now
+        step.timeboxMinutes = 2
+        XCTAssertEqual(NogPlanner.pausedAncestors(in: [parent, step]), [parent.id])
+        let plan = NogPlanner.plan(items: [parent, step], now: now)
+        XCTAssertFalse(plan.isEmpty)
+        XCTAssertTrue(plan.allSatisfy { $0.itemID == step.id })
+        step.status = .open
+        XCTAssertTrue(NogPlanner.plan(items: [parent, step], now: now).contains { $0.itemID == parent.id })
         XCTAssertFalse(NogPlanner.plan(items: [Item(title: "x", reminder: r)], now: now.addingTimeInterval(30 * 86_400)).isEmpty)
     }
 }

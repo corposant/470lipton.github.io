@@ -332,6 +332,7 @@ final class ItemStore {
         var rolledTo: Date?
         if old.status != .done && item.status == .done, let next = nextOccurrence(of: item, now: now) {
             item.reminder?.start = next
+            item.reminder?.rampSince = nil // a fresh occurrence: Balanced starts over
             item.status = .open
             item.lastDone = now
             item.timesDone += 1
@@ -411,6 +412,7 @@ final class ItemStore {
         guard var item = items[id], let next = nextOccurrence(of: item, now: .now) else { return }
         if item.isDoing { item.status = .open }
         item.reminder?.start = next
+        item.reminder?.rampSince = nil // a fresh occurrence: Balanced starts over
         clearDelivered(id)
         update(item)
         resetSubItems(of: id, for: next)
@@ -423,6 +425,7 @@ final class ItemStore {
             reopened.status = .open
             if var r = reopened.reminder, r.start < next {
                 r.start = next
+                r.rampSince = nil
                 reopened.reminder = r
             }
             update(reopened)
@@ -515,8 +518,14 @@ final class ItemStore {
     }
 
     /// Adds time to the current timebox (or turns an open-ended session into one).
+    /// Once the starter has run out the session is counting up, with nothing left to extend:
+    /// growing the timer then would turn it back into a countdown and play the chime again.
     func extend(_ id: UUID, minutes: Int) {
         guard var item = items[id], item.isDoing, let since = item.doingSince else { return }
+        if item.isCountingUp() {
+            clearDelivered(id)
+            return
+        }
         let elapsed = Int(Date.now.timeIntervalSince(since) / 60)
         let currentEnd = item.timeboxMinutes ?? elapsed
         item.timeboxMinutes = max(currentEnd, elapsed) + minutes
@@ -553,11 +562,10 @@ final class ItemStore {
     /// Moves a nog's next reminder to tomorrow if `resumeDate` says so. True if it moved.
     @discardableResult
     private func holdUntilTomorrow(_ item: inout Item, now: Date, calendar: Calendar) -> Bool {
-        guard let resume = Self.resumeDate(for: item, now: now, calendar: calendar), var r = item.reminder else {
+        guard let resume = Self.resumeDate(for: item, now: now, calendar: calendar), let r = item.reminder else {
             return false
         }
-        r.start = resume
-        item.reminder = r
+        item.reminder = r.moved(to: resume)
         clearDelivered(item.id)
         return true
     }
@@ -565,7 +573,9 @@ final class ItemStore {
     /// When a nog stopped with "Done for now" next nogs, if its next nog would otherwise
     /// come later today. nil = leave its reminder as it is.
     nonisolated static func resumeDate(for item: Item, now: Date, calendar: Calendar = .current) -> Date? {
-        guard let r = item.reminder, !r.alarm, !item.urgent, item.recurrence == nil,
+        // Only a nog that's already nogging is held. One that hasn't started yet ("call at 3 PM",
+        // asked for at 1) keeps the time you gave it.
+        guard let r = item.reminder, r.isActive(at: now), !r.alarm, !item.urgent, item.recurrence == nil,
               let next = r.nextFire(after: now), calendar.isDate(next, inSameDayAs: now),
               let tomorrow = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now))
         else { return nil }
@@ -620,9 +630,8 @@ final class ItemStore {
             return
         }
         guard item.status != .done else { return }
-        if var r = item.reminder {
-            r.start = date
-            item.reminder = r
+        if let r = item.reminder {
+            item.reminder = r.moved(to: date)
         } else {
             item.reminder = Reminder(start: date, repeatMinutes: NogSettings.repeatMinutes, curve: NogSettings.curve,
                                      silent: NogSettings.silent)

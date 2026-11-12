@@ -129,7 +129,9 @@ enum CaptureParser {
             start = NogProfile.firstStart(delayMinutes: effective.firstDelayMinutes, timeOfDay: effective.timeOfDay,
                                           from: now, calendar: calendar)
         }
-        let repeatMinutes = once ? nil : (repeatOverride ?? natural.repeatMinutes ?? effective.repeatMinutes)
+        var repeatMinutes = once ? nil : (repeatOverride ?? natural.repeatMinutes ?? effective.repeatMinutes)
+        // Balanced has its own day-by-day rhythm, so a typed gap ("!balanced !30m") doesn't apply.
+        if repeatMinutes != nil, (curveOverride ?? effective.curve) == .balanced { repeatMinutes = NogProfile.balanced.repeatMinutes }
         let reminder = Reminder(start: start, repeatMinutes: repeatMinutes,
                                 curve: curveOverride ?? effective.curve, alarm: alarm, silent: effective.silent,
                                 escalateAfter: effective.escalateAfter)

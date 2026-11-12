@@ -55,6 +55,10 @@ struct StartItemIntent: LiveActivityIntent {
         let timebox = minutes ?? store.suggestedTimebox(for: existing.id).minutes
         // A nog with sub-nogs starts its first unfinished one: say which.
         let target = store.items[store.startTarget(for: existing.id)] ?? existing
+        // Its step is already under way: Start leaves that timer alone, so don't claim otherwise.
+        if target.id != existing.id, target.isDoing {
+            return .result(dialog: IntentDialog(full: "You're already on \(target.title).", supporting: "Already started"))
+        }
         store.start(existing.id, timebox: timebox)
         await store.syncNow()
         await store.flush()

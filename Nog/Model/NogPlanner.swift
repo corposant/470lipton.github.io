@@ -73,9 +73,11 @@ enum NogPlanner {
         var id = categoryNog
         if let s = reminder?.snoozeMinutes { id += "_S\(s)" }
         if let m = reminder?.morningMinutes { id += "_M\(m)" }
-        if let profile = reminder.flatMap(NogProfile.matching) {
-            if profile.gentler != nil { id += "_G" }
-            if profile.skipsDays { id += "_K" }
+        let profile = reminder.flatMap(NogProfile.matching)
+        if profile?.gentler != nil { id += "_G" }
+        // Once a day or less, by profile or by its own rhythm (nogs saved as the old Daily).
+        if profile?.skipsDays == true || (profile == nil && reminder?.curve == .steady && (reminder?.repeatMinutes ?? 0) >= 1440) {
+            id += "_K"
         }
         return id
     }
@@ -90,6 +92,7 @@ enum NogPlanner {
     static func bannerLine(for r: Reminder) -> String {
         guard r.repeatMinutes != nil else { return "Reminder" }
         if let profile = NogProfile.matching(r) { return profile.bannerLine }
+        if r.curve == .steady, r.repeatMinutes == 1440 { return "Today's nog." } // saved as the old Daily
         return r.repeatSummary.map { "Nogging \($0) until done" } ?? "Reminder"
     }
 
@@ -108,6 +111,20 @@ enum NogPlanner {
         return (snooze, morning)
     }
 
+    /// Nogs whose sub-nog (at any depth) is being worked on right now. ▶︎ on a nog with sub-nogs
+    /// starts its first step, so the nog itself stays Open: its own nogs pause while that runs.
+    static func pausedAncestors(in items: [Item]) -> Set<UUID> {
+        let doing = items.filter(\.isDoing)
+        guard !doing.isEmpty else { return [] }
+        let parents = Dictionary(items.map { ($0.id, $0.parentID) }, uniquingKeysWith: { a, _ in a })
+        var paused: Set<UUID> = []
+        for item in doing {
+            var current = item.parentID
+            while let id = current, paused.insert(id).inserted { current = parents[id] ?? nil }
+        }
+        return paused
+    }
+
     static func plan(items: [Item], now: Date,
                      budget: Int = defaultBudget,
                      maxFollowUpsPerItem: Int = 24,
@@ -119,9 +136,10 @@ enum NogPlanner {
         if policy.isSilencedIndefinitely(at: now) { return [] }
         // A sub-nog's banner names its parent: "Call back (Get the oil changed)".
         let titles = ParentContext.titles(for: items, shortened: shortParents)
+        let paused = pausedAncestors(in: items)
         let candidates: [(Item, Reminder)] = items
             .compactMap { item -> (Item, Reminder)? in
-                guard let r = item.effectiveReminder(policy: policy) else { return nil }
+                guard !paused.contains(item.id), let r = item.effectiveReminder(policy: policy) else { return nil }
                 return (item, r)
             }
             .sorted { a, b in

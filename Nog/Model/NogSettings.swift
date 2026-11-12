@@ -289,5 +289,5 @@ extension NogSettings {
     static let snoozeChoices = [5, 10, 15, 30, 60, 120, 180, 240, 480]
     /// "Still on it?" while a session counts up. 0 = off.
     static let defaultCheckIn = 15
-    static let checkInChoices = [15, 30, 60, 0]
+    static let checkInChoices = [15, 30, 60, 120, 0]
 }

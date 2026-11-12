@@ -162,6 +162,7 @@ enum NogProfile: String, CaseIterable, Identifiable {
         r.curve = curve
         r.escalateAfter = escalateAfter
         r.silent = silent
+        r.rampSince = nil // a newly chosen rhythm starts from its beginning
         // "Ring like an alarm" is its own switch: a profile keeps whatever it was.
         return r
     }
