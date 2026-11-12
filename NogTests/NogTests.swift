@@ -618,6 +618,14 @@ final class DoingTests: XCTestCase {
         XCTAssertEqual(sorted.first?.id, item.id)
     }
 
+    func testVagueTitlesGetAFirstStepHint() {
+        XCTAssertEqual(StepHint.leadingVerb("Deal with taxes"), "Deal with")
+        XCTAssertEqual(StepHint.leadingVerb("  sort out the garage"), "sort out")
+        XCTAssertTrue(StepHint.isVague("Plan"))
+        XCTAssertFalse(StepHint.isVague("Planet poster"), "whole words only")
+        XCTAssertFalse(StepHint.isVague("Open the laptop"))
+    }
+
     func testStartOnANogWithSubNogsStartsItsFirstUnfinishedStep() throws {
         let store = ItemStore(folder: FileManager.default.temporaryDirectory.appending(path: UUID().uuidString),
                               schedulesNotifications: false)

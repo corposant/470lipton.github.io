@@ -396,7 +396,9 @@ private struct ItemEditor: View {
                 Image(systemName: "plus").foregroundStyle(Theme.muted)
                 // Multi-line field: Return arrives as a newline, which we turn into "add this one
                 // and keep typing". A single-line field would end editing and drop the keyboard.
-                TextField("Add sub-nog", text: $newChild, axis: .vertical)
+                // No steps yet: ask for the smallest physical one (the two-minute start).
+                TextField(children.isEmpty && item.status != .done ? "First 2-minute step…" : "Add sub-nog",
+                          text: $newChild, axis: .vertical)
                     .focused($childFieldFocused)
                     .submitLabel(.next)
                     .onChange(of: newChild) { addChildrenOnReturn() }
@@ -423,6 +425,14 @@ private struct ItemEditor: View {
                         .tint(Theme.blue)
                         .frame(width: 70)
                 }
+            }
+        } footer: {
+            if children.isEmpty, item.status != .done {
+                Text(StepHint.isVague(item.title)
+                     ? "\"\(StepHint.leadingVerb(item.title) ?? "That")\" is hard to start. What's the first thing you'd physically do? Like \"open the laptop\" or \"find the form\"."
+                     : "What's the smallest thing you could physically do in two minutes? ▶︎ starts with it.")
+                    .font(.footnote)
+                    .foregroundStyle(Theme.muted)
             }
         }
         .listRowBackground(Theme.glass)
