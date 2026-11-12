@@ -1,11 +1,11 @@
-"""Synthesizes Nog's two-minute-start chime: a soft, two-step rising, celesta-like
-chime that lands on a warm major chord. Run: python3 design/sounds/make_starter_chime.py
+"""Synthesizes Nog's two-minute-start chime: a soft, rising, celesta-like
+arpeggio (G C E G) whose top note rings out. Run: python3 design/sounds/make_starter_chime.py
 (needs numpy; ffmpeg turns the WAV into Nog/Resources/StarterChime.caf)."""
 import subprocess, sys, wave
 import numpy as np
 
 SR = 44100
-LENGTH = 2.5
+LENGTH = 2.3
 
 def bell(freq, start, dur, gain, tau):
     t = np.arange(int(dur * SR)) / SR
@@ -24,15 +24,11 @@ def bell(freq, start, dur, gain, tau):
 C5, E5, G5, C6, E6 = 523.25, 659.25, 783.99, 1046.50, 1318.51
 G4 = 392.00
 signal = (
-    # Two rising steps, then straight to the chord...
+    # A four-step rise; the top note rings out.
     bell(G4, 0.00, 1.2, 0.55, 0.45)
     + bell(C5, 0.14, 1.2, 0.55, 0.45)
-    # ...and the landing: a gentle, open C major chord that blooms and fades.
-    + bell(C6, 0.34, 2.2, 0.60, 0.95)
-    + bell(G5, 0.36, 2.2, 0.30, 0.95)
-    + bell(E5, 0.38, 2.2, 0.28, 0.95)
-    + bell(C5, 0.38, 2.2, 0.30, 1.05)
-    + bell(E6, 0.50, 1.8, 0.10, 0.70)
+    + bell(E5, 0.28, 1.4, 0.55, 0.55)
+    + bell(G5, 0.42, 1.8, 0.60, 0.95)
 )
 # A small room: a few soft early reflections.
 for delay, g in [(0.043, 0.22), (0.071, 0.16), (0.113, 0.11), (0.167, 0.07)]:
