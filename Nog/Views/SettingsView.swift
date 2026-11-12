@@ -74,7 +74,7 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: How firm
+    // MARK: Default profile
 
     private var style: some View {
         let current = currentProfile
@@ -90,7 +90,7 @@ struct SettingsView: View {
                 .accessibilityAddTraits(current == profile ? .isSelected : [])
             }
         } header: {
-            SectionLabel(title: "How firm")
+            SectionLabel(title: "Default")
         } footer: {
             if current == nil {
                 Text("Custom (set in Advanced). Pick a style to reset.")

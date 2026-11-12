@@ -38,7 +38,7 @@ As you type, a line above the capture field shows how Nog understood it. A day w
 - **Calm** (Control Panel): **Low stimulation** turns off glows, the background haze and honeycomb, motion and vibration in one switch, and **Vibration** turns off just the haptics. Nog also follows the iOS **Reduce Motion** setting: no springs or slides, and panels fade in instead of moving.
 - **Two app icons**, both a nog carton with the light-and-spectrum motif: Comix (inked and cross-hatched on cream) and Neon (neon-hatched on charcoal), switchable in the Control Panel. Sources and the generator are in `design/carton/` (`python3 make4.py`, then `node render.js <name>`).
 - **Timing & alerts** (Settings › Advanced): a custom default rhythm, a **heads-up** before dated nogs, **ring as an alarm after N ignored nogs**, snooze length, what "morning" means, Time Sensitive, sound, **hide titles on the Lock Screen**, and an app icon badge. **Doing**: default timebox, how often "time's up" repeats, the open-ended check-in, and the Live Activity on/off.
-- **Settings** (gear icon, top right on every tab) leads with what people change: **How firm** (all eight styles), **Quiet hours** and **Silence**, **Calm**, **Places** and **How to use Nog**. Everything else is under **Advanced**: timing and alerts, the Doing timer, the Map tab, appearance and app icon, storage, permissions, and Siri phrases.
+- **Settings** (gear icon, top right on every tab) leads with what people change: **Default** (the profile new nogs get, all eight shown), **Quiet hours** and **Silence**, **Calm**, **Places** and **How to use Nog**. Everything else is under **Advanced**: timing and alerts, the Doing timer, the Map tab, appearance and app icon, storage, permissions, and Siri phrases.
 
 ## iOS 27 features
 
@@ -96,7 +96,7 @@ The widgets read a small summary the app writes to a shared App Group whenever y
 
 ## Nog profiles
 
-Eight styles, all shown as buttons, gentlest to loudest. Pick your default in Settings › How firm, switch any item on its page, or type the token when capturing.
+Eight styles, all shown as buttons, gentlest to loudest. Pick your default in Settings › Default, switch any item on its page, or type the token when capturing.
 
 | Profile | Token | First nog | Then | Rings as an alarm |
 |---|---|---|---|---|
