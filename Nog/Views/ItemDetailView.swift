@@ -397,7 +397,8 @@ private struct ItemEditor: View {
     }
 
     private func moveChild(_ child: Item, by offset: Int) {
-        if let moved = withNogAnimation({ store.moveChild(child.id, by: offset) }) {
+        let moved = withNogAnimation { store.moveChild(child.id, by: offset) }
+        if let moved {
             AccessibilityNotification.Announcement("\(child.title) moved to \(moved.place) of \(moved.of)").post()
         }
     }
