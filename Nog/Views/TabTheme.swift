@@ -57,6 +57,24 @@ extension View {
 
 // MARK: Settings
 
+/// A round icon button for a tab's navigation bar. The Settings gear and the New Nog
+/// mic both use this, and both sit in the bar, so the system draws them identically:
+/// the same glass circle, size, symbol weight and tint, on the same row.
+struct BarIconButton: View {
+    let systemImage: String
+    let label: String
+    var hint: String? = nil
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+        }
+        .accessibilityLabel(label)
+        .accessibilityHint(hint ?? "")
+    }
+}
+
 /// The gear that opens Settings. Every tab shows it in the same place, the top-right
 /// corner, through `SettingsToolbarItem` (last in the toolbar, so it's always the
 /// rightmost), where the bar gives it its glass. RootView owns the sheet, so there's one
@@ -65,14 +83,9 @@ struct SettingsButton: View {
     @Environment(Router.self) private var router
 
     var body: some View {
-        Button {
+        BarIconButton(systemImage: "gearshape", label: "Settings") {
             router.showSettings = true
-        } label: {
-            Image(systemName: "gearshape")
-                .frame(minWidth: 44, minHeight: 44)
-                .contentShape(Rectangle())
         }
-        .accessibilityLabel("Settings")
     }
 }
 
