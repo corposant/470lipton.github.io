@@ -396,7 +396,7 @@ struct NogSheet: View {
                 Picker("Style", selection: Binding(
                     get: { reminder.curve },
                     set: { curve in edit { $0.curve = curve } })) {
-                    ForEach(RepeatCurve.allCases, id: \.self) { Text($0.label).tag($0) }
+                    ForEach(RepeatCurve.customChoices(current: reminder.curve), id: \.self) { Text($0.label).tag($0) }
                 }
                 .pickerStyle(.segmented)
             }

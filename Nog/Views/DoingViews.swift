@@ -19,7 +19,7 @@ struct StartButton: View {
             if didHold { didHold = false; return }
             store.start(item.id, timebox: suggestion.minutes)
         } label: {
-            label(suggestion)
+            label(suggestion, step: step)
         }
         .buttonStyle(.borderless)
         .simultaneousGesture(LongPressGesture(minimumDuration: 0.35).onEnded { _ in
@@ -47,14 +47,15 @@ struct StartButton: View {
             }
     }
 
-    /// The sub-nog ▶︎ would start instead of this one, if any.
+    /// The sub-nog ▶︎ would start instead of this one, if any. Worked out once per body:
+    /// every list row has a ▶︎, and each lookup walks the store.
     private var stepTitle: String? {
         let target = store.startTarget(for: item.id)
         return target == item.id ? nil : store.items[target]?.title
     }
 
     @ViewBuilder
-    private func label(_ suggestion: TimeboxSuggestion) -> some View {
+    private func label(_ suggestion: TimeboxSuggestion, step: String?) -> some View {
         if prominent {
             VStack(spacing: 3) {
                 HStack(spacing: 10) {
@@ -63,7 +64,7 @@ struct StartButton: View {
                         .font(.nogTitle(13))
                         .tracking(2)
                 }
-                if let step = stepTitle {
+                if let step {
                     Text(step)
                         .font(.caption)
                         .foregroundStyle(Theme.muted)
@@ -127,7 +128,7 @@ struct TimeboxPanel: View {
             }
             separator
             group("Longer")
-            ForEach(NogSettings.timeboxChoices.filter { $0 != suggestion.minutes }, id: \.self) { minutes in
+            ForEach(NogSettings.timeboxChoices.filter { $0 > (suggestion.minutes ?? 0) }, id: \.self) { minutes in
                 row(IntervalFormat.amount(minutes), detail: nil) { choose(minutes) }
             }
             separator

@@ -113,11 +113,15 @@ final class NotificationScheduler {
         await task.value
     }
 
-    private func performSync(items: [Item]) async {
+    /// `shortenTitles`: afterwards, ask Apple Intelligence for any new short parent labels and,
+    /// if some arrive, line everything up again with them.
+    private func performSync(items: [Item], shortenTitles: Bool = true) async {
         registerCategories(items: items)
         let policy = NogSettings.policy
-        // Sub-nogs name their parent; long parent titles are shortened before anything is lined up.
-        let shortParents = await ParentLabelCache.refresh(items: items)
+        // Sub-nogs name their parent: plan with the short labels already worked out. New ones
+        // are asked for after the nogs are lined up, because the model can take seconds and a
+        // two-minute start's chime (or a nog due now) mustn't wait on it.
+        let shortParents = ParentLabelCache.current(for: items)
         let ringing = await AlarmScheduler.shared.sync(items: items, policy: policy, shortParents: shortParents)
         let now = Date.now
         // Places first (they wait for you, not the clock); one slot stays free for the
@@ -161,6 +165,10 @@ final class NotificationScheduler {
             ? items.filter { $0.isOpen && ($0.reminder?.isActive(at: .now) ?? false) }.count
             : 0
         try? await center.setBadgeCount(nogging)
+
+        if shortenTitles, await ParentLabelCache.refresh(items: items) != shortParents {
+            await performSync(items: items, shortenTitles: false)
+        }
     }
 
     private static let signatureKey = "appliedNotificationSignature"

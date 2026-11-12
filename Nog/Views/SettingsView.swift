@@ -312,7 +312,7 @@ struct AdvancedSettingsPage: View {
                 DoingPage()
             } label: {
                 row("Doing timer", "play.circle", Theme.blue,
-                    detail: timebox > 0 ? "\(IntervalFormat.amount(timebox)) box" : "open-ended")
+                    detail: "\(IntervalFormat.amount(timebox > 0 ? timebox : NogSettings.defaultTimebox)) start")
             }
         } header: {
             SectionLabel(title: "Reminders")
@@ -414,7 +414,7 @@ private struct NogsAlertsPage: View {
                 }
                 if repeatMinutes > 0 {
                     Picker("Style", selection: $curve) {
-                        ForEach(RepeatCurve.allCases, id: \.self) { Text($0.label).tag($0) }
+                        ForEach(RepeatCurve.customChoices(current: curve), id: \.self) { Text($0.label).tag($0) }
                     }
                     .pickerStyle(.segmented)
                 }
@@ -534,19 +534,21 @@ private struct DoingPage: View {
             } header: {
                 SectionLabel(title: "▶︎ Doing")
             } footer: {
-                Text("▶︎ starts a short timer for the smallest next step. When it ends you'll hear a soft chime and can stop, guilt-free. Or keep going: the timer counts up and logs your time. Hold ▶︎ for a longer timer.")
+                Text("A soft chime when it ends. Stop there, or keep going and it counts up.")
             }
             .listRowBackground(Theme.glass)
 
             Section {
                 Picker("“Still on it?” check-in", selection: $checkInEvery) {
-                    ForEach(NogSettings.checkInChoices, id: \.self) { Text($0 == 0 ? "Off" : "every \(IntervalFormat.short($0))").tag($0) }
+                    // A gap saved by an older version (2 hours) still shows, rather than a blank picker.
+                    ForEach(NogSettings.checkInChoices + (NogSettings.checkInChoices.contains(checkInEvery) ? [] : [checkInEvery]),
+                            id: \.self) { Text($0 == 0 ? "Off" : "every \(IntervalFormat.short($0))").tag($0) }
                 }
                 Toggle("Live Activity", isOn: $liveActivity)
             } header: {
                 SectionLabel(title: "While you're on it")
             } footer: {
-                Text("Check-ins start once the starter timer ends. Hold the timer to change them for one session.")
+                Text("Hold the timer to change them for one session.")
             }
             .listRowBackground(Theme.glass)
             .tint(Theme.blue)

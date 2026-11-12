@@ -198,6 +198,13 @@ enum RepeatCurve: String, CaseIterable, Hashable {
     /// (6 hours apart), then three times a day (4 hours apart), all from the first nog's time of day.
     case balanced
 
+    /// The styles offered for a custom rhythm. Balanced is the Balanced profile's own pattern
+    /// (it ignores the repeat gap), so it's only listed when a rhythm already uses it.
+    static func customChoices(current: RepeatCurve) -> [RepeatCurve] {
+        let plain: [RepeatCurve] = [.steady, .logarithmic, .building]
+        return plain.contains(current) ? plain : plain + [current]
+    }
+
     var label: String {
         switch self {
         case .steady: "Steady"
