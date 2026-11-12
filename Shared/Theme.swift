@@ -407,7 +407,7 @@ extension EnvironmentValues {
 }
 
 /// Indigo (or cream) with a haze top-right in the tab's accent (blue by default), a warm haze
-/// lower-left (magenta at night, apricot by day) and a faint display grid.
+/// lower-left (magenta at night, apricot by day) and a faint honeycomb.
 struct NogBackground: View {
     @Environment(\.colorScheme) private var scheme
     @Environment(\.nogAccent) private var accent
@@ -415,7 +415,7 @@ struct NogBackground: View {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @AppStorage(Calm.lowStimulationKey) private var lowStimulation = false
 
-    /// Increase Contrast, Reduce Transparency or Low stimulation: a plain base, no haze or grid.
+    /// Increase Contrast, Reduce Transparency or Low stimulation: a plain base, no haze or honeycomb.
     private var isPlain: Bool { contrast == .increased || reduceTransparency || lowStimulation }
 
     var body: some View {
@@ -434,16 +434,33 @@ struct NogBackground: View {
                                                     : Color(UIColor(hex: 0xE8965A)).opacity(0.14), .clear],
                            center: UnitPoint(x: 0.05, y: 0.65), startRadius: 0, endRadius: 380)
             Canvas { context, size in
-                var path = Path()
-                let step: CGFloat = 24
-                stride(from: 0, through: size.width, by: step).forEach { x in
-                    path.move(to: CGPoint(x: x, y: 0)); path.addLine(to: CGPoint(x: x, y: size.height))
-                }
-                stride(from: 0, through: size.height, by: step).forEach { y in
-                    path.move(to: CGPoint(x: 0, y: y)); path.addLine(to: CGPoint(x: size.width, y: y))
-                }
-                context.stroke(path, with: .color(scheme == .dark ? .white.opacity(0.025) : Color(UIColor(hex: 0x5A3C1E)).opacity(0.035)), lineWidth: 1)
+                context.stroke(Self.honeycomb(in: size),
+                               with: .color(scheme == .dark ? .white.opacity(0.025) : Color(UIColor(hex: 0x5A3C1E)).opacity(0.035)),
+                               lineWidth: 1)
             }
         }
+    }
+
+    /// Flat-topped hexagons, 28 pt across and about 24 pt tall, so the pattern is about
+    /// as busy as the old 24 pt grid. Each cell draws only its three upper edges; its
+    /// lower edges are the upper edges of the cells below, so no line is drawn twice
+    /// and the path stays about half the size. Drawn once per size change, no images.
+    static func honeycomb(in size: CGSize, side r: CGFloat = 14) -> Path {
+        var path = Path()
+        let h = r * 3.squareRoot() / 2          // half a cell's height
+        let columns = Int((size.width / (1.5 * r)).rounded(.up)) + 1
+        let rows = Int((size.height / (2 * h)).rounded(.up)) + 1
+        for col in 0...columns {
+            let cx = CGFloat(col) * 1.5 * r
+            let offset = col.isMultiple(of: 2) ? 0 : h
+            for row in 0...rows {
+                let cy = CGFloat(row) * 2 * h + offset
+                path.move(to: CGPoint(x: cx - r, y: cy))
+                path.addLine(to: CGPoint(x: cx - r / 2, y: cy - h))
+                path.addLine(to: CGPoint(x: cx + r / 2, y: cy - h))
+                path.addLine(to: CGPoint(x: cx + r, y: cy))
+            }
+        }
+        return path
     }
 }
