@@ -23,6 +23,17 @@ final class ItemFileTests: XCTestCase {
         XCTAssertEqual(decoded, item)
     }
 
+    func testRoundTripPosition() throws {
+        var item = Item(title: "Step")
+        item.created = Date(timeIntervalSince1970: 1_800_000_000)
+        item.updated = item.created
+        item.parentID = UUID()
+        item.position = 3
+        let decoded = try XCTUnwrap(ItemFile.decode(ItemFile.encode(item)))
+        XCTAssertEqual(decoded.position, 3)
+        XCTAssertEqual(decoded, item)
+    }
+
     func testRejectsFilesWithoutHeader() {
         XCTAssertNil(ItemFile.decode("just some text"))
         XCTAssertNil(ItemFile.decode("---\ntitle: no id\n---\n"))
@@ -165,6 +176,64 @@ final class ItemStoreTests: XCTestCase {
         XCTAssertEqual(reloaded.children(of: parent.id).map(\.id), [child.id])
         XCTAssertEqual(reloaded.items[child.id]?.status, .done)
         XCTAssertNotNil(reloaded.items[child.id]?.completed)
+    }
+
+    func testReorderedMatchesOnMove() {
+        let items = ["A", "B", "C", "D"].map { Item(title: $0) }
+        let titles = { (from: IndexSet, to: Int) in Item.reordered(items, from: from, to: to).map(\.title) }
+        XCTAssertEqual(titles([0], 2), ["B", "A", "C", "D"])
+        XCTAssertEqual(titles([3], 0), ["D", "A", "B", "C"])
+        XCTAssertEqual(titles([1], 4), ["A", "C", "D", "B"])
+        XCTAssertEqual(titles([0, 2], 4), ["B", "D", "A", "C"])
+        XCTAssertEqual(titles([2], 2), ["A", "B", "C", "D"])
+    }
+
+    func testSubNogOrderPersistsAndNewOnesGoLast() throws {
+        let folder = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        let store = ItemStore(folder: folder, schedulesNotifications: false)
+        let t0 = Date(timeIntervalSince1970: 1_800_000_000)
+        let parent = try XCTUnwrap(store.capture("Oil change", now: t0))
+        let a = try XCTUnwrap(store.capture("Buy oil", parent: parent.id, now: t0.addingTimeInterval(1)))
+        let b = try XCTUnwrap(store.capture("Buy filter", parent: parent.id, now: t0.addingTimeInterval(2)))
+        let c = try XCTUnwrap(store.capture("Book the lift", parent: parent.id, now: t0.addingTimeInterval(3)))
+
+        store.moveChildren(of: parent.id, from: [2], to: 0)
+        XCTAssertEqual(store.children(of: parent.id).map(\.id), [c.id, a.id, b.id])
+
+        let d = try XCTUnwrap(store.capture("Crush washer", parent: parent.id, now: t0.addingTimeInterval(4)))
+        XCTAssertEqual(store.children(of: parent.id).map(\.id), [c.id, a.id, b.id, d.id])
+
+        // VoiceOver's Move down / Move up
+        let place = try XCTUnwrap(store.moveChild(c.id, by: 1))
+        XCTAssertEqual(place.place, 2)
+        XCTAssertEqual(place.of, 4)
+        XCTAssertNil(store.moveChild(c.id, by: -2))
+        XCTAssertNil(store.moveChild(d.id, by: 1))
+        XCTAssertEqual(store.children(of: parent.id).map(\.id), [a.id, c.id, b.id, d.id])
+
+        store.flushForTesting()
+        let reloaded = ItemStore(folder: folder, schedulesNotifications: false)
+        XCTAssertEqual(reloaded.children(of: parent.id).map(\.id), [a.id, c.id, b.id, d.id])
+    }
+
+    func testMovingToAnotherParentForgetsOldPlace() throws {
+        let folder = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        let store = ItemStore(folder: folder, schedulesNotifications: false)
+        let t0 = Date(timeIntervalSince1970: 1_800_000_000)
+        let first = try XCTUnwrap(store.capture("First", now: t0))
+        let second = try XCTUnwrap(store.capture("Second", now: t0))
+        let a = try XCTUnwrap(store.capture("A", parent: first.id, now: t0.addingTimeInterval(1)))
+        let b = try XCTUnwrap(store.capture("B", parent: first.id, now: t0.addingTimeInterval(2)))
+        _ = try XCTUnwrap(store.capture("Old", parent: second.id, now: t0.addingTimeInterval(3)))
+        store.moveChildren(of: first.id, from: [1], to: 0)
+        XCTAssertEqual(store.items[b.id]?.position, 0)
+
+        var moved = try XCTUnwrap(store.items[b.id])
+        moved.parentID = second.id
+        store.update(moved)
+        XCTAssertNil(store.items[b.id]?.position)
+        XCTAssertEqual(store.children(of: second.id).last?.id, b.id)
+        XCTAssertEqual(store.children(of: first.id).map(\.id), [a.id])
     }
 
     func testUnreadableFolderIsNotMistakenForAnEmptyOne() throws {

@@ -11,6 +11,10 @@ struct Item: Identifiable, Hashable {
     var updated: Date = .now
     var completed: Date?
     var parentID: UUID?
+    /// Where this sits among its siblings once they've been put in order by hand
+    /// (dragged, or VoiceOver's Move up / Move down). nil = never placed: it goes
+    /// after the placed ones, oldest first, so a new sub-nog lands at the bottom.
+    var position: Int?
     var tags: [String] = []
     var reminder: Reminder?
     /// Comes back after it's done: every day, every Tuesday, monthly… (nil = a one-off).
@@ -74,6 +78,26 @@ struct Item: Identifiable, Hashable {
 
     /// Titles referenced with [[wiki links]] in the body.
     var outgoingLinkTitles: [String] { LinkParser.links(in: body) }
+}
+
+extension Item {
+    /// Sibling order: placed ones by position, then the rest oldest first.
+    static func siblingOrder(_ a: Item, _ b: Item) -> Bool {
+        let pa = a.position ?? .max, pb = b.position ?? .max
+        if pa != pb { return pa < pb }
+        if a.created != b.created { return a.created < b.created }
+        return a.id.uuidString < b.id.uuidString
+    }
+
+    /// `siblings` after moving the rows at `source` to sit before `destination`
+    /// (the same meaning as SwiftUI's `onMove`).
+    static func reordered(_ siblings: [Item], from source: IndexSet, to destination: Int) -> [Item] {
+        let moving = source.filter { siblings.indices.contains($0) }.map { siblings[$0] }
+        var rest = siblings.enumerated().filter { !source.contains($0.offset) }.map(\.element)
+        let insertAt = min(max(0, destination - source.filter { $0 < destination }.count), rest.count)
+        rest.insert(contentsOf: moving, at: insertAt)
+        return rest
+    }
 }
 
 extension Item {

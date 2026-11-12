@@ -8,6 +8,7 @@ import Foundation
 ///     status: open
 ///     created: 2026-11-05T18:00:00Z
 ///     updated: 2026-11-05T18:00:00Z
+///     position: 2                    (order among its siblings, once reordered by hand)
 ///     tags: [health, calls]
 ///     remind_at: 2026-11-05T18:15:00Z
 ///     repeat_minutes: 8
@@ -26,6 +27,7 @@ enum ItemFile {
         lines.append("updated: \(iso(item.updated))")
         if let completed = item.completed { lines.append("completed: \(iso(completed))") }
         if let parent = item.parentID { lines.append("parent: \(parent.uuidString)") }
+        if let position = item.position { lines.append("position: \(position)") }
         let tags = item.tags.map { oneLine($0).replacingOccurrences(of: ",", with: " ") }
             .filter { !$0.isEmpty }
         if !tags.isEmpty { lines.append("tags: [\(tags.joined(separator: ", "))]") }
@@ -100,6 +102,7 @@ enum ItemFile {
         item.updated = fields["updated"].flatMap(date) ?? item.created
         item.completed = fields["completed"].flatMap(date)
         item.parentID = fields["parent"].flatMap(UUID.init(uuidString:))
+        item.position = fields["position"].flatMap { Int($0) }.map { max(0, $0) }
         if let raw = fields["tags"] {
             item.tags = raw.trimmingCharacters(in: CharacterSet(charactersIn: "[]"))
                 .split(separator: ",")
