@@ -53,6 +53,32 @@ enum ItemAssistant {
             .filter { !existingKeys.contains(normalized($0)) && seen.insert(normalized($0)).inserted }
     }
 
+    @Generable
+    struct ShortLabel {
+        @Guide(description: "The same task in 2 to 4 words, using the person's own words. No full stop.")
+        var label: String
+    }
+
+    static let shortLabelInstructions = """
+        You shorten a to-do title into a tiny label that goes in brackets after one of its steps, \
+        so a reminder like "Call back" says what it's about. \
+        Use 2 to 4 words. Keep the person's own words, and keep the thing it is about. \
+        Drop dates, times, filler and explanations. Never add anything that isn't there.
+
+        Example: "Get the oil changed before the road trip next month" -> Oil change
+        Example: "Sort out the kitchen renovation budget with Sam" -> Kitchen reno budget
+        Example: "Renew my passport so I can go to the wedding in June" -> Renew passport
+        """
+
+    /// A long nog title cut down for a sub-nog's reminder: "Oil change". nil when it isn't usable.
+    static func shortLabel(for title: String) async throws -> String? {
+        let session = LanguageModelSession(instructions: shortLabelInstructions)
+        let response = try await session.respond(to: "Title: \(title.prefix(500))", generating: ShortLabel.self)
+        let label = ParentContext.tidy(cleaned(response.content.label))
+        guard !label.isEmpty, label.count <= ParentContext.maxLabelLength, label.count < title.count else { return nil }
+        return label
+    }
+
     /// Trims spaces, list numbering ("1.", "2 -", "•") and a trailing full stop.
     static func cleaned(_ step: String) -> String {
         var s = step.trimmingCharacters(in: .whitespacesAndNewlines)

@@ -472,9 +472,13 @@ final class AlarmHandoffTests: XCTestCase {
 
     func testAlarmIDsAreStable() {
         let item = Item(title: "meds")
-        XCTAssertEqual(AlarmScheduler.alarmID(item: item, date: now), AlarmScheduler.alarmID(item: item, date: now))
-        XCTAssertNotEqual(AlarmScheduler.alarmID(item: item, date: now),
-                          AlarmScheduler.alarmID(item: item, date: now.addingTimeInterval(60)))
+        XCTAssertEqual(AlarmScheduler.alarmID(item: item, title: "meds", date: now),
+                       AlarmScheduler.alarmID(item: item, title: "meds", date: now))
+        XCTAssertNotEqual(AlarmScheduler.alarmID(item: item, title: "meds", date: now),
+                          AlarmScheduler.alarmID(item: item, title: "meds", date: now.addingTimeInterval(60)))
+        // A new parent label replaces the alarm, so it rings with the new title.
+        XCTAssertNotEqual(AlarmScheduler.alarmID(item: item, title: "meds", date: now),
+                          AlarmScheduler.alarmID(item: item, title: "meds (Morning)", date: now))
     }
 }
 
@@ -1557,5 +1561,62 @@ final class BreakdownStepTests: XCTestCase {
     func testInstructionsCarryTheOilChangeExamples() {
         XCTAssertTrue(ItemAssistant.breakdownInstructions.contains("Get the oil changed"))
         XCTAssertTrue(ItemAssistant.breakdownInstructions.contains("Do the oil change"))
+    }
+}
+
+final class ParentContextTests: XCTestCase {
+    let now = Date(timeIntervalSince1970: 1_800_000_000)
+
+    func testSubNogNamesItsParent() {
+        XCTAssertEqual(ParentContext.title("Call back", parent: "Get the oil changed"), "Call back (Get the oil changed)")
+        XCTAssertEqual(ParentContext.title("Call back", parent: nil), "Call back")
+        XCTAssertEqual(ParentContext.title("Call back", parent: "   "), "Call back")
+    }
+
+    func testSkipsParentTheTitleAlreadySays() {
+        XCTAssertEqual(ParentContext.title("Book the oil change", parent: "Oil change"), "Book the oil change")
+    }
+
+    func testLongParentIsCutAtAWord() {
+        let long = "Get the oil changed before the road trip next month"
+        let label = ParentContext.label(for: long)
+        XCTAssertEqual(label, "Get the oil changed before…")
+        XCTAssertLessThanOrEqual(label.count, ParentContext.maxLabelLength)
+    }
+
+    func testLongParentUsesAppleIntelligenceLabel() {
+        let long = "Get the oil changed before the road trip next month"
+        XCTAssertEqual(ParentContext.title("Call back", parent: long, shortened: [long: "Oil change"]),
+                       "Call back (Oil change)")
+        // An unusable label ("" or too long) falls back to cutting at a word.
+        XCTAssertEqual(ParentContext.label(for: long, shortened: [long: ""]), "Get the oil changed before…")
+    }
+
+    func testTidiesParentTitle() {
+        XCTAssertEqual(ParentContext.label(for: "Taxes (2026).\n"), "Taxes (2026)")
+        XCTAssertEqual(ParentContext.label(for: "  Kitchen   reno. "), "Kitchen reno")
+    }
+
+    func testLongParentTitlesInUse() {
+        let parent = Item(title: "Get the oil changed before the road trip next month")
+        let short = Item(title: "Kitchen reno")
+        let items = [parent, short,
+                     Item(title: "Call back", parentID: parent.id),
+                     Item(title: "Measure", parentID: short.id)]
+        XCTAssertEqual(ParentContext.longParentTitles(in: items), [parent.title])
+    }
+
+    func testPlannedNogsCarryTheParent() {
+        let parent = Item(title: "Get the oil changed")
+        var child = Item(title: "Call back", parentID: parent.id)
+        child.reminder = Reminder(start: now.addingTimeInterval(-600), repeatMinutes: 8)
+        let plan = NogPlanner.plan(items: [parent, child], now: now)
+        XCTAssertEqual(plan.map(\.title), ["Call back (Get the oil changed)"])
+
+        // Renaming the parent replaces the scheduled nog, so it never shows the old name.
+        var renamed = parent
+        renamed.title = "Car service"
+        let replanned = NogPlanner.plan(items: [renamed, child], now: now)
+        XCTAssertNotEqual(plan.map(\.identifier), replanned.map(\.identifier))
     }
 }

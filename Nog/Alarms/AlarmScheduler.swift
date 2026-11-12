@@ -37,7 +37,7 @@ final class AlarmScheduler {
 
     /// Brings scheduled alarms in line with the items.
     /// Returns, per item, the times that will ring as alarms (notifications skip those).
-    func sync(items: [Item], policy: NogPolicy) async -> [UUID: [Date]] {
+    func sync(items: [Item], policy: NogPolicy, shortParents: [String: String] = [:]) async -> [UUID: [Date]] {
         let now = Date.now
         // Something should ring (escalation turned on, Unhinged, a typed !alarm) but iOS hasn't
         // been asked yet: ask now, while you're in the app, or those alarms would never ring.
@@ -48,12 +48,15 @@ final class AlarmScheduler {
         }
         guard isAuthorized else { return [:] }
 
-        var desired: [UUID: (item: Item, date: Date)] = [:]
+        // A sub-nog's alarm names its parent too: "Call back (Get the oil changed)".
+        let titles = ParentContext.titles(for: items, shortened: shortParents)
+        var desired: [UUID: (item: Item, title: String, date: Date)] = [:]
         var ringing: [UUID: [Date]] = [:]
         for item in items {
             let dates = Self.alarmDates(for: item, policy: policy, now: now)
+            let title = titles[item.id] ?? item.title
             for date in dates {
-                desired[Self.alarmID(item: item, date: date)] = (item, date)
+                desired[Self.alarmID(item: item, title: title, date: date)] = (item, title, date)
             }
             if !dates.isEmpty { ringing[item.id] = dates }
         }
@@ -65,7 +68,7 @@ final class AlarmScheduler {
         let existingIDs = Set(existing.map(\.id))
         for (id, entry) in desired where !existingIDs.contains(id) {
             do {
-                _ = try await manager.schedule(id: id, configuration: configuration(for: entry.item, at: entry.date))
+                _ = try await manager.schedule(id: id, configuration: configuration(for: entry.item, title: entry.title, at: entry.date))
             } catch {
                 print("Nog: couldn't schedule alarm for \(entry.item.title): \(error)")
             }
@@ -92,11 +95,11 @@ final class AlarmScheduler {
             .prefix(limit))
     }
 
-    private func configuration(for item: Item, at date: Date) -> AlarmManager.AlarmConfiguration<NogAlarmMetadata> {
+    private func configuration(for item: Item, title: String, at date: Date) -> AlarmManager.AlarmConfiguration<NogAlarmMetadata> {
         // Since iOS 26.1 the system supplies its own Stop button (it just silences this ring;
         // the item keeps nogging). Our one custom button finishes the item.
         let alert = AlarmPresentation.Alert(
-            title: "\(item.title)",
+            title: "\(title)",
             secondaryButton: AlarmButton(text: "Done", textColor: .white, systemImageName: "checkmark"),
             secondaryButtonBehavior: .custom)
         let attributes = AlarmAttributes(
@@ -113,10 +116,10 @@ final class AlarmScheduler {
     }
 
     /// Stable per (item, time, title), so unchanged alarms are left alone.
-    nonisolated static func alarmID(item: Item, date: Date) -> UUID {
+    nonisolated static func alarmID(item: Item, title: String, date: Date) -> UUID {
         var bytes = item.id.uuid
         var hash: UInt64 = 14_695_981_039_346_656_037
-        for byte in "\(Int(date.timeIntervalSince1970))|\(item.title)".utf8 {
+        for byte in "\(Int(date.timeIntervalSince1970))|\(title)".utf8 {
             hash ^= UInt64(byte)
             hash = hash &* 1_099_511_628_211
         }
