@@ -56,12 +56,7 @@ struct CaptureHomeView: View {
         NavigationStack(path: $router.capturePath) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    // The mic sits straight under the Settings gear: same glass circle,
-                    // same size, same right edge (the bar's 16-point margin).
-                    HStack(alignment: .center, spacing: 10) {
-                        composer
-                        micButton
-                    }
+                    composer
                     if showSubItems || !draft.subItems.isEmpty { subItemList }
                     saveButton
                     readout(result)
@@ -89,7 +84,14 @@ struct CaptureHomeView: View {
             }
             .safeAreaInset(edge: .top) { SilenceBanner() }
             .nogTabTitle(.capture)
-            .toolbar { SettingsToolbarItem() }
+            .toolbar {
+                // The mic and the gear share the bar's row and the same button, so they're
+                // the same glass circle, side by side. The fixed spacer keeps them two
+                // separate circles instead of one shared capsule.
+                ToolbarItem(placement: .topBarTrailing) { micButton }
+                ToolbarSpacer(.fixed, placement: .topBarTrailing)
+                SettingsToolbarItem()
+            }
             // The tray sits on the keyboard while typing, and above the tab bar otherwise.
             .safeAreaInset(edge: .bottom) { tray(result) }
             .navigationDestination(for: UUID.self) { id in
@@ -125,10 +127,9 @@ struct CaptureHomeView: View {
             .submitLabel(.send)
             .padding(.horizontal, 18)
             .padding(.vertical, 10)
-            // At least as tall as the mic, so one line is a pill the same height.
-            .frame(minHeight: Self.controlHeight)
-            // Glass like the Settings gear and the mic: a pill on one line, rounding off
-            // into a soft card as it grows.
+            .frame(minHeight: 44)
+            // Glass like the bar's buttons: a pill on one line, rounding off into a soft
+            // card as it grows.
             .nogGlass(in: Self.composerShape)
             .overlay {
                 // Shows where you're typing, without relying on the cursor alone.
@@ -150,9 +151,6 @@ struct CaptureHomeView: View {
             }
     }
 
-    /// The height of a navigation bar button. The mic matches the Settings gear, and the
-    /// text box shares the height so the two line up as a pair.
-    private static let controlHeight: CGFloat = 44
     private static let composerShape = RoundedRectangle(cornerRadius: 22, style: .continuous)
 
     /// Saves the nog, right under what you typed (Return on the keyboard does the same).
@@ -167,29 +165,16 @@ struct CaptureHomeView: View {
         .accessibilityHint(draft.isEmpty ? "Type something first." : "")
     }
 
-    /// A quiet round mic beside the box. One tap makes a nog and opens it, already recording.
-    /// With words typed, they're the nog's name; without, it's "Voice nog 8:44 AM".
-    /// The tray's choices apply either way.
+    /// The mic, in the bar beside the Settings gear and drawn by the same button.
+    /// One tap makes a nog and opens it, already recording. With words typed, they're
+    /// the nog's name; without, it's "Voice nog 8:44 AM". The tray's choices apply either way.
     private var micButton: some View {
-        Button {
+        BarIconButton(systemImage: "mic", label: "Record voice nog",
+                      hint: "Makes a nog and starts recording.") {
             focus = nil
             let untitled = draft.isEmpty
             if let item = saveNog(forVoice: true) { voiceNog = VoiceNogID(id: item.id, untitled: untitled) }
-        } label: {
-            // Drawn like a bar button so it matches the gear: same symbol size and weight,
-            // same 44-point circle.
-            Image(systemName: "mic")
-                .font(.body.weight(.medium))
-                .imageScale(.large)
-                .foregroundStyle(Theme.pink)
-                .frame(width: Self.controlHeight, height: Self.controlHeight)
-                .contentShape(Circle())
         }
-        .buttonStyle(.plain)
-        // A true circle of glass, the same material as the Settings gear.
-        .nogGlass(in: Circle(), interactive: true)
-        .accessibilityLabel("Record voice nog")
-        .accessibilityHint("Makes a nog and starts recording.")
     }
 
     /// Sub-nogs typed straight in. Each one has its own line with a remove button, and the
