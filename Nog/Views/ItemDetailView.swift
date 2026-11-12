@@ -98,7 +98,13 @@ private struct ItemEditor: View {
         .listSectionSpacing(14)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            if showsMenu { ToolbarItem(placement: .topBarTrailing) { moreMenu } }
+            // Urgent, tags and ••• share one glass capsule in the top bar, so the row under
+            // the title only shows state (status, day, urgent, tags), never setup buttons.
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                if item.status != .done { urgentButton }
+                tagButton
+                if showsMenu { moreMenu }
+            }
             // Notes are saved as you type; Done puts the keyboard away and confirms it.
             if notesFocused {
                 ToolbarItemGroup(placement: .keyboard) {
@@ -146,14 +152,15 @@ private struct ItemEditor: View {
                 TextField("Title", text: binding(\.title), axis: .vertical)
                     .font(.nogTitle(28))
                     .foregroundStyle(item.status == .done ? Theme.muted : .primary)
-                // Status, age and tags share one wrapping row under the title.
+                // Status, day, urgent and tags share one wrapping row under the title.
+                // Setting them is done from the top bar (flag and tag buttons).
                 FlowLayout(spacing: 8) {
                     statusPill
-                    if item.status != .done { urgentChip }
                     Text(metaLine)
                         .font(.nogMeta)
                         .foregroundStyle(Theme.muted)
-                        .padding(.trailing, 2)
+                        .fixedSize()
+                    if item.urgent && item.status != .done { urgentMark }
                     tagChips
                 }
                 tagSuggestions
@@ -164,26 +171,48 @@ private struct ItemEditor: View {
         }
     }
 
-    /// Urgent on/off: urgent nogs are listed first and keep nogging after "Done for now".
-    private var urgentChip: some View {
+    /// Urgent on/off, in the top bar: urgent nogs are listed first and keep nogging after
+    /// "Done for now". Filled and pink when on.
+    private var urgentButton: some View {
         Button {
             withNogAnimation(.snappy) { store.setUrgent(item.id, !item.urgent) }
         } label: {
-            Label(item.urgent ? "URGENT" : "Urgent?", systemImage: item.urgent ? "flag.fill" : "flag")
-                .font(item.urgent ? .nogLabel : .subheadline)
-                .tracking(item.urgent ? 1.5 : 0)
-                .foregroundStyle(item.urgent ? Theme.pink : Theme.muted)
-                .padding(.horizontal, 12)
-                .frame(minHeight: 32)
-                .background(item.urgent ? Theme.pink.opacity(0.12) : .clear, in: Capsule())
-                .overlay(Capsule().strokeBorder(item.urgent ? Theme.pink.opacity(0.55) : Theme.edgeStrong, lineWidth: 1))
-                .contentShape(Capsule())
+            Image(systemName: item.urgent ? "flag.fill" : "flag")
+                .foregroundStyle(item.urgent ? Theme.pink : .primary)
         }
-        .buttonStyle(.plain)
         .accessibilityLabel("Urgent")
         .accessibilityValue(item.urgent ? "On" : "Off")
-        .accessibilityAddTraits(item.urgent ? [.isButton, .isSelected] : .isButton)
+        .accessibilityAddTraits(item.urgent ? .isSelected : [])
         .accessibilityHint("Urgent nogs are listed first and keep nogging after Done for now")
+    }
+
+    /// Opens the tag field in the row under the title (with recent tags to tap).
+    private var tagButton: some View {
+        Button {
+            if isAddingTag {
+                tagFieldFocused = true
+            } else {
+                withNogAnimation(.snappy) { isAddingTag = true }
+            }
+        } label: {
+            Image(systemName: "tag")
+        }
+        .accessibilityLabel("Add tag")
+    }
+
+    /// Shown in the row only while the nog is urgent. Not a button: the flag in the top bar
+    /// turns it off.
+    private var urgentMark: some View {
+        // Fixed to its own size, so the wrapping row can never stretch it.
+        HStack(spacing: 5) {
+            Image(systemName: "flag.fill").nogFont(11, weight: .semibold)
+            Text("URGENT").font(.nogLabel).tracking(1.5)
+        }
+        .foregroundStyle(Theme.pink)
+        .fixedSize()
+        .frame(minHeight: 30)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Urgent")
     }
 
     /// The status, coloured by state. Tap to turn the knob.
@@ -464,7 +493,7 @@ private struct ItemEditor: View {
         childFieldFocused = true
     }
 
-    /// The tag chips and "+ tag", laid out in the hero's status row.
+    /// The tag chips, and the tag field while adding one (opened by the tag button in the top bar).
     @ViewBuilder
     private var tagChips: some View {
         ForEach(item.tags, id: \.self) { tag in
@@ -488,19 +517,6 @@ private struct ItemEditor: View {
                         withNogAnimation(.snappy) { isAddingTag = false }
                     }
                 }
-        } else {
-            Button {
-                withNogAnimation(.snappy) { isAddingTag = true }
-            } label: {
-                Text("+ tag")
-                    .font(.subheadline)
-                    .foregroundStyle(Theme.muted)
-                    .padding(.horizontal, 12)
-                    .frame(minHeight: 32)
-                    .overlay(Capsule().strokeBorder(Theme.edgeStrong, style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
-            }
-            .buttonStyle(.borderless)
-            .accessibilityLabel("Add tag")
         }
     }
 
