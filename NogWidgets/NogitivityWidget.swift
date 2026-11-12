@@ -65,6 +65,15 @@ struct NogitivityEntry: TimelineEntry {
         }.count
     }
 
+    /// Settings › Theme: dark or light, or nil to follow the system.
+    var colorScheme: ColorScheme? {
+        switch snapshot?.appearance {
+        case "dark": .dark
+        case "light": .light
+        default: nil
+        }
+    }
+
     var showsTitlesOnLockScreen: Bool { snapshot?.showTitlesOnLockScreen ?? true }
 }
 
@@ -123,17 +132,29 @@ struct NogitivityView: View {
         case .accessoryInline:
             LockInline(entry: entry).containerBackground(for: .widget) { Color.clear }
         default:
+            // Settings › Theme (Dark or Light) wins over the system's appearance, as in the app.
+            // The background gets it too, or it would still follow the system.
+            let scheme = entry.colorScheme
             if entry.snapshot == nil {
-                NotSetUp().containerBackground(W.listBackground, for: .widget)
+                NotSetUp().nogColorScheme(scheme)
+                    .containerBackground(for: .widget) { W.listBackground.nogColorScheme(scheme) }
             } else if let doing = entry.doing {
-                TimerWidget(entry: entry, item: doing)
-                    .containerBackground(W.timerBackground, for: .widget)
+                TimerWidget(entry: entry, item: doing).nogColorScheme(scheme)
+                    .containerBackground(for: .widget) { W.timerBackground.nogColorScheme(scheme) }
                     .widgetURL(itemURL(doing.id))
             } else {
-                NowWidget(entry: entry)
-                    .containerBackground(W.listBackground, for: .widget)
+                NowWidget(entry: entry).nogColorScheme(scheme)
+                    .containerBackground(for: .widget) { W.listBackground.nogColorScheme(scheme) }
             }
         }
+    }
+}
+
+private extension View {
+    /// Forces dark or light; nil leaves the system's appearance.
+    @ViewBuilder
+    func nogColorScheme(_ scheme: ColorScheme?) -> some View {
+        if let scheme { environment(\.colorScheme, scheme) } else { self }
     }
 }
 
