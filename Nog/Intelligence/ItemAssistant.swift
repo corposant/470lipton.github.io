@@ -6,7 +6,7 @@ import SwiftUI
 enum ItemAssistant {
     @Generable
     struct Breakdown {
-        @Guide(description: "Between 3 and 7 small, concrete next steps, in order. Each starts with a verb and is under 8 words.")
+        @Guide(description: "Between 2 and 5 next physical steps, in the order they'd happen. Each is one action a person does with their hands, voice or feet, starts with a verb, and is under 7 words.")
         var steps: [String]
     }
 
@@ -14,20 +14,57 @@ enum ItemAssistant {
         SystemLanguageModel.default.isAvailable
     }
 
-    /// Turns a to-do, idea or project into small first steps.
+    /// The angle for every suggestion: what is the very next, simplest physical thing to do?
+    /// The examples teach the model to read the exact wording. "Get the oil changed" means
+    /// someone else does it, so the steps are about arranging that; "do the oil change" means
+    /// you do it, so the steps are about getting the parts.
+    static let breakdownInstructions = """
+        You help someone who struggles to get started. Answer one question: \
+        what are the next, simplest physical steps toward this? \
+        Think very, very simple. Each step is one concrete action someone could do right now \
+        with their hands, voice or feet: call, text, open, find, buy, put, write, walk to. \
+        No planning, thinking or deciding steps. No advice. \
+        Read the exact wording, because it changes who does the work. \
+        "Get it done", "get it fixed" or "book" means someone else does it, so the steps are about arranging that. \
+        "Do it" or "fix it" means the person does it, so the steps are about getting what they need and starting. \
+        Use the specific things the item names. Keep the person's words where you can. \
+        Stop at the first few steps, not the whole job. Never repeat steps they already have.
+
+        Example: "Get the oil changed" -> Find a service shop nearby; Call to book an appointment
+        Example: "Do the oil change" -> Check for sales on oil; Buy an oil filter and crush washer; \
+        Buy 6 litres of 0W-20 oil
+        Example: "Clean the kitchen" -> Put dishes in the sink; Wipe the counters; Take out the trash
+        Example: "Renew passport" -> Find the renewal form online; Print the form; Get a passport photo taken
+        """
+
+    /// Turns a nog into its next few simple, physical steps.
     static func breakDown(_ item: Item, existing: [String]) async throws -> [String] {
-        let session = LanguageModelSession(instructions: """
-            You help someone get started on things they keep putting off. \
-            Break the item into small, concrete, doable steps. Keep the person's wording where you can. \
-            Never repeat steps they already have.
-            """)
+        let session = LanguageModelSession(instructions: breakdownInstructions)
         var prompt = "Item: \(item.title)"
         if !item.body.isEmpty { prompt += "\nNotes: \(item.body.prefix(1500))" }
         if !existing.isEmpty { prompt += "\nSteps they already have: \(existing.joined(separator: "; "))" }
         let response = try await session.respond(to: prompt, generating: Breakdown.self)
+        let existingKeys = Set(existing.map(normalized))
+        var seen = Set<String>()
         return response.content.steps
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .map(cleaned)
             .filter { !$0.isEmpty }
+            // The model sometimes echoes a step they already have, or the same step twice.
+            .filter { !existingKeys.contains(normalized($0)) && seen.insert(normalized($0)).inserted }
+    }
+
+    /// Trims spaces, list numbering ("1.", "2 -", "•") and a trailing full stop.
+    static func cleaned(_ step: String) -> String {
+        var s = step.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let range = s.range(of: #"^(\d+[.):]|\d+\s*-\s|[-•*])\s*"#, options: .regularExpression) {
+            s.removeSubrange(range)
+        }
+        while s.hasSuffix(".") { s.removeLast() }
+        return s.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func normalized(_ step: String) -> String {
+        cleaned(step).lowercased()
     }
 }
 
@@ -48,7 +85,7 @@ struct BreakdownSheet: View {
                 if isThinking {
                     HStack(spacing: 12) {
                         ProgressView()
-                        Text("Breaking it down…").foregroundStyle(.secondary)
+                        Text("Finding the next steps…").foregroundStyle(.secondary)
                     }
                 } else if let error {
                     Text(error).foregroundStyle(.secondary)
@@ -72,7 +109,7 @@ struct BreakdownSheet: View {
                 }
             }
             .nogListStyle()
-            .navigationTitle("Break it down")
+            .navigationTitle("Next steps")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
