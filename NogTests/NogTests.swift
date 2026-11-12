@@ -1461,3 +1461,22 @@ final class NotificationButtonStoreTests: XCTestCase {
         XCTAssertEqual(start.timeIntervalSinceNow, TimeInterval(NogSettings.snoozeMinutes * 60), accuracy: 5)
     }
 }
+
+final class BreakdownStepTests: XCTestCase {
+    func testCleanedStripsNumberingAndFullStops() {
+        XCTAssertEqual(ItemAssistant.cleaned("1. Find a service shop."), "Find a service shop")
+        XCTAssertEqual(ItemAssistant.cleaned("2) Call for an appointment"), "Call for an appointment")
+        XCTAssertEqual(ItemAssistant.cleaned("3 - Buy 6 litres of 0W-20 oil"), "Buy 6 litres of 0W-20 oil")
+        XCTAssertEqual(ItemAssistant.cleaned("• Buy an oil filter "), "Buy an oil filter")
+    }
+
+    func testCleanedKeepsLeadingNumbersThatArePartOfTheStep() {
+        XCTAssertEqual(ItemAssistant.cleaned("6 litres of 0W-20"), "6 litres of 0W-20")
+        XCTAssertEqual(ItemAssistant.cleaned("2-stroke oil for the mower"), "2-stroke oil for the mower")
+    }
+
+    func testInstructionsCarryTheOilChangeExamples() {
+        XCTAssertTrue(ItemAssistant.breakdownInstructions.contains("Get the oil changed"))
+        XCTAssertTrue(ItemAssistant.breakdownInstructions.contains("Do the oil change"))
+    }
+}
