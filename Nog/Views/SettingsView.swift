@@ -511,7 +511,7 @@ struct ProfileCard: View {
 
     private var tint: Color {
         switch profile {
-        case .hush, .teatime, .whisper, .daily: Theme.blue
+        case .hush, .teatime, .whisper, .balanced: Theme.blue
         case .steady, .easing, .building: Theme.violet
         case .unhinged: Theme.pink
         }

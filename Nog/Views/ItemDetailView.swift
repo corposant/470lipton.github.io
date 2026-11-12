@@ -149,6 +149,7 @@ private struct ItemEditor: View {
                 // Status, age and tags share one wrapping row under the title.
                 FlowLayout(spacing: 8) {
                     statusPill
+                    if item.status != .done { urgentChip }
                     Text(metaLine)
                         .font(.nogMeta)
                         .foregroundStyle(Theme.muted)
@@ -161,6 +162,28 @@ private struct ItemEditor: View {
             .listRowBackground(Color.clear)
             .listRowInsets(EdgeInsets(top: 4, leading: 4, bottom: 4, trailing: 4))
         }
+    }
+
+    /// Urgent on/off: urgent nogs are listed first and keep nogging after "Done for now".
+    private var urgentChip: some View {
+        Button {
+            withNogAnimation(.snappy) { store.setUrgent(item.id, !item.urgent) }
+        } label: {
+            Label(item.urgent ? "URGENT" : "Urgent?", systemImage: item.urgent ? "flag.fill" : "flag")
+                .font(item.urgent ? .nogLabel : .subheadline)
+                .tracking(item.urgent ? 1.5 : 0)
+                .foregroundStyle(item.urgent ? Theme.pink : Theme.muted)
+                .padding(.horizontal, 12)
+                .frame(minHeight: 32)
+                .background(item.urgent ? Theme.pink.opacity(0.12) : .clear, in: Capsule())
+                .overlay(Capsule().strokeBorder(item.urgent ? Theme.pink.opacity(0.55) : Theme.edgeStrong, lineWidth: 1))
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Urgent")
+        .accessibilityValue(item.urgent ? "On" : "Off")
+        .accessibilityAddTraits(item.urgent ? [.isButton, .isSelected] : .isButton)
+        .accessibilityHint("Urgent nogs are listed first and keep nogging after Done for now")
     }
 
     /// The status, coloured by state. Tap to turn the knob.

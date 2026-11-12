@@ -590,9 +590,32 @@ final class DoingTests: XCTestCase {
         item.reminder = Reminder(start: afternoon, repeatMinutes: 30, alarm: true)
         XCTAssertNil(ItemStore.resumeDate(for: item, now: afternoon, calendar: calendar))
 
+        // Flagged urgent: keeps its rhythm too.
+        item.reminder = Reminder(start: afternoon, repeatMinutes: 30)
+        item.urgent = true
+        XCTAssertNil(ItemStore.resumeDate(for: item, now: afternoon, calendar: calendar))
+        item.urgent = false
+
         // Nothing more today anyway: left alone.
         item.reminder = Reminder(start: tomorrow.addingTimeInterval(3600), repeatMinutes: 30)
         XCTAssertNil(ItemStore.resumeDate(for: item, now: afternoon, calendar: calendar))
+    }
+
+    func testUrgentFlagFromCaptureSavesAndSortsFirst() throws {
+        let defaults = CaptureDefaults(firstDelayMinutes: 15, repeatMinutes: 8)
+        let flagged = CaptureParser.parse("renew passport !urgent", defaults: defaults, now: now)
+        XCTAssertEqual(flagged.title, "renew passport")
+        XCTAssertTrue(flagged.urgent)
+        XCTAssertTrue(CaptureParser.parse("call vet !! !off", defaults: defaults, now: now).urgent)
+        XCTAssertFalse(CaptureParser.parse("call vet", defaults: defaults, now: now).urgent)
+
+        var item = Item(title: "renew passport")
+        item.urgent = true
+        XCTAssertEqual(ItemFile.decode(ItemFile.encode(item))?.urgent, true)
+
+        let calm = Item(title: "a", created: now)
+        let sorted = [calm, item].sorted { Item.urgentFirst($0, $1) { $0.created < $1.created } }
+        XCTAssertEqual(sorted.first?.id, item.id)
     }
 
     func testStartOnANogWithSubNogsStartsItsFirstUnfinishedStep() throws {
@@ -858,7 +881,21 @@ final class ProfileTests: XCTestCase {
         XCTAssertEqual(r.start, now.addingTimeInterval(86_400))
         XCTAssertEqual(r.repeatMinutes, 1440)
         XCTAssertEqual(r.escalateAfter, 0)
-        XCTAssertEqual(NogProfile.matching(r), .daily)
+        XCTAssertEqual(NogProfile.matching(r), .balanced, "!daily picks Balanced, which replaced Daily")
+        XCTAssertEqual(r.curve, .balanced)
+    }
+
+    func testBalancedGoesFromOnceToTwiceToThreeTimesADay() {
+        let r = NogProfile.balanced.apply(to: Reminder(start: now))
+        let dates = r.fireDates(after: now.addingTimeInterval(-1), limit: 7 + 14 + 6)
+        let gaps = zip(dates, dates.dropFirst()).map { Int($1.timeIntervalSince($0) / 60) }
+        XCTAssertEqual(Array(gaps.prefix(7)), Array(repeating: 1440, count: 7))
+        XCTAssertEqual(Array(gaps[7..<11]), [360, 1080, 360, 1080])
+        XCTAssertEqual(Array(gaps[21..<26]), [240, 240, 960, 240, 240])
+        // Every day still starts at the first nog's time of day.
+        XCTAssertEqual(dates[21], now.addingTimeInterval(21 * 86_400))
+        XCTAssertNil(r.settledPhase, "never one fixed gap, so the planner uses exact times")
+        XCTAssertFalse(NogPlanner.plan(items: [Item(title: "x", reminder: r)], now: now.addingTimeInterval(30 * 86_400)).isEmpty)
     }
 }
 
@@ -1482,7 +1519,7 @@ final class NotificationButtonTests: XCTestCase {
 
     func testCategoryCarriesTheProfilesButtons() {
         XCTAssertEqual(NogPlanner.category(for: reminder(.unhinged)), "NOG_G")
-        XCTAssertEqual(NogPlanner.category(for: reminder(.daily)), "NOG_K")
+        XCTAssertEqual(NogPlanner.category(for: reminder(.balanced)), "NOG_K")
         XCTAssertEqual(NogPlanner.category(for: reminder(.teatime)), "NOG_K")
         XCTAssertEqual(NogPlanner.category(for: reminder(.hush)), "NOG")
         XCTAssertEqual(NogPlanner.category(for: reminder(.whisper)), "NOG")
@@ -1502,7 +1539,7 @@ final class NotificationButtonTests: XCTestCase {
         XCTAssertEqual(NogProfile.building.gentler, .steady)
         XCTAssertEqual(NogProfile.steady.gentler, .easing)
         XCTAssertEqual(NogProfile.easing.gentler, .whisper)
-        for quiet in [NogProfile.hush, .teatime, .whisper, .daily] { XCTAssertNil(quiet.gentler) }
+        for quiet in [NogProfile.hush, .teatime, .whisper, .balanced] { XCTAssertNil(quiet.gentler) }
     }
 
     func testBannerLineIsInTheProfilesVoice() {
@@ -1582,7 +1619,7 @@ final class NotificationButtonStoreTests: XCTestCase {
     func testSkipTodayKeepsTheTimeOfDay() throws {
         let store = store()
         let calendar = Calendar.current
-        let item = Item(title: "x", reminder: NogProfile.daily.apply(to: Reminder(start: .now.addingTimeInterval(60))))
+        let item = Item(title: "x", reminder: NogProfile.balanced.apply(to: Reminder(start: .now.addingTimeInterval(60))))
         store.insert(item)
         let start = try XCTUnwrap(store.items[item.id]?.reminder?.start)
         store.skipToday(item.id)

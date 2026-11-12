@@ -24,6 +24,8 @@ struct Item: Identifiable, Hashable {
     var timesDone: Int = 0
     /// "When I get home": reminds you at a saved place (Settings › Places).
     var place: PlaceTrigger?
+    /// Flagged urgent: listed first, and "Done for now" doesn't hold its nogs until tomorrow.
+    var urgent = false
     /// Recordings, oldest first (see `VoiceNote`).
     var voiceNotes: [VoiceNote] = []
 
@@ -96,6 +98,11 @@ struct Item: Identifiable, Hashable {
 }
 
 extension Item {
+    /// Urgent ones first, then `then`'s order.
+    static func urgentFirst(_ a: Item, _ b: Item, then: (Item, Item) -> Bool) -> Bool {
+        a.urgent != b.urgent ? a.urgent : then(a, b)
+    }
+
     /// Sibling order: placed ones by position, then the rest oldest first.
     static func siblingOrder(_ a: Item, _ b: Item) -> Bool {
         let pa = a.position ?? .max, pb = b.position ?? .max
@@ -187,12 +194,16 @@ enum RepeatCurve: String, CaseIterable, Hashable {
     case logarithmic
     /// Gap halves each time down to a floor, getting more insistent: 30, 15, 8, 4, 4, 4…
     case building
+    /// Days, gently getting more frequent: once a day for a week, twice a day the next week
+    /// (6 hours apart), then three times a day (4 hours apart), all from the first nog's time of day.
+    case balanced
 
     var label: String {
         switch self {
         case .steady: "Steady"
         case .logarithmic: "Logarithmic"
         case .building: "Building"
+        case .balanced: "Balanced"
         }
     }
 }
@@ -256,12 +267,32 @@ struct Reminder: Hashable {
                 i += 1
             }
             return TimeInterval(minutes * 60)
+        case .balanced:
+            return TimeInterval(Self.balancedGapMinutes(after: k) * 60)
         }
+    }
+
+    /// Balanced: nogs a day in week one, then two, then three.
+    static let balancedDaysPerStep = 7
+    /// The day's gaps at each step, adding up to a day so the nogs keep their time of day:
+    /// once (24 h), twice (9 → 3 PM, then back to 9), three times (9 → 1 PM → 5 PM, back to 9).
+    static let balancedDayPatterns: [[Int]] = [[1440], [360, 1080], [240, 240, 960]]
+
+    static func balancedGapMinutes(after k: Int) -> Int {
+        var k = max(0, k)
+        for (step, pattern) in balancedDayPatterns.enumerated() {
+            let count = pattern.count * balancedDaysPerStep
+            if k < count || step == balancedDayPatterns.count - 1 { return pattern[k % pattern.count] }
+            k -= count
+        }
+        return 1440
     }
 
     /// From this moment on the gap never changes again: (moment, gap).
     /// Lets the planner hand iOS a single forever-repeating trigger.
+    /// Balanced never settles on one gap (its days have a pattern), so it's always exact times.
     var settledPhase: (since: Date, gap: TimeInterval)? {
+        if curve == .balanced { return nil }
         guard let first = gap(after: 0) else { return nil }
         var t = start
         var k = 0
@@ -313,6 +344,8 @@ struct Reminder: Hashable {
         case .building:
             let fastest = min(m, Self.buildingFloorMinutes)
             return "every \(IntervalFormat.short(m)), building to every \(IntervalFormat.short(fastest))"
+        case .balanced:
+            return "daily, then twice a day, then three times"
         }
     }
 }

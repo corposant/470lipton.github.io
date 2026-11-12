@@ -301,6 +301,7 @@ final class ItemStore {
         }
         var item = Item(title: parsed.title, created: now, updated: now,
                         parentID: parent, tags: parsed.tags, reminder: reminder)
+        item.urgent = parsed.urgent
         item.recurrence = reminder == nil ? nil : parsed.recurrence
         item.place = parsed.place
         insert(item)
@@ -525,8 +526,8 @@ final class ItemStore {
 
     /// "Done for now": stops this session (its time is logged) without finishing; the item goes
     /// back to Open. Work happened, so the rest of today's nogs can wait: it comes back tomorrow
-    /// (at its own time for a once-a-day rhythm, otherwise in the morning). Urgent ones, those that
-    /// ring like an alarm, keep their rhythm. Returns the seconds this session logged.
+    /// (at its own time for a once-a-day rhythm, otherwise in the morning). Urgent ones (flagged
+    /// urgent, or ringing like an alarm) keep their rhythm. Returns the seconds this session logged.
     @discardableResult
     func stopDoing(_ id: UUID, now: Date = .now, calendar: Calendar = .current) -> TimeInterval {
         guard var item = items[id], item.isDoing else { return 0 }
@@ -544,7 +545,7 @@ final class ItemStore {
     /// When a nog stopped with "Done for now" next nogs, if its next nog would otherwise
     /// come later today. nil = leave its reminder as it is.
     nonisolated static func resumeDate(for item: Item, now: Date, calendar: Calendar = .current) -> Date? {
-        guard let r = item.reminder, !r.alarm, item.recurrence == nil,
+        guard let r = item.reminder, !r.alarm, !item.urgent, item.recurrence == nil,
               let next = r.nextFire(after: now), calendar.isDate(next, inSameDayAs: now),
               let tomorrow = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now))
         else { return nil }
@@ -553,6 +554,13 @@ final class ItemStore {
             return sameTime
         }
         return NogSettings.nextMorning(after: tomorrow.addingTimeInterval(-1), minutes: r.morningMinutes)
+    }
+
+    /// Flags (or unflags) a nog as urgent.
+    func setUrgent(_ id: UUID, _ urgent: Bool) {
+        guard var item = items[id], item.urgent != urgent else { return }
+        item.urgent = urgent
+        update(item)
     }
 
     /// Long press on the timer: how often "still on it?" comes for this session (0 = off,

@@ -68,7 +68,7 @@ enum NogPlanner {
     /// The notification category for an item's nogs: "NOG", or e.g. "NOG_S30_M510_G" when it has
     /// its own snooze length / morning time, or a profile with its own buttons, so its notification
     /// buttons say the right thing. "_G": the profile has a Gentler step. "_K": Skip today, not
-    /// Snooze till morning (Daily, Teatime).
+    /// Snooze till morning (Balanced, Teatime).
     static func category(for reminder: Reminder?) -> String {
         var id = categoryNog
         if let s = reminder?.snoozeMinutes { id += "_S\(s)" }
