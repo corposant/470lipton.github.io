@@ -1,7 +1,8 @@
 import SwiftUI
 
-/// The Voice section on a nog's page: each recording with Play, then Record.
-struct VoiceNotesSection: View {
+/// Voice notes as rows inside the Notes section: each recording with Play, then Record.
+/// Not a section of its own, so typed and spoken notes sit together.
+struct VoiceNoteRows: View {
     @Environment(ItemStore.self) private var store
     let item: Item
     /// Opens the recorder as soon as the page appears (a voice nog made from New Nog).
@@ -10,25 +11,23 @@ struct VoiceNotesSection: View {
     @State private var didAutoRecord = false
 
     var body: some View {
-        Section {
-            ForEach(Array(item.voiceNotes.enumerated()), id: \.element.file) { index, note in
-                VoiceNoteRow(note: note, name: item.voiceNotes.count == 1 ? "Voice note" : "Voice \(index + 1)")
-                    .swipeActions { deleteButton(note) }
-                    .contextMenu { deleteButton(note) }
-            }
-            Button {
-                showRecorder = true
-            } label: {
-                Label(item.voiceNotes.isEmpty ? "Record" : "Record more", systemImage: "mic")
-                    .foregroundStyle(Theme.pink)
-                    .frame(minHeight: 32)
-            }
-            .buttonStyle(.borderless)
-            .accessibilityLabel("Record voice note")
-        } header: {
-            SectionLabel(title: "Voice")
+        ForEach(Array(item.voiceNotes.enumerated()), id: \.element.file) { index, note in
+            VoiceNoteRow(note: note, name: item.voiceNotes.count == 1 ? "Voice note" : "Voice \(index + 1)")
+                .swipeActions { deleteButton(note) }
+                .contextMenu { deleteButton(note) }
         }
-        .listRowBackground(Theme.glass)
+        // The recorder and auto-record hang off the Record row, the one row that is
+        // always there, so they're attached exactly once. (Stop-on-leave is on the page,
+        // since a row scrolled out of sight also "disappears".)
+        Button {
+            showRecorder = true
+        } label: {
+            Label(item.voiceNotes.isEmpty ? "Record" : "Record more", systemImage: "mic")
+                .foregroundStyle(Theme.pink)
+                .frame(minHeight: 32)
+        }
+        .buttonStyle(.borderless)
+        .accessibilityLabel(item.voiceNotes.isEmpty ? "Record voice note" : "Record another voice note")
         .sheet(isPresented: $showRecorder) {
             RecorderPanel { recording in
                 store.attachVoiceNote(recording, to: item.id)
@@ -39,11 +38,6 @@ struct VoiceNotesSection: View {
             guard autoRecord, !didAutoRecord else { return }
             didAutoRecord = true
             showRecorder = true
-        }
-        .onDisappear {
-            if let playing = VoicePlayer.shared.playing, item.voiceNotes.contains(where: { $0.file == playing }) {
-                VoicePlayer.shared.stop()
-            }
         }
     }
 

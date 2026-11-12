@@ -191,11 +191,16 @@ struct AdaptiveLineLimit: ViewModifier {
 
 // MARK: - Building blocks
 
-/// "DOING NOW 02 ────────" label with a trailing hairline.
+/// "DOING NOW 02 ───🚀" label: a hairline trail with a tiny rocket at its tip. The
+/// same mark on every heading, so it reads as a motif, not a leftover line that
+/// shrinks as the title grows. Drawn still, never animated: a page can carry a
+/// dozen headings and they shouldn't all be moving.
 struct SectionLabel: View {
     let title: String
     var count: Int? = nil
     var tint: Color = Theme.muted
+    @ScaledMetric(relativeTo: .caption) private var trailLength: CGFloat = 44
+    @ScaledMetric(relativeTo: .caption) private var rocketHeight: CGFloat = 8
 
     var body: some View {
         HStack(spacing: 8) {
@@ -208,13 +213,74 @@ struct SectionLabel: View {
                     .font(.nogMeta)
                     .foregroundStyle(Theme.muted)
             }
-            LinearGradient(colors: [Theme.edgeStrong, .clear], startPoint: .leading, endPoint: .trailing)
-                .frame(height: 1)
+            HeadingRocket(trailLength: trailLength, height: rocketHeight, tint: tint)
+            Spacer(minLength: 0)
         }
         .textCase(nil)
         .padding(.leading, -4)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isHeader)
+    }
+}
+
+/// A trail that brightens toward a little rocket flying right. Decoration only.
+private struct HeadingRocket: View {
+    let trailLength: CGFloat
+    let height: CGFloat
+    let tint: Color
+
+    var body: some View {
+        HStack(spacing: 0) {
+            LinearGradient(colors: [.clear, Theme.edgeStrong], startPoint: .leading, endPoint: .trailing)
+                .frame(width: trailLength, height: 1)
+            ZStack {
+                RocketFlame().fill(Theme.pink.opacity(0.7))
+                RocketShape().fill(tint, style: FillStyle(eoFill: true))
+            }
+            .frame(width: height * 1.9, height: height)
+        }
+        .accessibilityHidden(true)
+    }
+}
+
+/// A side-on rocket pointing right: nose, body, two fins, a porthole cut out.
+private struct RocketShape: Shape {
+    func path(in r: CGRect) -> Path {
+        let w = r.width, h = r.height, x = r.minX, y = r.minY
+        var p = Path()
+        // Body, ending in a rounded nose.
+        p.move(to: CGPoint(x: x + 0.25 * w, y: y + 0.28 * h))
+        p.addLine(to: CGPoint(x: x + 0.66 * w, y: y + 0.28 * h))
+        p.addQuadCurve(to: CGPoint(x: x + w, y: y + 0.5 * h), control: CGPoint(x: x + 0.92 * w, y: y + 0.28 * h))
+        p.addQuadCurve(to: CGPoint(x: x + 0.66 * w, y: y + 0.72 * h), control: CGPoint(x: x + 0.92 * w, y: y + 0.72 * h))
+        p.addLine(to: CGPoint(x: x + 0.25 * w, y: y + 0.72 * h))
+        p.closeSubpath()
+        // Fins, swept back.
+        p.move(to: CGPoint(x: x + 0.25 * w, y: y + 0.28 * h))
+        p.addLine(to: CGPoint(x: x + 0.46 * w, y: y + 0.28 * h))
+        p.addLine(to: CGPoint(x: x + 0.18 * w, y: y))
+        p.closeSubpath()
+        p.move(to: CGPoint(x: x + 0.25 * w, y: y + 0.72 * h))
+        p.addLine(to: CGPoint(x: x + 0.46 * w, y: y + 0.72 * h))
+        p.addLine(to: CGPoint(x: x + 0.18 * w, y: y + h))
+        p.closeSubpath()
+        // Porthole (even-odd fill makes it a hole).
+        let port = 0.22 * h
+        p.addEllipse(in: CGRect(x: x + 0.64 * w - port / 2, y: y + 0.5 * h - port / 2, width: port, height: port))
+        return p
+    }
+}
+
+/// The little flame out the back of the rocket.
+private struct RocketFlame: Shape {
+    func path(in r: CGRect) -> Path {
+        let w = r.width, h = r.height, x = r.minX, y = r.minY
+        var p = Path()
+        p.move(to: CGPoint(x: x + 0.26 * w, y: y + 0.36 * h))
+        p.addLine(to: CGPoint(x: x, y: y + 0.5 * h))
+        p.addLine(to: CGPoint(x: x + 0.26 * w, y: y + 0.64 * h))
+        p.closeSubpath()
+        return p
     }
 }
 
