@@ -372,10 +372,10 @@ struct MindMapView: View {
     private func nodeActions(_ item: Item, graph: MapGraph) -> some View {
         Button("Open") { router.push(item.id) }
         if !locked {
-            Button("Move left") { nudge(item.id, dx: -1, dy: 0, direction: "left") }
-            Button("Move right") { nudge(item.id, dx: 1, dy: 0, direction: "right") }
-            Button("Move up") { nudge(item.id, dx: 0, dy: -1, direction: "up") }
-            Button("Move down") { nudge(item.id, dx: 0, dy: 1, direction: "down") }
+            Button("Move left") { nudge(item.id, dx: -1, dy: 0, direction: "left", graph: graph) }
+            Button("Move right") { nudge(item.id, dx: 1, dy: 0, direction: "right", graph: graph) }
+            Button("Move up") { nudge(item.id, dx: 0, dy: -1, direction: "up", graph: graph) }
+            Button("Move down") { nudge(item.id, dx: 0, dy: 1, direction: "down", graph: graph) }
             if graph.items.count > 1 {
                 Button("File into…") { filing = item.id }
             }
@@ -599,7 +599,7 @@ struct MindMapView: View {
                 drag = NodeDrag(id: id, point: p)
                 hover(over: target(near: p, dragging: id, graph: graph))
             }
-            .onEnded { _ in finishDrag(id) }
+            .onEnded { _ in finishDrag(id, graph: graph) }
     }
 
     /// Arms filing only after the chip has hovered over the same target for a moment,
@@ -617,14 +617,18 @@ struct MindMapView: View {
         }
     }
 
-    private func finishDrag(_ id: UUID) {
+    private func finishDrag(_ id: UUID, graph: MapGraph) {
         defer { cancelDrag() }
         guard let drag, drag.id == id else { return }
         if let folder = dropTarget {
             file(id, into: folder)
         } else {
             guard let item = store.items[id] else { return }
-            perform(MapChange(spots: [.init(id: id, position: drag.point)], pins: [.init(id: id, pinned: true)]),
+            // Lands in the nearest free cell of the honeycomb, or just where it was let
+            // go if every cell close by is taken.
+            let spot = MapLayout.snapOne(id, near: drag.point, others: pagePositions(graph), sizes: chipSizes.sizes)
+                ?? drag.point
+            perform(MapChange(spots: [.init(id: id, position: spot)], pins: [.init(id: id, pinned: true)]),
                     message: "Moved “\(Self.name(item))”")
         }
     }
@@ -654,7 +658,9 @@ struct MindMapView: View {
               folder != id, !store.isDescendant(folder, of: id) else { return }
         // Settle just beside the folder rather than on top of it.
         let anchor = doc.positions[folder] ?? doc.positions[id] ?? .zero
-        perform(MapChange(spots: [.init(id: id, position: CGPoint(x: anchor.x + 40, y: anchor.y + 70))],
+        let beside = CGPoint(x: anchor.x + 40, y: anchor.y + 70)
+        let spot = MapLayout.snapOne(id, near: beside, others: doc.positions, sizes: chipSizes.sizes) ?? beside
+        perform(MapChange(spots: [.init(id: id, position: spot)],
                           filings: [.init(id: id, parent: folder)],
                           pins: [.init(id: id, pinned: true)]),
                 message: "Filed “\(Self.name(item))” in “\(Self.name(target))”")
@@ -672,10 +678,17 @@ struct MindMapView: View {
                 message: "Took “\(Self.name(item))” out of “\(Self.name(parent))”")
     }
 
-    /// Moves a chip one step (VoiceOver, Switch Control).
-    private func nudge(_ id: UUID, dx: CGFloat, dy: CGFloat, direction: String) {
+    /// Where the chips on this page are.
+    private func pagePositions(_ graph: MapGraph) -> [UUID: CGPoint] {
+        let onPage = Set(graph.ids)
+        return doc.positions.filter { onPage.contains($0.key) }
+    }
+
+    /// Moves a chip one cell of the honeycomb (VoiceOver, Switch Control), hopping over
+    /// chips in the way.
+    private func nudge(_ id: UUID, dx: Int, dy: Int, direction: String, graph: MapGraph) {
         guard let item = store.items[id], let p = doc.positions[id] else { return }
-        let to = CGPoint(x: p.x + dx * MapLayout.pitch.width / 2, y: p.y + dy * MapLayout.pitch.height)
+        let to = MapLayout.hexStep(id, from: p, dx: dx, dy: dy, others: pagePositions(graph), sizes: chipSizes.sizes)
         perform(MapChange(spots: [.init(id: id, position: to)], pins: [.init(id: id, pinned: true)]),
                 message: "Moved “\(Self.name(item))” \(direction)")
     }
@@ -900,10 +913,10 @@ struct MindMapView: View {
                 }
                 if !isScribbling && !locked {
                     wandButton(graph, size: size)
-                    mapButton(MapLayout.Style.grid.icon, tint: Theme.violet, label: "Grid", id: "grid") {
+                    mapButton(MapLayout.Style.grid.icon, tint: Theme.violet, label: MapLayout.Style.grid.title, id: "grid") {
                         rearrange(graph, style: .grid, in: size)
                     }
-                    .accessibilityHint("Puts every nog in even rows and columns. Undo puts them back.")
+                    .accessibilityHint("Puts every nog in one even honeycomb, in outline order. Undo puts them back.")
                 }
                 if !isScribbling {
                     mapButton(showNogged ? "checkmark.circle.fill" : "checkmark.circle", tint: Theme.blue,

@@ -470,7 +470,8 @@ extension MapLayout {
     static func place(missing ids: [UUID], edges: [Edge], pinned: [UUID: CGPoint],
                       sizes: [UUID: CGSize] = [:]) -> [UUID: CGPoint] {
         let laidOut = layout(ids: Array(pinned.keys) + ids.filter { pinned[$0] == nil }, edges: edges, pinned: pinned)
-        return separate(laidOut, sizes: sizes, fixed: Set(pinned.keys))
+        // Into the honeycomb, steering around everything already there.
+        return snap(separate(laidOut, sizes: sizes, fixed: Set(pinned.keys)), sizes: sizes, fixed: Set(pinned.keys))
     }
 
     /// More new chips than this at once (an import, say) are laid out as their own tidy
@@ -478,9 +479,10 @@ extension MapLayout {
     static let bulkPlacement = 24
 
     /// Lays out many new items as one tidy block (see `arrange`) and puts it to the right
-    /// of the chips already on the map, level with their middle. Returns spots for `items` only.
+    /// of the chips already on the map, level with their middle, in the honeycomb.
+    /// Returns spots for `items` only.
     static func placeBeside(_ items: [Item], existing: [UUID: CGPoint], sizes: [UUID: CGSize] = [:]) -> [UUID: CGPoint] {
-        let block = arrange(items, sizes: sizes)
+        let block = layOut(.stars, items: items, sizes: sizes)
         func bounds(_ p: [UUID: CGPoint]) -> CGRect {
             var r = CGRect.null
             for (id, q) in p {
@@ -492,7 +494,10 @@ extension MapLayout {
         let old = bounds(existing), new = bounds(block)
         guard !old.isNull, !new.isNull else { return block }
         // Far enough that the tag zones around each side don't touch.
-        let dx = old.maxX + 260 - new.minX, dy = old.midY - new.midY
+        // Moved by whole cells, so the block stays in the honeycomb.
+        let q = MapHex.Lattice.fitting(items.map(\.id), sizes: sizes).quantum
+        let dx = ((old.maxX + 260 - new.minX) / q.width).rounded(.up) * q.width
+        let dy = ((old.midY - new.midY) / q.height).rounded() * q.height
         return block.mapValues { CGPoint(x: $0.x + dx, y: $0.y + dy) }
     }
 

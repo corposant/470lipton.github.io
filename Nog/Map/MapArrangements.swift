@@ -11,7 +11,7 @@ extension MapLayout {
 
         var id: String { rawValue }
 
-        /// The layouts in the wand's menu. Grid has its own button.
+        /// The layouts in the wand's menu. Honeycomb (`.grid`) has its own button.
         static let wand: [Style] = [.stars, .mindMap, .byTag, .web]
 
         var title: String {
@@ -20,7 +20,7 @@ extension MapLayout {
             case .mindMap: "Mind map"
             case .byTag: "By tag"
             case .web: "Web"
-            case .grid: "Grid"
+            case .grid: "Honeycomb"
             }
         }
 
@@ -29,8 +29,8 @@ extension MapLayout {
             case .stars: "sun.max"
             case .mindMap: "point.3.connected.trianglepath.dotted"
             case .byTag: "tag"
-            case .web: "circle.hexagongrid"
-            case .grid: "square.grid.3x3"
+            case .web: "network"
+            case .grid: "circle.hexagongrid"
             }
         }
 
@@ -41,36 +41,44 @@ extension MapLayout {
             case .mindMap: "Branches out to the left and right"
             case .byTag: "Tidy blocks, one per set of tags"
             case .web: "Linked notes pulled close together"
-            case .grid: "Everything in even rows and columns"
+            case .grid: "Everything in one even honeycomb"
             }
         }
     }
 
-    /// Lays out every item on the page in `style`. Centred on (0, 0).
+    /// Lays out every item on the page in `style`, every chip settled into a cell of the
+    /// map's honeycomb (see `MapHex`). Centred on (0, 0).
     static func layOut(_ style: Style, items: [Item], sizes: [UUID: CGSize] = [:]) -> [UUID: CGPoint] {
+        let rough: [UUID: CGPoint]
         switch style {
-        case .stars: squeeze(arrange(items, sizes: sizes), sizes: sizes)
-        case .mindMap: squeeze(mindMap(items, sizes: sizes), sizes: sizes)
-        case .byTag: squeeze(byTag(items, sizes: sizes), sizes: sizes)
-        case .web: squeeze(web(items, sizes: sizes), sizes: sizes)
-        case .grid: grid(items, sizes: sizes)
+        case .stars: rough = arrange(items, sizes: sizes)
+        case .mindMap: rough = mindMap(items, sizes: sizes)
+        case .byTag: rough = byTag(items, sizes: sizes)
+        case .web: rough = web(items, sizes: sizes)
+        case .grid: return honeycomb(items, sizes: sizes)
         }
+        let lattice = MapHex.Lattice.fitting(items.map(\.id), sizes: sizes)
+        return snap(squeeze(rough, sizes: sizes, quantum: lattice.quantum), sizes: sizes, lattice: lattice)
     }
 
     // MARK: Tidy up
 
     /// Fixes the mess without rearranging: sub-items that wandered off come back near
     /// their folder, overlaps are pushed apart, and tag zones that don't share items are
-    /// moved off each other. Pinned chips never move, and on a map that's already tidy
-    /// nothing moves at all. Items without a position are left out.
+    /// moved off each other, and every chip settles into a cell of the honeycomb. Pinned
+    /// chips never move, and on a map that's already tidy nothing moves at all. Items
+    /// without a position are left out.
     static func cleanup(_ items: [Item], positions: [UUID: CGPoint], pinned: Set<UUID>,
                         sizes: [UUID: CGSize] = [:], zones: [Set<UUID>] = []) -> [UUID: CGPoint] {
         // One pass can leave work for the next (a sub-nog pulled back next to its folder
         // gets pushed out again by a neighbour, say), so repeat until nothing changes.
         // Then tidying a tidied map moves nothing.
-        var p = tidyPass(items, positions: positions, pinned: pinned, sizes: sizes, zones: zones)
+        // Every pass ends in the honeycomb, and moves made on it are whole cells, so a
+        // tidy map stays exactly where it is.
+        let lattice = MapHex.Lattice.fitting(items.map(\.id), sizes: sizes)
+        var p = tidyPass(items, positions: positions, pinned: pinned, sizes: sizes, zones: zones, lattice: lattice)
         for _ in 0..<6 {
-            let next = tidyPass(items, positions: p, pinned: pinned, sizes: sizes, zones: zones)
+            let next = tidyPass(items, positions: p, pinned: pinned, sizes: sizes, zones: zones, lattice: lattice)
             if next == p { break }
             p = next
         }
@@ -78,7 +86,7 @@ extension MapLayout {
     }
 
     private static func tidyPass(_ items: [Item], positions: [UUID: CGPoint], pinned: Set<UUID>,
-                                 sizes: [UUID: CGSize], zones: [Set<UUID>]) -> [UUID: CGPoint] {
+                                 sizes: [UUID: CGSize], zones: [Set<UUID>], lattice: MapHex.Lattice) -> [UUID: CGPoint] {
         let ids = Set(items.map(\.id))
         var p = positions.filter { ids.contains($0.key) }
         let fixed = pinned.intersection(p.keys)
@@ -110,10 +118,12 @@ extension MapLayout {
 
         // 2. No overlaps, then zones apart, then overlaps again (moving a zone can cause some).
         p = separate(p, sizes: sizes, fixed: fixed)
-        p = separateZones(p, zones: zones, sizes: sizes, fixed: fixed)
+        p = separateZones(p, zones: zones, sizes: sizes, fixed: fixed, quantum: lattice.quantum)
         p = separate(p, sizes: sizes, fixed: fixed)
         // 3. Close up any wide empty stretches, so the map never sprawls.
-        return squeeze(p, sizes: sizes, fixed: fixed)
+        p = squeeze(p, sizes: sizes, fixed: fixed, quantum: lattice.quantum)
+        // 4. Into the honeycomb.
+        return snap(p, sizes: sizes, fixed: fixed, lattice: lattice)
     }
 
     /// The most empty space allowed between neighbouring chips across the map: room for
@@ -124,8 +134,12 @@ extension MapLayout {
     /// side of an empty stretch slides over as a whole, so nothing ends up overlapping
     /// and the arrangement on each side stays exactly as it was. The side without pinned
     /// chips is the one that moves; a stretch with pinned chips on both sides stays.
+    ///
+    /// With a `quantum` (the honeycomb's whole-cell moves, see `MapHex.Lattice.quantum`),
+    /// every slide is a whole number of those, so chips in the honeycomb stay in it. A
+    /// stretch that can't close by a whole step without crowding is left a little wide.
     static func squeeze(_ positions: [UUID: CGPoint], sizes: [UUID: CGSize] = [:], fixed: Set<UUID> = [],
-                        maxGap: CGFloat = MapLayout.maxGap) -> [UUID: CGPoint] {
+                        maxGap: CGFloat = MapLayout.maxGap, quantum: CGSize? = nil) -> [UUID: CGPoint] {
         var p = positions
         guard p.count > 1 else { return p }
         for across in [true, false] {
@@ -142,9 +156,8 @@ extension MapLayout {
                 var move: (ids: [UUID], by: CGFloat)?
                 for i in spans.indices.dropFirst() {
                     let gap = spans[i].lo - reach
-                    if gap > maxGap {
+                    if gap > maxGap, let close = closing(gap, maxGap: maxGap, step: quantum.map { across ? $0.width : $0.height }) {
                         let before = spans[..<i].map(\.id), after = spans[i...].map(\.id)
-                        let close = gap - maxGap
                         if !after.contains(where: { fixed.contains($0) }) {
                             move = (after, -close)
                         } else if !before.contains(where: { fixed.contains($0) }) {
@@ -164,10 +177,22 @@ extension MapLayout {
         return p
     }
 
+    /// How far to slide to close an empty stretch of `gap` down to `maxGap`. With a
+    /// `step`, a whole number of steps: enough to close it if that still leaves the clear
+    /// space chips need, else one step fewer. Nil when there's nothing to slide.
+    static func closing(_ gap: CGFloat, maxGap: CGFloat, step: CGFloat?) -> CGFloat? {
+        guard let step, step > 0 else { return gap > maxGap ? gap - maxGap : nil }
+        var steps = ((gap - maxGap) / step).rounded(.up)
+        if gap - steps * step < max(spacing.width, spacing.height) { steps -= 1 }
+        return steps >= 1 ? steps * step : nil
+    }
+
     /// Moves tag zones that share no items off each other, the smaller zone moving.
     /// Zones that share items (or nest) can't be pulled apart, so they're left alone.
+    /// With a `quantum`, zones move in whole honeycomb cells (rounding up), so their
+    /// chips stay in their cells.
     static func separateZones(_ positions: [UUID: CGPoint], zones: [Set<UUID>], sizes: [UUID: CGSize] = [:],
-                              fixed: Set<UUID> = [], iterations: Int = 40) -> [UUID: CGPoint] {
+                              fixed: Set<UUID> = [], iterations: Int = 40, quantum: CGSize? = nil) -> [UUID: CGPoint] {
         var p = positions
         // Zone borders sit about this far outside their chips (see MindMapView.zoneInset).
         let pad = CGSize(width: 36, height: 44)
@@ -208,10 +233,14 @@ extension MapLayout {
                     let movable = small.subtracting(fixed).filter { p[$0] != nil }
                     guard !movable.isEmpty else { continue }
                     var shift = CGVector.zero
+                    func whole(_ v: CGFloat, _ step: CGFloat?) -> CGFloat {
+                        guard let step, step > 0 else { return v }
+                        return (v / step).rounded(.up) * step
+                    }
                     if overlap.width < overlap.height {
-                        shift.dx = (rs.midX <= rb.midX ? -1 : 1) * (overlap.width + 1)
+                        shift.dx = (rs.midX <= rb.midX ? -1 : 1) * whole(overlap.width + 1, quantum?.width)
                     } else {
-                        shift.dy = (rs.midY <= rb.midY ? -1 : 1) * (overlap.height + 1)
+                        shift.dy = (rs.midY <= rb.midY ? -1 : 1) * whole(overlap.height + 1, quantum?.height)
                     }
                     let distance = abs(shift.dx) + abs(shift.dy)
                     guard travelled[i] + distance <= maxTravel else { continue }
@@ -430,28 +459,6 @@ extension MapLayout {
         let ids = items.sorted { $0.created < $1.created }.map(\.id)
         let p = layout(ids: ids, edges: edges(for: items), pinned: [:], spacing: 250, iterations: 300)
         return separate(centred(p), sizes: sizes)
-    }
-
-    // MARK: Grid
-
-    /// Every chip in one even grid, about as wide as it is tall: folders followed by
-    /// their sub-nogs, oldest first. Every cell is the size of the biggest chip, so the
-    /// rows and columns line up exactly.
-    static func grid(_ items: [Item], sizes: [UUID: CGSize] = [:]) -> [UUID: CGPoint] {
-        guard !items.isEmpty else { return [:] }
-        let ordered = outlineOrder(items)
-        let biggest = ordered.reduce(CGSize.zero) { s, item in
-            let c = size(item.id, in: sizes)
-            return CGSize(width: max(s.width, c.width), height: max(s.height, c.height))
-        }
-        let step = CGSize(width: biggest.width + spacing.width, height: biggest.height + spacing.height)
-        // Columns so the grid comes out about square on screen.
-        let columns = max(1, Int((Double(ordered.count) * Double(step.height / step.width)).squareRoot().rounded(.up)))
-        var out: [UUID: CGPoint] = [:]
-        for (i, item) in ordered.enumerated() {
-            out[item.id] = CGPoint(x: CGFloat(i % columns) * step.width, y: CGFloat(i / columns) * step.height)
-        }
-        return centred(out)
     }
 
     // MARK: Helpers
