@@ -64,6 +64,9 @@ struct WidgetSnapshot: Codable, Equatable {
     var showTitlesOnLockScreen: Bool
     /// Settings › Theme: "dark" or "light", or nil to follow the system (also older snapshots).
     var appearance: String? = nil
+    /// Settings › Low stimulation: the widgets drop their haze, honeycomb and glow too.
+    /// nil in older snapshots, which reads as off.
+    var lowStimulation: Bool? = nil
 
     static let empty = WidgetSnapshot(generated: .distantPast, entries: [], showTitlesOnLockScreen: true)
 
