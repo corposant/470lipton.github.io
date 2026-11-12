@@ -178,7 +178,7 @@ private extension EnvironmentValues {
 ///
 /// This is the widget's container background, so iOS takes it away in the Clear and
 /// Tinted Home Screen styles and in StandBy, and draws its own glass behind the content.
-/// That's the only way a widget can be see-through: WidgetKit draws a full-colour widget
+/// That's the only way a widget can be see-through: WidgetKit draws a full-color widget
 /// opaque, and materials there don't blur the wallpaper.
 ///
 /// Increase Contrast, Reduce Transparency or Low stimulation leave just the solid base,
