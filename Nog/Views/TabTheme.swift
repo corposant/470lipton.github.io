@@ -43,11 +43,14 @@ extension View {
             .environment(\.nogAccent, tab.accent)
     }
 
-    /// The tab's title in Futura, in its accent. Put it on the stack's root page (inside the
+    /// The tab's title in Futura, in its accent, on the same row as the Settings gear. Put it on the stack's root page (inside the
     /// NavigationStack, so it can reach the bar); pushed pages share the same bar.
     /// `title` replaces the tab's name for a while (e.g. "3 selected").
     func nogTabTitle(_ tab: AppTab, title: String? = nil) -> some View {
         navigationTitle(title ?? tab.title)
+            // The big title shares a row with the bar's buttons (Settings on the right)
+            // instead of taking a row of its own, so the page starts higher up.
+            .toolbarTitleDisplayMode(.inlineLarge)
             .background { NavigationTitleStyler(color: tab.accent) }
     }
 }

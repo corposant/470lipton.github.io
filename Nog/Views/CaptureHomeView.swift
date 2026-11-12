@@ -56,7 +56,9 @@ struct CaptureHomeView: View {
         NavigationStack(path: $router.capturePath) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    HStack(spacing: 10) {
+                    // The mic sits straight under the Settings gear: same glass circle,
+                    // same size, same right edge (the bar's 16-point margin).
+                    HStack(alignment: .center, spacing: 10) {
                         composer
                         micButton
                     }
@@ -69,7 +71,7 @@ struct CaptureHomeView: View {
                         SiriTipView(intent: CaptureIntent(), isVisible: $showSiriTip)
                     }
                 }
-                .padding(.horizontal, 18)
+                .padding(.horizontal, 16)
                 .padding(.top, 4)
                 .padding(.bottom, 24)
             }
@@ -121,8 +123,8 @@ struct CaptureHomeView: View {
             .lineLimit(1...6)
             .focused($focus, equals: .title)
             .submitLabel(.send)
-            .padding(.horizontal, 20)
-            .padding(.vertical, 14)
+            .padding(.horizontal, 18)
+            .padding(.vertical, 10)
             // At least as tall as the mic, so one line is a pill the same height.
             .frame(minHeight: Self.controlHeight)
             // Glass like the Settings gear and the mic: a pill on one line, rounding off
@@ -148,9 +150,10 @@ struct CaptureHomeView: View {
             }
     }
 
-    /// The text box and the mic share a height, so they line up as a pair.
-    private static let controlHeight: CGFloat = 56
-    private static let composerShape = RoundedRectangle(cornerRadius: 28, style: .continuous)
+    /// The height of a navigation bar button. The mic matches the Settings gear, and the
+    /// text box shares the height so the two line up as a pair.
+    private static let controlHeight: CGFloat = 44
+    private static let composerShape = RoundedRectangle(cornerRadius: 22, style: .continuous)
 
     /// Saves the nog, right under what you typed (Return on the keyboard does the same).
     private var saveButton: some View {
@@ -173,10 +176,13 @@ struct CaptureHomeView: View {
             let untitled = draft.isEmpty
             if let item = saveNog(forVoice: true) { voiceNog = VoiceNogID(id: item.id, untitled: untitled) }
         } label: {
+            // Drawn like a bar button so it matches the gear: same symbol size and weight,
+            // same 44-point circle.
             Image(systemName: "mic")
-                .nogFont(20, weight: .medium)
+                .font(.body.weight(.medium))
+                .imageScale(.large)
                 .foregroundStyle(Theme.pink)
-                .nogFrame(width: Self.controlHeight, height: Self.controlHeight)
+                .frame(width: Self.controlHeight, height: Self.controlHeight)
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
