@@ -33,7 +33,8 @@ enum ItemFile {
         if !tags.isEmpty { lines.append("tags: [\(tags.joined(separator: ", "))]") }
         if let since = item.doingSince { lines.append("doing_since: \(iso(since))") }
         if let box = item.timeboxMinutes { lines.append("timebox_minutes: \(box)") }
-        if let estimate = item.estimateMinutes { lines.append("estimate_minutes: \(estimate)") }
+        if item.urgent { lines.append("urgent: true") }
+        if let checkIn = item.checkInMinutes { lines.append("check_in_minutes: \(checkIn)") }
         if item.timeSpent > 0 { lines.append("time_spent: \(Int(item.timeSpent))") }
         if let r = item.reminder {
             lines.append("remind_at: \(iso(r.start))")
@@ -111,7 +112,8 @@ enum ItemFile {
         }
         item.doingSince = fields["doing_since"].flatMap(date)
         item.timeboxMinutes = fields["timebox_minutes"].flatMap { Int($0) }
-        item.estimateMinutes = fields["estimate_minutes"].flatMap { Int($0) }
+        item.urgent = fields["urgent"] == "true"
+        item.checkInMinutes = fields["check_in_minutes"].flatMap { Int($0) }.map { max(0, $0) }
         item.timeSpent = fields["time_spent"].flatMap { TimeInterval($0) } ?? 0
         if let start = fields["remind_at"].flatMap(date) {
             let repeatMinutes = fields["repeat_minutes"].flatMap { Int($0) }.flatMap { $0 > 0 ? $0 : nil }

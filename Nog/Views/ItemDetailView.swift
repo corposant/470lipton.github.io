@@ -64,7 +64,8 @@ private struct ItemEditor: View {
         switch new {
         case .doing: store.start(item.id)
         case .done: store.markDone(item.id)
-        case .open: item.isDoing ? store.stopDoing(item.id) : store.reopen(item.id)
+        case .open:
+            if item.isDoing { store.stopDoing(item.id) } else { store.reopen(item.id) }
         case .someday: set(\.status, .someday)
         }
     }
@@ -80,7 +81,9 @@ private struct ItemEditor: View {
                 stateSection
                 notesSection(proxy)
                 childrenSection
-                detailsSection
+                if item.totalTimeSpent() >= 60 || (item.reminder != nil && item.status != .open) {
+                    detailsSection
+                }
                 linksSection
             }
             .scrollDismissesKeyboard(.interactively)
@@ -146,6 +149,7 @@ private struct ItemEditor: View {
                 // Status, age and tags share one wrapping row under the title.
                 FlowLayout(spacing: 8) {
                     statusPill
+                    if item.status != .done { urgentChip }
                     Text(metaLine)
                         .font(.nogMeta)
                         .foregroundStyle(Theme.muted)
@@ -158,6 +162,28 @@ private struct ItemEditor: View {
             .listRowBackground(Color.clear)
             .listRowInsets(EdgeInsets(top: 4, leading: 4, bottom: 4, trailing: 4))
         }
+    }
+
+    /// Urgent on/off: urgent nogs are listed first and keep nogging after "Done for now".
+    private var urgentChip: some View {
+        Button {
+            withNogAnimation(.snappy) { store.setUrgent(item.id, !item.urgent) }
+        } label: {
+            Label(item.urgent ? "URGENT" : "Urgent?", systemImage: item.urgent ? "flag.fill" : "flag")
+                .font(item.urgent ? .nogLabel : .subheadline)
+                .tracking(item.urgent ? 1.5 : 0)
+                .foregroundStyle(item.urgent ? Theme.pink : Theme.muted)
+                .padding(.horizontal, 12)
+                .frame(minHeight: 32)
+                .background(item.urgent ? Theme.pink.opacity(0.12) : .clear, in: Capsule())
+                .overlay(Capsule().strokeBorder(item.urgent ? Theme.pink.opacity(0.55) : Theme.edgeStrong, lineWidth: 1))
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Urgent")
+        .accessibilityValue(item.urgent ? "On" : "Off")
+        .accessibilityAddTraits(item.urgent ? [.isButton, .isSelected] : .isButton)
+        .accessibilityHint("Urgent nogs are listed first and keep nogging after Done for now")
     }
 
     /// The status, coloured by state. Tap to turn the knob.
@@ -199,12 +225,9 @@ private struct ItemEditor: View {
         }
     }
 
-    /// "~15 min · Tue"
+    /// "Tue"
     private var metaLine: String {
-        var parts: [String] = []
-        if let estimate = item.estimateMinutes { parts.append("~" + IntervalFormat.amount(estimate)) }
-        parts.append(Self.dayWord(item.created).capitalized)
-        return parts.joined(separator: " · ")
+        Self.dayWord(item.created).capitalized
     }
 
     /// "today", "yesterday", "Tue", or "Nov 3".
@@ -237,7 +260,15 @@ private struct ItemEditor: View {
                     .listRowInsets(EdgeInsets(top: 4, leading: 4, bottom: 4, trailing: 4))
             }
         case .open, .someday:
-            // Start and Done sit inside the timer panel, under the next nog.
+            // ▶︎ on a nog with sub-nogs starts its first step: show that step's timer here too.
+            if let step = store.doingDescendant(of: item.id) {
+                Section {
+                    DoingCard(item: step)
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets(top: 4, leading: 4, bottom: 4, trailing: 4))
+                }
+            }
+            // Start and Complete sit inside the timer panel, under the next nog.
             Section {
                 if item.status == .someday {
                     DreamCard(reopen: { store.reopen(item.id) }) { actions }
@@ -250,7 +281,7 @@ private struct ItemEditor: View {
         }
     }
 
-    /// ▶︎ Start and ✓ Done, side by side, at the foot of the timer panel. Finishing is its own clearly-labelled
+    /// ▶︎ Start and ✓ Complete, side by side, at the foot of the timer panel. Finishing is its own clearly-labelled
     /// action, never a "save" button: edits on this page are saved as you make them.
     private var actions: some View {
         // Stacked at the accessibility text sizes, so neither button truncates.
@@ -263,7 +294,7 @@ private struct ItemEditor: View {
             } label: {
                 HStack(spacing: 8) {
                     Image(systemName: "checkmark").nogFont(12, weight: .bold)
-                    Text("DONE").font(.nogTitle(13)).tracking(2)
+                    Text("COMPLETE").font(.nogTitle(13)).tracking(2)
                 }
                 .foregroundStyle(StatusDial.tint(.done))
                 .padding(.vertical, 15)
@@ -273,7 +304,8 @@ private struct ItemEditor: View {
                 .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
             }
             .buttonStyle(.borderless)
-            .accessibilityLabel("Mark done")
+            .accessibilityLabel("Complete")
+            .accessibilityHint("Marks it finished")
         }
     }
 
@@ -364,7 +396,9 @@ private struct ItemEditor: View {
                 Image(systemName: "plus").foregroundStyle(Theme.muted)
                 // Multi-line field: Return arrives as a newline, which we turn into "add this one
                 // and keep typing". A single-line field would end editing and drop the keyboard.
-                TextField("Add sub-nog", text: $newChild, axis: .vertical)
+                // No steps yet: ask for the smallest physical one (the two-minute start).
+                TextField(children.isEmpty && item.status != .done ? "First 2-minute step…" : "Add sub-nog",
+                          text: $newChild, axis: .vertical)
                     .focused($childFieldFocused)
                     .submitLabel(.next)
                     .onChange(of: newChild) { addChildrenOnReturn() }
@@ -391,6 +425,14 @@ private struct ItemEditor: View {
                         .tint(Theme.blue)
                         .frame(width: 70)
                 }
+            }
+        } footer: {
+            if children.isEmpty, item.status != .done {
+                Text(StepHint.isVague(item.title)
+                     ? "\"\(StepHint.leadingVerb(item.title) ?? "That")\" is hard to start. What's the first thing you'd physically do? Like \"open the laptop\" or \"find the form\"."
+                     : "What's the smallest thing you could physically do in two minutes? ▶︎ starts with it.")
+                    .font(.footnote)
+                    .foregroundStyle(Theme.muted)
             }
         }
         .listRowBackground(Theme.glass)
@@ -500,13 +542,6 @@ private struct ItemEditor: View {
 
     private var detailsSection: some View {
         Section {
-            Picker("Estimate", selection: Binding(
-                get: { item.estimateMinutes ?? 0 },
-                set: { set(\.estimateMinutes, $0 > 0 ? $0 : nil) })) {
-                Text("None").tag(0)
-                ForEach(Array(Set(NogSettings.timeboxChoices + [item.estimateMinutes ?? 0])).filter { $0 > 0 }.sorted(),
-                        id: \.self) { Text(IntervalFormat.amount($0)).tag($0) }
-            }
             if item.totalTimeSpent() >= 60 {
                 LabeledContent("Time spent", value: DurationFormat.short(item.totalTimeSpent()))
             }

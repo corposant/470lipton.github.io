@@ -46,10 +46,10 @@ struct DoingLiveActivity: Widget {
             } compactTrailing: {
                 CompactTimer(context: context)
             } minimal: {
-                Image(systemName: context.isStale ? "bell" : "timer")
-                    .foregroundStyle(context.isStale ? Theme.pink : Theme.blue)
+                Image(systemName: context.isStale ? "sparkles" : "timer")
+                    .foregroundStyle(context.isStale ? Theme.violet : Theme.blue)
                     .accessibilityLabel(context.isStale
-                        ? "Time's up for \(context.attributes.title)"
+                        ? "Starter done, still on \(context.attributes.title)"
                         : "Doing \(context.attributes.title)")
             }
             .keylineTint(Theme.blue)
@@ -82,7 +82,7 @@ private struct DoingActivityView: View {
                 }
                 .buttonStyle(.plain)
                 .background(Theme.blue.opacity(0.25), in: Circle())
-                .accessibilityLabel("Done")
+                .accessibilityLabel("Complete")
             }
             .padding(10)
         } else {
@@ -94,12 +94,18 @@ private struct DoingActivityView: View {
                         .foregroundStyle(Theme.blue)
                         .accessibilityLabel("Doing")
                     Spacer()
-                    if let end = context.state.endsAt {
+                    if context.isStale {
+                        Text("KEEP GOING OR STOP · BOTH COUNT")
+                            .font(.nogMeta)
+                            .foregroundStyle(Theme.violet)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                    } else if let end = context.state.endsAt {
                         let minutes = Int(end.timeIntervalSince(context.state.startedAt) / 60)
-                        Text("\(minutes) MIN BOX")
+                        Text("\(minutes) MIN START")
                             .font(.nogMeta)
                             .foregroundStyle(Theme.muted)
-                            .accessibilityLabel("\(minutes) minute timebox")
+                            .accessibilityLabel("\(minutes) minute starter timer")
                     }
                 }
                 HStack(alignment: .center) {
@@ -131,15 +137,18 @@ private struct DoingActivityView: View {
     }
 }
 
-/// Counts down a timebox, or up when open-ended. "Time's up" once past the end.
+/// Counts down the starter timer (two minutes), then counts up the time logged this session.
+/// Open-ended sessions just count up. The flip needs no update from the app: past the end the
+/// activity is "stale", and a timer from the start date counts up by itself.
 private struct DoingTimer: View {
     let context: ActivityViewContext<DoingAttributes>
 
     var body: some View {
         if let end = context.state.endsAt {
             if context.isStale {
-                Text("TIME'S UP").foregroundStyle(Theme.pink)
-                    .accessibilityLabel("Time's up. Mark it done, add time, or stop.")
+                Text(context.state.startedAt, style: .timer)
+                    .foregroundStyle(Theme.lcd)
+                    .accessibilityLabel(Text("Starter done. Logged \(Text(context.state.startedAt, style: .timer)). Keep going or stop."))
             } else {
                 Text(timerInterval: context.state.startedAt...end, countsDown: true)
                     .accessibilityLabel(Text("Time left \(Text(timerInterval: context.state.startedAt...end, countsDown: true))"))
@@ -157,9 +166,9 @@ private struct CompactTimer: View {
     let context: ActivityViewContext<DoingAttributes>
 
     var body: some View {
-        if isLimitedInWidth || context.isStale {
-            Image(systemName: context.isStale ? "bell" : "timer")
-                .foregroundStyle(context.isStale ? Theme.pink : Theme.blue)
+        if isLimitedInWidth {
+            Image(systemName: context.isStale ? "sparkles" : "timer")
+                .foregroundStyle(context.isStale ? Theme.violet : Theme.blue)
         } else {
             DoingTimer(context: context)
                 .font(.nogReadout(14))
@@ -173,22 +182,18 @@ private struct DoingButtons: View {
     let itemID: UUID
 
     var body: some View {
+        // Same order as in the app: stop for now, then finish for good.
         HStack(spacing: 8) {
+            Button(intent: StopDoingIntent(itemID: itemID.uuidString)) {
+                Label("Done for now", systemImage: "pause.fill")
+            }
+            .buttonStyle(OutlineButtonStyle(tint: Theme.violet))
+            .accessibilityHint("Stops for now and logs your time. It comes back tomorrow.")
             Button(intent: CompleteItemIntent(itemID: itemID.uuidString)) {
-                Label("Done", systemImage: "checkmark")
+                Label("Complete", systemImage: "checkmark")
             }
             .buttonStyle(OutlineButtonStyle(tint: Theme.blue))
-            Button(intent: ExtendTimeboxIntent(itemID: itemID.uuidString, minutes: 10)) {
-                Text("+10 min")
-            }
-            .buttonStyle(OutlineButtonStyle(tint: Theme.pink))
-            .accessibilityLabel("Add 10 minutes")
-            Button(intent: StopDoingIntent(itemID: itemID.uuidString)) {
-                Image(systemName: "stop.fill").font(.caption)
-            }
-            .buttonStyle(OutlineButtonStyle(tint: Theme.muted, expands: false))
-            .accessibilityLabel("Stop")
-            .accessibilityHint("Stops the timer without finishing. The nog stays open.")
+            .accessibilityHint("Marks it finished")
         }
     }
 }

@@ -26,6 +26,9 @@ struct PlannedNotification: Hashable {
     var isHeadsUp = false
     /// Hush: no sound, and no Time Sensitive break-through.
     var silent = false
+    /// The end of the two-minute start: plays Nog's soft chime instead of the usual sound,
+    /// and never breaks through as Time Sensitive.
+    var chime = false
 
     var fireDate: Date? {
         if case .at(let date) = trigger { return date }
@@ -54,10 +57,18 @@ enum NogPlanner {
     static let categoryHeadsUp = "NOG_HEADS"
     static let defaultBudget = 60
 
+    /// While counting up past the starter timer (or open-ended).
+    static let checkInBody = "Still on it? Your time is being logged."
+
+    /// When the starter timer runs out: permission to stop, and an open door to keep going.
+    static func starterDoneBody(minutes: Int) -> String {
+        "\(minutes == 2 ? "Two minutes" : IntervalFormat.amount(minutes)) done. Keep going, or stop here. Both count."
+    }
+
     /// The notification category for an item's nogs: "NOG", or e.g. "NOG_S30_M510_G" when it has
     /// its own snooze length / morning time, or a profile with its own buttons, so its notification
     /// buttons say the right thing. "_G": the profile has a Gentler step. "_K": Skip today, not
-    /// Snooze till morning (Daily, Teatime).
+    /// Snooze till morning (Balanced, Teatime).
     static func category(for reminder: Reminder?) -> String {
         var id = categoryNog
         if let s = reminder?.snoozeMinutes { id += "_S\(s)" }
@@ -123,9 +134,7 @@ enum NogPlanner {
         for (item, r) in candidates {
             let title = titles[item.id] ?? item.title
             let doing = item.isDoing
-            let body = doing
-                ? (item.timeboxMinutes != nil ? "Time's up. Done, or 10 more?" : "Still on it?")
-                : bannerLine(for: r)
+            let body = doing ? checkInBody : bannerLine(for: r)
             let category = doing ? categoryDoing : self.category(for: item.reminder)
             // A change of category (its buttons) must replace already-scheduled nogs.
             // So does turning Hush on or off (the sound is baked into each request), or a new banner line.
@@ -138,7 +147,7 @@ enum NogPlanner {
                 PlannedNotification(identifier: "\(base).\(kind).\(Int(date.timeIntervalSince1970)).\(titleTag)",
                                     itemID: item.id, title: title, body: body, trigger: .at(date),
                                     category: kind == "heads" ? categoryHeadsUp : category,
-                                    isHeadsUp: kind == "heads", silent: r.silent)
+                                    isHeadsUp: kind == "heads", silent: r.silent, chime: kind == "chime")
             }
 
             // Heads-up before a dated nog starts: the global one, plus Building's 15 / 5 / 1 min
@@ -191,6 +200,10 @@ enum NogPlanner {
                 // With an alarm coming, each nog before it says how many are left.
                 let alarms = ringing.sorted()
                 let nogs = dates.map { date -> PlannedNotification in
+                    // The starter timer running out: the soft chime, not a nag.
+                    if doing, date == item.timeboxEnd, let minutes = item.timeboxMinutes {
+                        return oneShot(date, body: starterDoneBody(minutes: minutes), kind: "chime")
+                    }
                     guard !doing, let alarm = alarms.first(where: { $0 > date }) else { return oneShot(date) }
                     let left = dates.filter { $0 > date && $0 < alarm }.count
                     return oneShot(date, body: alarmCountdown(nogsBeforeAlarm: left), kind: "at\(left)")

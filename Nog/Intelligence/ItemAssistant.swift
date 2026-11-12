@@ -28,12 +28,15 @@ enum ItemAssistant {
         "Get it done", "get it fixed" or "book" means someone else does it, so the steps are about arranging that. \
         "Do it" or "fix it" means the person does it, so the steps are about getting what they need and starting. \
         Use the specific things the item names. Keep the person's words where you can. \
+        Each step must be small enough to start in two minutes; the very first should be the \
+        easiest thing to physically begin (open, pick up, find, put on). \
         Stop at the first few steps, not the whole job. Never repeat steps they already have.
 
         Example: "Get the oil changed" -> Find a service shop nearby; Call to book an appointment
         Example: "Do the oil change" -> Check for sales on oil; Buy an oil filter and crush washer; \
         Buy 6 litres of 0W-20 oil
         Example: "Clean the kitchen" -> Put dishes in the sink; Wipe the counters; Take out the trash
+        Example: "Write the report" -> Open the laptop; Open a blank document; Type the report's title
         Example: "Renew passport" -> Find the renewal form online; Print the form; Get a passport photo taken
         """
 

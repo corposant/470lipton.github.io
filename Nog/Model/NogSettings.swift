@@ -5,15 +5,21 @@ enum NogSettings {
     static let firstDelayKey = "firstDelayMinutes"
     static let repeatKey = "repeatMinutes"
     static let curveKey = "repeatCurve"
-    static let timeboxKey = "defaultTimeboxMinutes"
-    static let defaultTimebox = 25
+    /// The two-minute start: ▶︎ always begins with this short starter timer, then counts up.
+    /// A new key, so the old 25-minute "Default timebox" doesn't carry over.
+    static let timeboxKey = "starterMinutes"
+    static let defaultTimebox = 2
 
-    /// Default ▶︎ timebox in minutes; 0 = open-ended.
+    /// The ▶︎ starter timer in minutes.
     static var timeboxMinutes: Int {
-        UserDefaults.standard.object(forKey: timeboxKey) as? Int ?? defaultTimebox
+        let minutes = UserDefaults.standard.object(forKey: timeboxKey) as? Int ?? defaultTimebox
+        return minutes > 0 ? minutes : defaultTimebox
     }
 
-    static let timeboxChoices = [5, 10, 15, 25, 30, 45, 60, 90, 120]
+    /// Settings › Doing › Starter.
+    static let starterChoices = [2, 5, 10]
+    /// Hold ▶︎ to start with a longer timer instead.
+    static let timeboxChoices = [2, 5, 10, 15, 25, 45, 60, 90]
 
     static let defaultFirstDelay = 15
     static let defaultRepeat = 8
@@ -210,7 +216,6 @@ extension NogSettings {
         static let sound = "notificationSound"
         static let showTitles = "showTitlesOnLockScreen"
         static let badge = "appIconBadge"
-        static let timesUpEvery = "timesUpEvery"
         static let checkInEvery = "checkInEvery"     // 0 = off
         static let liveActivity = "liveActivityEnabled"
     }
@@ -231,8 +236,7 @@ extension NogSettings {
                               weekends: bool(Key.quietWeekends, false)),
             headsUpMinutes: int(Key.headsUp, 0),
             escalateAfter: int(Key.escalateAfter, 0),
-            timesUpEvery: int(Key.timesUpEvery, 5),
-            checkInEvery: { let v = int(Key.checkInEvery, 60); return v > 0 ? v : nil }(),
+            checkInEvery: { let v = int(Key.checkInEvery, defaultCheckIn); return v > 0 ? v : nil }(),
             silencedUntil: silencedUntil)
     }
 
@@ -283,6 +287,7 @@ extension NogSettings {
     static let escalateChoices = [0, 3, 5, 10, 20]
     /// Snooze lengths, for the Settings default and each item's own.
     static let snoozeChoices = [5, 10, 15, 30, 60, 120, 180, 240, 480]
-    static let timesUpChoices = [1, 2, 5, 10, 15]
-    static let checkInChoices = [0, 30, 60, 120]
+    /// "Still on it?" while a session counts up. 0 = off.
+    static let defaultCheckIn = 15
+    static let checkInChoices = [15, 30, 60, 0]
 }

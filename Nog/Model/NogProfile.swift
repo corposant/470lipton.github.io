@@ -5,7 +5,7 @@ import Foundation
 ///
 /// Listed gentlest to loudest; pickers show them in this order.
 enum NogProfile: String, CaseIterable, Identifiable {
-    case hush, teatime, whisper, daily, easing, steady, building, unhinged
+    case hush, teatime, whisper, balanced, easing, steady, building, unhinged
     var id: String { rawValue }
 
     var label: String {
@@ -13,7 +13,7 @@ enum NogProfile: String, CaseIterable, Identifiable {
         case .hush: "Hush"
         case .teatime: "Teatime"
         case .whisper: "Whisper"
-        case .daily: "Daily"
+        case .balanced: "Balanced"
         case .easing: "Easing"
         case .steady: "Steady"
         case .building: "Building"
@@ -26,7 +26,7 @@ enum NogProfile: String, CaseIterable, Identifiable {
         case .hush: "Every 15 min. Silent banner, no sound."
         case .teatime: "4 PM, every other day."
         case .whisper: "Hourly, easing off to daily."
-        case .daily: "Once a day, same time."
+        case .balanced: "Once a day, then twice, then three times a day."
         case .easing: "8 min, 16, 32… easing off to daily."
         case .steady: "After 15 min, then every 8."
         case .building: "Countdown, then every 30 min, speeding up to 4."
@@ -39,7 +39,7 @@ enum NogProfile: String, CaseIterable, Identifiable {
         case .hush: "speaker.slash.fill"
         case .teatime: "cup.and.saucer.fill"
         case .whisper: "wind"
-        case .daily: "sunrise.fill"
+        case .balanced: "sunrise.fill"
         case .easing: "chart.line.downtrend.xyaxis"
         case .steady: "metronome"
         case .building: "chart.line.uptrend.xyaxis"
@@ -53,7 +53,7 @@ enum NogProfile: String, CaseIterable, Identifiable {
         case .hush: 15
         case .teatime: 0
         case .whisper: 60
-        case .daily: 1440
+        case .balanced: 1440
         case .easing: 8
         case .steady: 15
         case .building: 30
@@ -66,7 +66,7 @@ enum NogProfile: String, CaseIterable, Identifiable {
         case .hush: 15
         case .teatime: 2880
         case .whisper: 60
-        case .daily: 1440
+        case .balanced: 1440
         case .easing: 8
         case .steady: 8
         case .building: 30
@@ -78,14 +78,15 @@ enum NogProfile: String, CaseIterable, Identifiable {
         switch self {
         case .whisper, .easing: .logarithmic
         case .building: .building
-        case .hush, .teatime, .daily, .steady, .unhinged: .steady
+        case .balanced: .balanced
+        case .hush, .teatime, .steady, .unhinged: .steady
         }
     }
 
     /// nil = follow the global "ring as an alarm after" setting; 0 = never.
     var escalateAfter: Int? {
         switch self {
-        case .hush, .teatime, .whisper, .daily: 0
+        case .hush, .teatime, .whisper, .balanced: 0
         case .steady, .easing, .building: nil
         case .unhinged: 3
         }
@@ -97,7 +98,7 @@ enum NogProfile: String, CaseIterable, Identifiable {
         case .hush: "Quiet nog."
         case .teatime: "Tea time."
         case .whisper: "When you're ready."
-        case .daily: "Today's nog."
+        case .balanced: "Today's nog."
         case .easing: "Easing off."
         case .steady: "Still here."
         case .building: "Getting louder."
@@ -112,12 +113,12 @@ enum NogProfile: String, CaseIterable, Identifiable {
         case .building: .steady
         case .steady: .easing
         case .easing: .whisper
-        case .hush, .teatime, .whisper, .daily: nil
+        case .hush, .teatime, .whisper, .balanced: nil
         }
     }
 
     /// Nogs once a day or less: their notifications offer "Skip today" instead of "Snooze till 9 AM".
-    var skipsDays: Bool { self == .daily || self == .teatime }
+    var skipsDays: Bool { self == .balanced || self == .teatime }
 
     /// No sound and no Time Sensitive break-through, whatever the global settings say.
     var silent: Bool { self == .hush }
@@ -178,7 +179,7 @@ enum NogProfile: String, CaseIterable, Identifiable {
         }
     }
 
-    /// Capture tokens: `!hush`, `!whisper`, `!daily`, `!easing`, `!steady`, `!building`,
+    /// Capture tokens: `!hush`, `!whisper`, `!balanced` (or `!daily`), `!easing`, `!steady`, `!building`,
     /// `!teatime` (or `!tea`), `!unhinged`, or the first few letters of one (`!unh`, `!hyp`, `!bui`).
     /// `!gentle` still means Whisper; `!tea` is Teatime.
     static func token(_ word: String) -> NogProfile? {
@@ -192,7 +193,8 @@ enum NogProfile: String, CaseIterable, Identifiable {
     }
 
     /// Other words that pick a profile.
-    static let aliases: [String: NogProfile] = ["gentle": .whisper, "tea": .teatime]
+    /// `!daily` picks Balanced, which replaced Daily (Daily nogs already saved stay as they were).
+    static let aliases: [String: NogProfile] = ["gentle": .whisper, "tea": .teatime, "daily": .balanced]
 
     /// Profiles you can type in a capture: all of them.
     static let tokenProfiles: [NogProfile] = allCases

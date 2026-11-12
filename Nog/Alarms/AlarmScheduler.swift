@@ -77,7 +77,8 @@ final class AlarmScheduler {
     }
 
     /// Which upcoming nogs ring as alarms: all of them for "ring like an alarm" items
-    /// (and their time's-up), or, with escalation on, every nog after N ignored ones.
+    /// (and their check-ins while you're on it), or, with escalation on, every nog after N ignored
+    /// ones. The end of the two-minute start never rings: it's a soft chime.
     /// Quiet hours apply to alarms too.
     nonisolated static func alarmDates(for item: Item, policy: NogPolicy, now: Date, limit: Int = alarmsPerItem) -> [Date] {
         guard let reminder = item.effectiveReminder(policy: policy) else { return [] }
@@ -90,8 +91,9 @@ final class AlarmScheduler {
         } else {
             return []
         }
+        let chime = item.isDoing ? item.timeboxEnd : nil
         return Array(reminder.fireDates(after: from, limit: limit * 3)
-            .filter { !policy.quiet.contains($0) && !policy.isSilenced(at: $0) }
+            .filter { $0 != chime && !policy.quiet.contains($0) && !policy.isSilenced(at: $0) }
             .prefix(limit))
     }
 

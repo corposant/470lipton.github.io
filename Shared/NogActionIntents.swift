@@ -7,7 +7,7 @@ import Foundation
 // same types (so its buttons can reference them) without the app's store.
 
 struct CompleteItemIntent: LiveActivityIntent {
-    static var title: LocalizedStringResource = "Mark Nog Item Done"
+    static var title: LocalizedStringResource = "Complete Nog Item"
     static var isDiscoverable = false
     static var openAppWhenRun = false
 
@@ -75,7 +75,7 @@ struct ExtendTimeboxIntent: LiveActivityIntent {
 }
 
 struct StopDoingIntent: LiveActivityIntent {
-    static var title: LocalizedStringResource = "Stop Working"
+    static var title: LocalizedStringResource = "Done for Now"
     static var isDiscoverable = false
     static var openAppWhenRun = false
 
@@ -87,13 +87,14 @@ struct StopDoingIntent: LiveActivityIntent {
 
     func perform() async throws -> some IntentResult {
         #if !WIDGET_EXTENSION
-        await NogActions.run(itemID) { store, id in store.stopDoing(id) }
+        await NogActions.run(itemID) { store, id in _ = store.stopDoing(id) }
         #endif
         return .result()
     }
 }
 
-/// ▶︎ on a widget: start doing an item with Nog's suggested timebox, which starts its Live Activity.
+/// ▶︎ on a widget: start doing an item (its first unfinished sub-nog, if it has any) with the
+/// two-minute starter timer, which starts its Live Activity.
 struct StartDoingIntent: LiveActivityIntent {
     static var title: LocalizedStringResource = "Start Nog Item"
     static var isDiscoverable = false

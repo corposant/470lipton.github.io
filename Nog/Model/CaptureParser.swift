@@ -17,7 +17,8 @@ struct CaptureResult: Equatable {
     var title: String
     var reminder: Reminder?
     var tags: [String]
-    var estimateMinutes: Int? = nil
+    /// `!urgent` or `!!`: flagged urgent.
+    var urgent = false
     /// Comes back after it's done ("every morning", "every Tuesday").
     var recurrence: Recurrence? = nil
     /// "when I get home"
@@ -35,10 +36,10 @@ struct CaptureResult: Equatable {
 ///                       use a nog profile (or just its first three letters: `!hus` `!unh`…;
 ///                       `!gentle` = Whisper, `!tea` = Teatime)
 ///   `!off` / `!idea`    no reminder at all
+///   `!urgent` / `!!`    flag it urgent (listed first)
 ///   `@30m` `@2h` `@1d`  start nogging in 30 minutes / 2 hours / 1 day
 ///   `@now`              start now
 ///   `#tag`              add a tag
-///   `~30m` `~2h`        how long it'll take (the ▶︎ timebox)
 ///
 /// …and plain English, via `NaturalDateParser`: "lunch next Tues",
 /// "call mom tomorrow at 3", "pills every 4 hours", "stretch in 20 min",
@@ -52,8 +53,8 @@ enum CaptureParser {
         var once = false
         var curveOverride: RepeatCurve?
         var alarm = false
+        var urgent = false
         var profile: NogProfile?
-        var estimate: Int?
         var repeatOverride: Int?
         var delayOverride: Int?
 
@@ -73,6 +74,9 @@ enum CaptureParser {
             case "!alarm", "!ring":
                 alarm = true
                 continue
+            case "!urgent", "!!":
+                urgent = true
+                continue
             case _ where NogProfile.token(lower) != nil:
                 profile = NogProfile.token(lower)
                 continue
@@ -88,10 +92,6 @@ enum CaptureParser {
             }
             if lower.hasPrefix("@"), let m = minutes(lower.dropFirst()) {
                 delayOverride = m
-                continue
-            }
-            if lower.hasPrefix("~"), let m = minutes(lower.dropFirst()), m > 0 {
-                estimate = m
                 continue
             }
             if word.hasPrefix("#"), word.count > 1 {
@@ -110,11 +110,11 @@ enum CaptureParser {
         let natural = NaturalDateParser.parse(words.joined(separator: " "), now: now, calendar: calendar)
         let title = natural.title
         if noReminder {
-            return CaptureResult(title: title, reminder: nil, tags: tags, estimateMinutes: estimate, place: place)
+            return CaptureResult(title: title, reminder: nil, tags: tags, urgent: urgent, place: place)
         }
         // At a place and no time given: it waits for the place, then nogs from there.
         if place != nil, natural.start == nil, delayOverride == nil {
-            return CaptureResult(title: title, reminder: nil, tags: tags, estimateMinutes: estimate, place: place)
+            return CaptureResult(title: title, reminder: nil, tags: tags, urgent: urgent, place: place)
         }
         let effective = profile.map {
             CaptureDefaults(firstDelayMinutes: $0.firstDelayMinutes, repeatMinutes: $0.repeatMinutes,
@@ -133,7 +133,7 @@ enum CaptureParser {
         let reminder = Reminder(start: start, repeatMinutes: repeatMinutes,
                                 curve: curveOverride ?? effective.curve, alarm: alarm, silent: effective.silent,
                                 escalateAfter: effective.escalateAfter)
-        return CaptureResult(title: title, reminder: reminder, tags: tags, estimateMinutes: estimate,
+        return CaptureResult(title: title, reminder: reminder, tags: tags, urgent: urgent,
                              recurrence: natural.recurrence, place: place)
     }
 

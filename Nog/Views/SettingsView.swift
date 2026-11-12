@@ -511,7 +511,7 @@ struct ProfileCard: View {
 
     private var tint: Color {
         switch profile {
-        case .hush, .teatime, .whisper, .daily: Theme.blue
+        case .hush, .teatime, .whisper, .balanced: Theme.blue
         case .steady, .easing, .building: Theme.violet
         case .unhinged: Theme.pink
         }
@@ -522,34 +522,31 @@ struct ProfileCard: View {
 private struct DoingPage: View {
     @Environment(ItemStore.self) private var store
     @AppStorage(NogSettings.timeboxKey) private var timebox = NogSettings.defaultTimebox
-    @AppStorage(NogSettings.Key.timesUpEvery) private var timesUpEvery = 5
-    @AppStorage(NogSettings.Key.checkInEvery) private var checkInEvery = 60
+    @AppStorage(NogSettings.Key.checkInEvery) private var checkInEvery = NogSettings.defaultCheckIn
     @AppStorage(NogSettings.Key.liveActivity) private var liveActivity = true
 
     var body: some View {
         List {
             Section {
-                Picker("Default timebox", selection: $timebox) {
-                    Text("Open-ended").tag(0)
-                    ForEach(NogSettings.timeboxChoices, id: \.self) { Text(IntervalFormat.amount($0)).tag($0) }
+                Picker("Starter", selection: $timebox) {
+                    ForEach(NogSettings.starterChoices, id: \.self) { Text(IntervalFormat.amount($0)).tag($0) }
                 }
             } header: {
                 SectionLabel(title: "▶︎ Doing")
             } footer: {
-                Text("Used when there's no estimate or history.")
+                Text("▶︎ starts a short timer for the smallest next step. When it ends you'll hear a soft chime and can stop, guilt-free. Or keep going: the timer counts up and logs your time. Hold ▶︎ for a longer timer.")
             }
             .listRowBackground(Theme.glass)
 
             Section {
-                Picker("“Time's up” repeats", selection: $timesUpEvery) {
-                    ForEach(NogSettings.timesUpChoices, id: \.self) { Text("every \(IntervalFormat.short($0))").tag($0) }
-                }
-                Picker("Open-ended check-in", selection: $checkInEvery) {
+                Picker("“Still on it?” check-in", selection: $checkInEvery) {
                     ForEach(NogSettings.checkInChoices, id: \.self) { Text($0 == 0 ? "Off" : "every \(IntervalFormat.short($0))").tag($0) }
                 }
                 Toggle("Live Activity", isOn: $liveActivity)
             } header: {
                 SectionLabel(title: "While you're on it")
+            } footer: {
+                Text("Check-ins start once the starter timer ends. Hold the timer to change them for one session.")
             }
             .listRowBackground(Theme.glass)
             .tint(Theme.blue)

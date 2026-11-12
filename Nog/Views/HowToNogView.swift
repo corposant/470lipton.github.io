@@ -44,9 +44,9 @@ struct HowToNogView: View {
                 ("!once", "once, no repeat"),
                 ("!off", "no reminder"),
                 ("!alarm", "rings like an alarm"),
+                ("!urgent  !!", "urgent: listed first"),
                 ("!whisper  !steady  !building  !unhinged", "a style (three letters will do)"),
-                ("!hush  !teatime  !daily  !easing", "more styles"),
-                ("~30m  ~2h", "how long it'll take"),
+                ("!hush  !teatime  !balanced  !easing", "more styles"),
             ])
         }
         .nogListStyle()

@@ -43,7 +43,7 @@ final class DoingActivities {
             endsAt: item.timeboxEnd,
             priorSeconds: item.timeSpent,
             isUrgent: item.reminder?.alarm ?? false)
-        // Past the end the activity goes "stale", which the view shows as "Time's up".
+        // Past the starter timer the activity goes "stale", which the view shows as counting up.
         return ActivityContent(state: state, staleDate: item.timeboxEnd, relevanceScore: 100)
     }
 }

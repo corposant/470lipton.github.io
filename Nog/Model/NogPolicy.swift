@@ -42,10 +42,9 @@ struct NogPolicy: Equatable {
     var headsUpMinutes = 0
     /// After this many ignored nogs, an item starts ringing as an alarm (0 = never).
     var escalateAfter = 0
-    /// While doing: how often "time's up" repeats.
-    var timesUpEvery = 5
-    /// While doing open-ended: an hourly-ish "still on it?" (nil = off).
-    var checkInEvery: Int? = 60
+    /// While doing, once the starter timer has run out (or open-ended): how often
+    /// "still on it?" comes (nil = off). One session can change it with a long press on the timer.
+    var checkInEvery: Int? = 15
     /// Silence (from the app icon or Settings): nothing nogs or rings before this.
     /// `Date.distantFuture` = until turned back on. Nogs due meanwhile come once it ends.
     var silencedUntil: Date? = nil

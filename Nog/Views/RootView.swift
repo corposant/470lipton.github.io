@@ -164,15 +164,15 @@ struct ItemListView: View {
                 .sorted { ($0.doingSince ?? .distantPast) < ($1.doingSince ?? .distantPast) }
             let open = all.filter(\.isOpen)
             let due = open.filter { $0.reminder?.isActive(at: now) == true }
-                .sorted { $0.reminder!.start < $1.reminder!.start }
+                .sorted { Item.urgentFirst($0, $1) { $0.reminder!.start < $1.reminder!.start } }
             let upcoming = open.filter { $0.reminder.map { !$0.isActive(at: now) } ?? false }
-                .sorted { $0.reminder!.start < $1.reminder!.start }
+                .sorted { Item.urgentFirst($0, $1) { $0.reminder!.start < $1.reminder!.start } }
             let laterToday = upcoming.filter { Calendar.current.isDate($0.reminder!.start, inSameDayAs: now) }
             let onDeck = upcoming.filter { !Calendar.current.isDate($0.reminder!.start, inSameDayAs: now) }
             let atPlace = open.filter { $0.reminder == nil && $0.place != nil }
-                .sorted { $0.created < $1.created }
+                .sorted { Item.urgentFirst($0, $1) { $0.created < $1.created } }
             let ideas = open.filter { $0.reminder == nil && $0.place == nil }
-                .sorted { $0.updated > $1.updated }
+                .sorted { Item.urgentFirst($0, $1) { $0.updated > $1.updated } }
             let someday = all.filter { $0.status == .someday }
                 .sorted { $0.updated > $1.updated }
             let done = all.filter { $0.status == .done }
@@ -276,10 +276,16 @@ struct ItemRow: View {
             if item.status == .done {
                 Button("Reopen") { store.reopen(item.id) }.tint(Theme.violet)
             } else {
-                Button("Done") { store.markDone(item.id) }.tint(Theme.blue)
+                Button("Complete") { store.markDone(item.id) }.tint(Theme.blue)
                 if !item.isDoing {
                     Button("Start") { store.start(item.id) }.tint(Theme.violet)
                 }
+                Button {
+                    store.setUrgent(item.id, !item.urgent)
+                } label: {
+                    Label(item.urgent ? "Not urgent" : "Urgent", systemImage: item.urgent ? "flag.slash" : "flag.fill")
+                }
+                .tint(Theme.pink)
             }
         }
         // No full swipe here: a long swipe shouldn't delete anything by accident.
@@ -307,7 +313,7 @@ struct ItemRow: View {
                 }
                 .tint(Theme.violet)
             } else if item.isDoing {
-                Button("+10 min") { store.extend(item.id, minutes: 10) }.tint(Theme.pink)
+                Button("Done for now") { store.stopDoing(item.id) }.tint(Theme.violet)
             }
         }
         .confirmationDialog("Delete this item?", isPresented: $confirmDelete, titleVisibility: .visible) {
@@ -341,20 +347,19 @@ struct ItemRow: View {
         let counts = self.counts
         let childCount = counts.total
         var parts: [String] = []
+        if item.urgent, item.status != .done { parts.append("⚑ Urgent") }
         if let text = reminderText { parts.append(text) }
         if let recurrence = item.recurrence, item.status != .done { parts.append("repeats \(recurrence.summary)") }
         if let place = item.place, item.isOpen {
             parts.append(place.phrase + (PlaceBook.place(named: place.name) == nil ? " (place not set up)" : ""))
         }
         if item.isDoing, let end = item.timeboxEnd {
-            parts.append(end > now ? "Doing · \(end.formatted(.relative(presentation: .named))) left" : "Doing · time's up")
+            parts.append(end > now ? "Doing · \(end.formatted(.relative(presentation: .named))) left" : "Doing · keep going")
         } else if item.isDoing {
             parts.append("Doing · open-ended")
         }
         if item.status == .done, item.timeSpent >= 60 {
             parts.append("took \(DurationFormat.short(item.timeSpent))")
-        } else if item.status != .done, let estimate = item.estimateMinutes {
-            parts.append("~\(IntervalFormat.amount(estimate))")
         }
         if childCount > 0 {
             parts.append("\(counts.done)/\(childCount) sub-nogs")

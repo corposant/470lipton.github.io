@@ -5,7 +5,7 @@ A capture-first iPhone app where **every item can nog you, repeatedly, until it'
 - **Everything is an Item.** To-dos, ideas, concepts and projects are all the same thing. Any item can have notes, `[[links]]` to other items, backlinks, tags, and sub-nogs (an item with sub-nogs *is* a project).
 - **Capture is instant.** The app opens with the keyboard already up. Type, hit return, and keep typing.
 - **Every capture gets a default nog** (out of the box: first nog 15 min after capture, then every 8 min until done). You can change that in Settings, or per item.
-- **Nogs repeat forever.** They don't stop after one or two. Long-press a nog for its buttons: **Done**, **Start**, **Snooze**, **Snooze till 9 AM** (**Skip today** on Daily and Teatime), **Gentler** on the louder profiles (one profile quieter), and **Later…**, where you type a time or profile (`20m`, `4pm`, `tomorrow`, `!hush`). Heads-ups get **Start now**, **Push 15 min** and **Done**. The line under each nog's title is in its profile's voice ("Getting louder.", "Tea time."), and a nog that will ring as an alarm says so: "Alarm after 2 more." With quiet hours, a timed silence or alarms in play, iOS only lets Nog line up the next few hours of nogs at a time; if you don't open Nog before they run out, one last notification asks you to, so they never just stop.
+- **Nogs repeat forever.** They don't stop after one or two. Long-press a nog for its buttons: **Done**, **Start**, **Snooze**, **Snooze till 9 AM** (**Skip today** on Balanced and Teatime), **Gentler** on the louder profiles (one profile quieter), and **Later…**, where you type a time or profile (`20m`, `4pm`, `tomorrow`, `!hush`). Heads-ups get **Start now**, **Push 15 min** and **Done**. The line under each nog's title is in its profile's voice ("Getting louder.", "Tea time."), and a nog that will ring as an alarm says so: "Alarm after 2 more." With quiet hours, a timed silence or alarms in play, iOS only lets Nog line up the next few hours of nogs at a time; if you don't open Nog before they run out, one last notification asks you to, so they never just stop.
 - **Things that come back.** "Meds every morning", "bins every tue", "rent every month on the 1st": tap Done and the item moves on to its next time (its sub-nogs reopen too), or tap **Skip this time** on its page. "Every 4 hours" still means how often to remind you until it's done.
 - **Places.** Save Home, Work and others in Settings › Places, then type "bins when I get home" or "buy milk when I leave work". iOS fires the reminder when you arrive or leave (While Using permission only; Nog never tracks you), and from then on it reminds you like anything else until it's done.
 - **First run** explains what Nog does, asks how firm it should be (Gentle, Steady or Relentless) and offers Low stimulation, then asks for notifications and alarms, each with its reason. Existing installs skip it.
@@ -37,7 +37,7 @@ As you type, a line above the capture field shows how Nog understood it. A day w
 - **Text size and contrast.** Every font follows the iPhone's text size (Settings → Accessibility → Display & Text Size → Larger Text), and rows, chips and buttons stack instead of cutting text off at the largest sizes. Text colours meet WCAG AA contrast (4.5:1) in Light and Dark. **Increase Contrast** switches to stronger colours and a plain background, and **Reduce Transparency** drops the haze and honeycomb. `NogTests/AccessibilityTests.swift` checks the contrast ratios.
 - **Calm** (Control Panel): **Low stimulation** turns off glows, the background haze and honeycomb, motion and vibration in one switch, and **Vibration** turns off just the haptics. Nog also follows the iOS **Reduce Motion** setting: no springs or slides, and panels fade in instead of moving.
 - **Two app icons**, both a nog carton with the light-and-spectrum motif: Comix (inked and cross-hatched on cream) and Neon (neon-hatched on charcoal), switchable in the Control Panel. Sources and the generator are in `design/carton/` (`python3 make4.py`, then `node render.js <name>`).
-- **Timing & alerts** (Settings › Advanced): a custom default rhythm, a **heads-up** before dated nogs, **ring as an alarm after N ignored nogs**, snooze length, what "morning" means, Time Sensitive, sound, **hide titles on the Lock Screen**, and an app icon badge. **Doing**: default timebox, how often "time's up" repeats, the open-ended check-in, and the Live Activity on/off.
+- **Timing & alerts** (Settings › Advanced): a custom default rhythm, a **heads-up** before dated nogs, **ring as an alarm after N ignored nogs**, snooze length, what "morning" means, Time Sensitive, sound, **hide titles on the Lock Screen**, and an app icon badge. **Doing**: the starter timer (2, 5 or 10 min), how often "Still on it?" checks in, and the Live Activity on/off.
 - **Settings** (gear icon, top right on every tab) leads with what people change: **Default** (the profile new nogs get, all eight shown), **Quiet hours** and **Silence**, **Calm**, **Places** and **How to use Nog**. Everything else is under **Advanced**: timing and alerts, the Doing timer, the Map tab, appearance and app icon, storage, permissions, and Siri phrases.
 
 ## iOS 27 features
@@ -75,21 +75,22 @@ Each tab has its own colour (New Nog pink, List blue, Map teal), used for its ti
 
 ## ▶︎ Doing something
 
-Every nog has a play button. Tap it and the nog becomes **Doing**, the thing you're working on right now:
+Every nog has a play button. Tap it and the nog becomes **Doing**, the thing you're working on right now. Nog follows the **two-minute start**: starting is the hard part, so ▶︎ asks for just two minutes on the smallest physical next step, with full permission to stop when they're up.
 
-- **A live timer on your Lock Screen and in the Dynamic Island** (plus StandBy, Apple Watch and CarPlay), with **Done / +10 min / Stop** buttons.
-- **A timebox Nog picks for you**, in this order: your estimate for the item (`~30m` when capturing, or set it on the item), how long similar items took you before (same #tag, or other steps in the same project), a short start if it's urgent (15 min) or has been waiting over a day (10 min), and otherwise your default (25 min). Hold the button to choose another length or no timer (counts up).
-- **While you're doing it, the usual nogs pause.** When the timebox ends, Nog nogs "Time's up. Done, or 10 more minutes?" every 5 minutes. Alarm items ring. Open-ended sessions get an hourly "Still on it?".
-- **Finishing keeps the item.** Done items stay with their notes, sub-nogs and the time you spent ("took 40 min"). That history makes future timeboxes smarter. **Stop** puts it back to Open and keeps the time.
+- **A two-minute starter timer, for every nog** (Settings › Doing › Starter can make it 5 or 10). Hold ▶︎ for a longer timer. On a nog with sub-nogs, ▶︎ starts the **first unfinished sub-nog**, the small step.
+- **When the two minutes are up**, a soft, rising chime plays (never an alarm, never Time Sensitive): "Two minutes done. Keep going, or stop here. Both count." The timer then **counts up**, logging your time.
+- **While it counts up**, Nog checks in ("Still on it?") every 15 minutes (Settings). **Hold the timer** to change that for this session or turn it off. Alarm (Unhinged) items ring at check-ins. The usual nogs pause.
+- **Two ways out:** **Done for now** stops the session and logs the time; the nog goes back to Open and, because you did some work, the rest of today's nogs wait until tomorrow (urgent, ring-like-an-alarm ones keep going). **Complete** marks it finished for good, keeping its notes, sub-nogs and the time you spent ("took 40 min").
+- **A live timer on your Lock Screen and in the Dynamic Island** (plus StandBy, Apple Watch and CarPlay), with **Done for now** and **Complete** buttons.
 - **Siri:** *"Start write report in Nog."*
 
 ### Widgets
 
 Add **Nog** to your Home Screen (small, medium or large) or Lock Screen (circle, rectangle or the line above the clock).
 
-- **Nothing on:** most of the widget is for acting. The nog that matters most right now sits up front with big **▶︎ Start** (showing the timebox Nog would pick) and **✓ Done** buttons, plus **Later** on the large size. **+ Take a Nog** opens New Nog. The rest of the widget lists what else is about now, each with a **▶︎** (and **✓** on the large size). Buttons work without opening the app; tap a title to open it. When nothing is due, it says you're clear and offers **Take a Nog**.
-- **While you're doing something:** it turns into the timer, with **✓ Done / +10 min / Stop**. The medium size adds a timebox bar, and the large one shows the item's sub-nogs and what's up next.
-- **Lock Screen:** a ring that fills as the timebox runs (or how many are nogging), the timer with "of 25", or the next nog. Titles hide when **Show titles on Lock Screen** is off.
+- **Nothing on:** most of the widget is for acting. The nog that matters most right now sits up front with big **▶︎ Start** (showing the starter timer) and **✓ Done** buttons, plus **Later** on the large size. **+ Take a Nog** opens New Nog. The rest of the widget lists what else is about now, each with a **▶︎** (and **✓** on the large size). Buttons work without opening the app; tap a title to open it. When nothing is due, it says you're clear and offers **Take a Nog**.
+- **While you're doing something:** it turns into the timer, counting down the two-minute start, then counting up. Done for now and Complete live in the Live Activity and the app. The medium size adds a starter bar, and the large one shows the item's sub-nogs and what's up next.
+- **Lock Screen:** a ring that fills during the two-minute start (or how many are nogging), the timer with "of 2" then counting up, or the next nog. Titles hide when **Show titles on Lock Screen** is off.
 - **Press and hold › Edit Widget** to choose what it offers: one or more **Lists** (**Now**, the default: what's due now plus the rest of today; or Due now, Today, This week, No reminder, Someday), **Only #tag**, or **Pick nogs** one by one from everything outstanding. **Show the timer while I'm doing something** can be switched off for a pure list.
 
 The widgets read a small summary the app writes to a shared App Group whenever your nogs change, so open Nog once after installing.
@@ -103,7 +104,7 @@ Eight styles, all shown as buttons, gentlest to loudest. Pick your default in Se
 | **Hush** | `!hush` | after 15 min | every 15 min, always silent (no sound, not Time Sensitive) | never |
 | **Teatime** | `!teatime` or `!tea` | at tea time (4 PM) | every other day at 4 PM, about three times a week | never |
 | **Whisper** | `!whisper` | after 1 hr | hourly, easing off to daily | never |
-| **Daily** | `!daily` | at the time you type, or this time tomorrow | every 24 hr | never |
+| **Balanced** | `!balanced` (or `!daily`) | at the time you type, or this time tomorrow | once a day for a week, then twice a day (6 hr apart) for a week, then three times a day (4 hr apart) | never |
 | **Easing** | `!easing` | after 8 min | 8 → 16 → 32 min… up to daily | per global setting |
 | **Steady** | `!steady` (the default) | after 15 min | every 8 min | per global setting |
 | **Building** | `!building` | after 30 min, with heads-ups 15, 5 and 1 min before a set start | 30 → 15 → 8 → 4 min, then every 4 min | per global setting |
@@ -132,7 +133,6 @@ Type these anywhere in a capture line (all optional):
 | `!log` | logarithmic: the gap doubles after each nog |
 | `!alarm` | ring like a real alarm |
 | `!hush` `!whisper` `!daily` `!easing` `!steady` `!building` `!teatime` `!unhinged` | use a nog profile; the first three letters are enough (`!unh`) |
-| `~30m` `~2h` | how long it'll take (the ▶︎ timebox) |
 | `!off` or `!idea` | no reminder |
 | `@30m` `@2h` `@1d` `@now` | when to start nogging |
 | `#tag` | add a tag |
