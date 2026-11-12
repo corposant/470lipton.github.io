@@ -62,6 +62,8 @@ struct WidgetSnapshot: Codable, Equatable {
     var entries: [Entry]
     /// Settings → "Show titles on Lock Screen".
     var showTitlesOnLockScreen: Bool
+    /// Settings › Theme: "dark" or "light", or nil to follow the system (also older snapshots).
+    var appearance: String? = nil
 
     static let empty = WidgetSnapshot(generated: .distantPast, entries: [], showTitlesOnLockScreen: true)
 

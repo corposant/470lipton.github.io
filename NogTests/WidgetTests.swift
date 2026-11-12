@@ -30,6 +30,18 @@ final class WidgetSnapshotTests: XCTestCase {
         XCTAssertEqual(snap.entries.first { $0.id == a.id }?.parentTitle, "Kitchen reno")
     }
 
+    func testCarriesTheThemeForTheWidgets() throws {
+        let item = Item(title: "Call the plumber")
+        XCTAssertNil(snapshot([item]).appearance)
+        let dark = WidgetSync.snapshot([item], now: now, policy: .standard, defaultTimebox: 25, showTitles: true,
+                                       appearance: .dark, calendar: calendar)
+        XCTAssertEqual(dark.appearance, "dark")
+        // Snapshots written before the theme was added still decode, following the system.
+        var old = try XCTUnwrap(String(data: XCTUnwrap(WidgetStore.encode(dark)), encoding: .utf8))
+        old = old.replacingOccurrences(of: #""appearance":"dark","#, with: "")
+        XCTAssertNil(try XCTUnwrap(WidgetStore.decode(Data(old.utf8))).appearance)
+    }
+
     func testRoundTripsThroughJSON() throws {
         var item = Item(title: "Call the plumber")
         item.reminder = Reminder(start: now.addingTimeInterval(-600), repeatMinutes: 8, alarm: true)

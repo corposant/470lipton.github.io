@@ -272,6 +272,10 @@ extension NogSettings {
     static var timeSensitive: Bool { bool(Key.timeSensitive, true) }
     static var playsSound: Bool { bool(Key.sound, true) }
     static var showTitles: Bool { bool(Key.showTitles, true) }
+    /// Settings › Theme (stored by @AppStorage under ThemeMode.key).
+    static var themeMode: ThemeMode {
+        ThemeMode(rawValue: UserDefaults.standard.string(forKey: ThemeMode.key) ?? "") ?? .auto
+    }
     static var showsBadge: Bool { bool(Key.badge, false) }
     static var liveActivityEnabled: Bool { bool(Key.liveActivity, true) }
 
