@@ -20,7 +20,7 @@ struct WidgetSnapshot: Codable, Equatable {
         var nextNog: Date?
         /// Rings as an alarm.
         var alarm: Bool
-        /// The timebox ▶︎ would use right now; nil = open-ended.
+        /// The starter timer ▶︎ would use (the two-minute start); nil = open-ended.
         var suggestedMinutes: Int?
         /// While doing: when this session started, and its timebox.
         var doingSince: Date?

@@ -56,7 +56,9 @@ enum NogBriefing {
             let lines = doing.prefix(limit).map { item -> String in
                 guard let end = item.timeboxEnd else { return "\(item.title), no time limit" }
                 let minutes = Int((end.timeIntervalSince(now) / 60).rounded())
-                return minutes > 0 ? "\(item.title), \(minutes) minute\(minutes == 1 ? "" : "s") left" : "\(item.title), time's up"
+                if minutes > 0 { return "\(item.title), \(minutes) minute\(minutes == 1 ? "" : "s") left" }
+                let logged = Int((now.timeIntervalSince(item.doingSince ?? end) / 60).rounded())
+                return "\(item.title), \(logged) minute\(logged == 1 ? "" : "s") in and going"
             }
             return "You're on \(lines.joined(separator: "; "))."
         }

@@ -45,7 +45,7 @@ struct StartItemIntent: LiveActivityIntent {
     @Parameter(title: "Item", requestValueDialog: IntentDialog("Which one do you want to start?"))
     var item: ReminderEntity
 
-    @Parameter(title: "Minutes", description: "Leave empty to use Nog's suggestion.")
+    @Parameter(title: "Minutes", description: "Leave empty for the two-minute start.")
     var minutes: Int?
 
     @MainActor
@@ -53,11 +53,14 @@ struct StartItemIntent: LiveActivityIntent {
         let store = ItemStore.shared
         guard let existing = store.items[item.id] else { throw NogIntentError.notFound }
         let timebox = minutes ?? store.suggestedTimebox(for: existing.id).minutes
+        // A nog with sub-nogs starts its first unfinished one: say which.
+        let target = store.items[store.startTarget(for: existing.id)] ?? existing
         store.start(existing.id, timebox: timebox)
         await store.syncNow()
         await store.flush()
         let length = timebox.map { "for \(IntervalFormat.amount($0))" } ?? "with no time limit"
-        return .result(dialog: IntentDialog(full: "Started \(existing.title) \(length). Go!", supporting: "Started"))
+        return .result(dialog: IntentDialog(full: "Started \(target.title) \(length). Just that, then you can stop.",
+                                            supporting: "Started"))
     }
 }
 

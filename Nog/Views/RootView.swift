@@ -347,14 +347,12 @@ struct ItemRow: View {
             parts.append(place.phrase + (PlaceBook.place(named: place.name) == nil ? " (place not set up)" : ""))
         }
         if item.isDoing, let end = item.timeboxEnd {
-            parts.append(end > now ? "Doing · \(end.formatted(.relative(presentation: .named))) left" : "Doing · time's up")
+            parts.append(end > now ? "Doing · \(end.formatted(.relative(presentation: .named))) left" : "Doing · keep going")
         } else if item.isDoing {
             parts.append("Doing · open-ended")
         }
         if item.status == .done, item.timeSpent >= 60 {
             parts.append("took \(DurationFormat.short(item.timeSpent))")
-        } else if item.status != .done, let estimate = item.estimateMinutes {
-            parts.append("~\(IntervalFormat.amount(estimate))")
         }
         if childCount > 0 {
             parts.append("\(counts.done)/\(childCount) sub-nogs")

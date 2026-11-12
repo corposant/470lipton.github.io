@@ -18,7 +18,6 @@ final class WidgetSnapshotTests: XCTestCase {
         var a = Item(title: "Photo of the pipe"); a.parentID = project.id
         var b = Item(title: "Quotes"); b.parentID = project.id; b.status = .done
         var done = Item(title: "Old"); done.status = .done
-        project.estimateMinutes = 40
 
         let snap = snapshot([project, a, b, done])
         XCTAssertEqual(Set(snap.entries.map(\.title)), ["Kitchen reno", "Photo of the pipe"])
@@ -26,7 +25,7 @@ final class WidgetSnapshotTests: XCTestCase {
         XCTAssertEqual(reno.subTotal, 2)
         XCTAssertEqual(reno.subDone, 1)
         XCTAssertEqual(reno.subItems.map(\.title), ["Photo of the pipe", "Quotes"])
-        XCTAssertEqual(reno.suggestedMinutes, 40)
+        XCTAssertEqual(reno.suggestedMinutes, 25, "every nog gets the starter timer")
         XCTAssertEqual(snap.entries.first { $0.id == a.id }?.parentTitle, "Kitchen reno")
     }
 

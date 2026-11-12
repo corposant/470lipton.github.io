@@ -59,7 +59,7 @@ enum WidgetSync {
         var children: [UUID: [Item]] = [:]
         for item in items { if let p = item.parentID { children[p, default: []].append(item) } }
 
-        let history = TimeboxAdvisor.history(in: items)
+        let starter = TimeboxAdvisor.suggest(defaultMinutes: defaultTimebox).minutes
 
         let entries = items.filter { $0.status != .done }.map { item -> WidgetSnapshot.Entry in
             var next: Date?
@@ -72,7 +72,6 @@ enum WidgetSync {
             let subs = (kids.filter { $0.status != .done } + kids.filter { $0.status == .done })
                 .prefix(5)
                 .map { WidgetSnapshot.SubItem(title: $0.title, done: $0.status == .done) }
-            let suggestion = TimeboxAdvisor.suggest(for: item, history: history, defaultMinutes: defaultTimebox, now: now)
             return WidgetSnapshot.Entry(
                 id: item.id,
                 title: item.title,
@@ -82,7 +81,7 @@ enum WidgetSync {
                 start: item.reminder?.start,
                 nextNog: next,
                 alarm: item.reminder?.alarm ?? false,
-                suggestedMinutes: suggestion.minutes,
+                suggestedMinutes: starter,
                 doingSince: item.doingSince,
                 timeboxMinutes: item.timeboxMinutes,
                 subItems: Array(subs),

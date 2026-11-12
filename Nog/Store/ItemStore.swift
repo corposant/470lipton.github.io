@@ -301,7 +301,6 @@ final class ItemStore {
         }
         var item = Item(title: parsed.title, created: now, updated: now,
                         parentID: parent, tags: parsed.tags, reminder: reminder)
-        item.estimateMinutes = parsed.estimateMinutes
         item.recurrence = reminder == nil ? nil : parsed.recurrence
         item.place = parsed.place
         insert(item)
@@ -352,6 +351,7 @@ final class ItemStore {
             if let since = old.doingSince { item.timeSpent += max(0, now.timeIntervalSince(since)) }
             item.doingSince = nil
             item.timeboxMinutes = nil
+            item.checkInMinutes = nil
         }
         // Filed under a different parent: its old place among siblings means nothing there.
         if old.parentID != item.parentID { item.position = nil }
@@ -376,7 +376,7 @@ final class ItemStore {
             }
         }
         // Typing (title or notes) waits for a longer pause, so a sentence is one sync, not ten.
-        // Notes, tags and estimates don't change any nog, so those skip rescheduling entirely.
+        // Notes and tags don't change any nog, so those skip rescheduling entirely.
         let isTyping = old.title != item.title || old.body != item.body
         scheduleSync(nogs: item.changesNogs(from: old), after: isTyping ? .seconds(2) : .milliseconds(400))
     }
@@ -458,15 +458,44 @@ final class ItemStore {
 
     // MARK: - Doing (▶︎)
 
-    /// The timebox ▶︎ would use for this item right now.
+    /// The starter timer ▶︎ uses: two minutes (Settings › Doing › Starter), for every nog.
     func suggestedTimebox(for id: UUID) -> TimeboxSuggestion {
-        guard let item = items[id] else { return TimeboxSuggestion(minutes: nil, reason: "open-ended") }
-        return TimeboxAdvisor.suggest(for: item, among: Array(items.values),
-                                      defaultMinutes: NogSettings.timeboxMinutes, now: .now)
+        TimeboxAdvisor.suggest(defaultMinutes: NogSettings.timeboxMinutes)
     }
 
-    /// Starts working on an item. `timebox` nil = open-ended.
+    /// What ▶︎ on this nog actually starts: its first unfinished sub-nog (the small physical
+    /// step), all the way down, or the nog itself when it has none.
+    func startTarget(for id: UUID) -> UUID {
+        var current = id
+        var seen: Set<UUID> = []
+        while seen.insert(current).inserted, items[current]?.isDoing != true,
+              let next = children(of: current).first(where: { $0.status == .open || $0.status == .doing }) {
+            current = next.id
+        }
+        return current
+    }
+
+    /// The sub-nog being worked on under this nog, if any (shown on the parent's page).
+    func doingDescendant(of id: UUID) -> Item? {
+        var queue = children(of: id)
+        var seen: Set<UUID> = [id]
+        while !queue.isEmpty {
+            let child = queue.removeFirst()
+            guard seen.insert(child.id).inserted else { continue }
+            if child.isDoing { return child }
+            queue += children(of: child.id)
+        }
+        return nil
+    }
+
+    /// Starts working on an item: its first unfinished sub-nog if it has any. `timebox` nil = open-ended.
     func start(_ id: UUID, timebox: Int?) {
+        let target = startTarget(for: id)
+        if target != id {
+            // That step is already under way: leave its timer alone.
+            if items[target]?.isDoing == true { return }
+            return start(target, timebox: timebox)
+        }
         guard var item = items[id] else { return }
         if item.isDoing { // restart with a new timebox
             item.status = .open
@@ -494,10 +523,44 @@ final class ItemStore {
         update(item)
     }
 
-    /// Stops working without finishing; the item goes back to Open.
-    func stopDoing(_ id: UUID) {
-        guard var item = items[id], item.isDoing else { return }
+    /// "Done for now": stops this session (its time is logged) without finishing; the item goes
+    /// back to Open. Work happened, so the rest of today's nogs can wait: it comes back tomorrow
+    /// (at its own time for a once-a-day rhythm, otherwise in the morning). Urgent ones, those that
+    /// ring like an alarm, keep their rhythm. Returns the seconds this session logged.
+    @discardableResult
+    func stopDoing(_ id: UUID, now: Date = .now, calendar: Calendar = .current) -> TimeInterval {
+        guard var item = items[id], item.isDoing else { return 0 }
+        let logged = item.doingSince.map { max(0, now.timeIntervalSince($0)) } ?? 0
         item.status = .open
+        if let resume = Self.resumeDate(for: item, now: now, calendar: calendar), var r = item.reminder {
+            r.start = resume
+            item.reminder = r
+            clearDelivered(id)
+        }
+        update(item)
+        return logged
+    }
+
+    /// When a nog stopped with "Done for now" next nogs, if its next nog would otherwise
+    /// come later today. nil = leave its reminder as it is.
+    nonisolated static func resumeDate(for item: Item, now: Date, calendar: Calendar = .current) -> Date? {
+        guard let r = item.reminder, !r.alarm, item.recurrence == nil,
+              let next = r.nextFire(after: now), calendar.isDate(next, inSameDayAs: now),
+              let tomorrow = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now))
+        else { return nil }
+        if let gap = r.repeatMinutes, gap >= 1440,
+           let sameTime = r.nextFire(after: tomorrow.addingTimeInterval(-1)) {
+            return sameTime
+        }
+        return NogSettings.nextMorning(after: tomorrow.addingTimeInterval(-1), minutes: r.morningMinutes)
+    }
+
+    /// Long press on the timer: how often "still on it?" comes for this session (0 = off,
+    /// nil = the Settings default).
+    func setCheckIn(_ id: UUID, minutes: Int?) {
+        guard var item = items[id], item.isDoing else { return }
+        item.checkInMinutes = minutes
+        clearDelivered(id)
         update(item)
     }
 

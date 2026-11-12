@@ -17,7 +17,6 @@ struct CaptureResult: Equatable {
     var title: String
     var reminder: Reminder?
     var tags: [String]
-    var estimateMinutes: Int? = nil
     /// Comes back after it's done ("every morning", "every Tuesday").
     var recurrence: Recurrence? = nil
     /// "when I get home"
@@ -38,7 +37,6 @@ struct CaptureResult: Equatable {
 ///   `@30m` `@2h` `@1d`  start nogging in 30 minutes / 2 hours / 1 day
 ///   `@now`              start now
 ///   `#tag`              add a tag
-///   `~30m` `~2h`        how long it'll take (the ▶︎ timebox)
 ///
 /// …and plain English, via `NaturalDateParser`: "lunch next Tues",
 /// "call mom tomorrow at 3", "pills every 4 hours", "stretch in 20 min",
@@ -53,7 +51,6 @@ enum CaptureParser {
         var curveOverride: RepeatCurve?
         var alarm = false
         var profile: NogProfile?
-        var estimate: Int?
         var repeatOverride: Int?
         var delayOverride: Int?
 
@@ -90,10 +87,6 @@ enum CaptureParser {
                 delayOverride = m
                 continue
             }
-            if lower.hasPrefix("~"), let m = minutes(lower.dropFirst()), m > 0 {
-                estimate = m
-                continue
-            }
             if word.hasPrefix("#"), word.count > 1 {
                 tags.append(String(word.dropFirst()))
                 continue
@@ -110,11 +103,11 @@ enum CaptureParser {
         let natural = NaturalDateParser.parse(words.joined(separator: " "), now: now, calendar: calendar)
         let title = natural.title
         if noReminder {
-            return CaptureResult(title: title, reminder: nil, tags: tags, estimateMinutes: estimate, place: place)
+            return CaptureResult(title: title, reminder: nil, tags: tags, place: place)
         }
         // At a place and no time given: it waits for the place, then nogs from there.
         if place != nil, natural.start == nil, delayOverride == nil {
-            return CaptureResult(title: title, reminder: nil, tags: tags, estimateMinutes: estimate, place: place)
+            return CaptureResult(title: title, reminder: nil, tags: tags, place: place)
         }
         let effective = profile.map {
             CaptureDefaults(firstDelayMinutes: $0.firstDelayMinutes, repeatMinutes: $0.repeatMinutes,
@@ -133,8 +126,7 @@ enum CaptureParser {
         let reminder = Reminder(start: start, repeatMinutes: repeatMinutes,
                                 curve: curveOverride ?? effective.curve, alarm: alarm, silent: effective.silent,
                                 escalateAfter: effective.escalateAfter)
-        return CaptureResult(title: title, reminder: reminder, tags: tags, estimateMinutes: estimate,
-                             recurrence: natural.recurrence, place: place)
+        return CaptureResult(title: title, reminder: reminder, tags: tags, recurrence: natural.recurrence, place: place)
     }
 
     /// "8m" → 8, "2h" → 120, "1d" → 1440, "15" → 15. Anything else → nil.

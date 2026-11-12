@@ -79,11 +79,12 @@ final class NotificationScheduler {
                       action(.push, "Push \(IntervalFormat.amount(Self.pushMinutes))", "clock.arrow.circlepath"),
                       done],
             intentIdentifiers: [], options: []))
+        // While you're on it: stop for now (time logged, back tomorrow) or finish it for good.
         categories.insert(UNNotificationCategory(
             identifier: NogPlanner.categoryDoing,
-            actions: [done,
-                      action(.extend, "+10 minutes", "plus"),
-                      action(.stopDoing, "Stop for now", "stop.fill")],
+            actions: [action(.stopDoing, "Done for now", "pause.fill"),
+                      action(.done, "Complete", "checkmark"),
+                      action(.extend, "+10 minutes", "plus")],
             intentIdentifiers: [], options: []))
         center.setNotificationCategories(categories)
     }
@@ -162,9 +163,12 @@ final class NotificationScheduler {
 
     private static let signatureKey = "appliedNotificationSignature"
 
+    /// The soft, rising chime at the end of the two-minute start (bundled in Nog/Resources).
+    nonisolated static let chimeSound = UNNotificationSoundName(rawValue: "StarterChime.caf")
+
     private static var contentSignature: String {
-        // "v2": buttons and banner lines changed, so nogs scheduled by an older build are replaced.
-        "v2|\(NogSettings.playsSound)|\(NogSettings.timeSensitive)|\(NogSettings.showTitles)"
+        // "v3": the two-minute chime and Done for now / Complete buttons, so nogs scheduled by an older build are replaced.
+        "v3|\(NogSettings.playsSound)|\(NogSettings.timeSensitive)|\(NogSettings.showTitles)"
     }
 
     func clearDelivered(for itemID: UUID) async {
@@ -185,9 +189,12 @@ final class NotificationScheduler {
             content.title = "Nog"
             content.body = "Something's nogging you."
         }
-        // Hush items never make a sound. Neither they nor heads-ups (a gentle "coming up") break through Focus.
-        let quiet = planned.silent || planned.isHeadsUp
-        content.sound = NogSettings.playsSound && !planned.silent ? .default : nil
+        // Hush items never make a sound. Neither they, heads-ups (a gentle "coming up") nor the
+        // two-minute chime break through Focus.
+        let quiet = planned.silent || planned.isHeadsUp || planned.chime
+        if NogSettings.playsSound && !planned.silent {
+            content.sound = planned.chime ? UNNotificationSound(named: Self.chimeSound) : .default
+        }
         content.categoryIdentifier = planned.category
         content.threadIdentifier = planned.itemID.uuidString
         content.userInfo = [Self.itemIDKey: planned.itemID.uuidString]

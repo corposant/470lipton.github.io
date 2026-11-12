@@ -30,10 +30,12 @@ struct Item: Identifiable, Hashable {
     // Doing (the ▶︎ button)
     /// When the current working session started (status == .doing).
     var doingSince: Date?
-    /// Length of the current session's timebox; nil = open-ended (counts up).
+    /// Length of the current session's starter timer (usually 2 min); nil = open-ended.
+    /// Past its end the session keeps going and counts up.
     var timeboxMinutes: Int?
-    /// How long you expect this to take; becomes the suggested timebox.
-    var estimateMinutes: Int?
+    /// This session's "still on it?" check-in gap, in minutes, chosen with a long press on the
+    /// timer. nil = the Settings default; 0 = no check-ins this session.
+    var checkInMinutes: Int?
     /// Total time spent in finished sessions, in seconds.
     var timeSpent: TimeInterval = 0
 
@@ -51,10 +53,21 @@ struct Item: Identifiable, Hashable {
         timeSpent + (isDoing ? doingSince.map { max(0, now.timeIntervalSince($0)) } ?? 0 : 0)
     }
 
+    /// Has the starter timer run out, so the session is counting up?
+    func isCountingUp(now: Date = .now) -> Bool {
+        timeboxEnd.map { now >= $0 } ?? false
+    }
+
+    /// The "still on it?" gap for the session in progress, in minutes (nil = off).
+    func checkInGap(policy: NogPolicy) -> Int? {
+        if let mine = checkInMinutes { return mine > 0 ? mine : nil }
+        return policy.checkInEvery
+    }
+
     /// What should actually nog right now:
     /// - open items: their reminder
-    /// - items being done: "time's up" when the timebox ends (then every 5 min),
-    ///   or an hourly "still on it?" check-in when open-ended
+    /// - items being done: a soft chime when the starter timer (2 min) runs out, then a
+    ///   "still on it?" check-in every N minutes while it counts up (open-ended: just the check-ins)
     /// - someday / done: nothing
     var effectiveReminder: Reminder? { effectiveReminder(policy: .standard) }
 
@@ -64,11 +77,13 @@ struct Item: Identifiable, Hashable {
             return reminder
         case .doing:
             guard let since = doingSince else { return nil }
+            let checkIn = checkInGap(policy: policy).map { max(1, $0) }
+            // Unhinged (ring like an alarm) items keep ringing at check-ins; the chime itself never rings.
             if let end = timeboxEnd {
-                return Reminder(start: end, repeatMinutes: max(1, policy.timesUpEvery), alarm: reminder?.alarm ?? false,
+                return Reminder(start: end, repeatMinutes: checkIn, alarm: reminder?.alarm ?? false,
                                 silent: reminder?.silent ?? false)
             }
-            guard let checkIn = policy.checkInEvery, checkIn > 0 else { return nil }
+            guard let checkIn else { return nil }
             return Reminder(start: since.addingTimeInterval(TimeInterval(checkIn * 60)), repeatMinutes: checkIn,
                             silent: reminder?.silent ?? false)
         case .someday, .done:
@@ -103,11 +118,12 @@ extension Item {
 extension Item {
     /// True when something its notifications or alarms are built from differs: the title
     /// (their text and identifiers), status, reminder, or the Doing session. Notes, tags,
-    /// estimates and time spent don't change any nog.
+    /// and time spent don't change any nog.
     func changesNogs(from other: Item) -> Bool {
         title != other.title || status != other.status || reminder != other.reminder
             || recurrence != other.recurrence || place != other.place
             || doingSince != other.doingSince || timeboxMinutes != other.timeboxMinutes
+            || checkInMinutes != other.checkInMinutes
     }
 }
 

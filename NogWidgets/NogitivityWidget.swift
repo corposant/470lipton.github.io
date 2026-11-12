@@ -239,7 +239,8 @@ private struct NotSetUp: View {
 
 // MARK: Timer (while doing)
 
-/// Counts down a timebox, or up when open-ended. "TIME'S UP" once past the end.
+/// Counts down the starter timer (two minutes), then counts up the time logged this session.
+/// Open-ended sessions just count up.
 private struct DoingTimer: View {
     let item: WidgetSnapshot.Entry
     let date: Date
@@ -247,7 +248,7 @@ private struct DoingTimer: View {
     var body: some View {
         if let end = item.timeboxEnd {
             if end <= date {
-                Text("TIME'S UP").foregroundStyle(Theme.pink)
+                Text(item.doingSince ?? end, style: .timer)
             } else {
                 Text(timerInterval: min(item.doingSince ?? date, end)...end, countsDown: true)
             }
@@ -297,7 +298,7 @@ private struct TimeboxBar: View {
     }
 }
 
-/// Read-only, like the rest of the widget: the timer to glance at. Done, +10 and Stop
+/// Read-only, like the rest of the widget: the timer to glance at. Done for now and Complete
 /// live in the Live Activity and the app.
 private struct TimerWidget: View {
     @Environment(\.widgetFamily) private var family
@@ -316,8 +317,12 @@ private struct TimerWidget: View {
         HStack(alignment: .firstTextBaseline) {
             Text("▶ DOING").font(W.label()).tracking(1.8).foregroundStyle(Theme.blue).widgetAccentable()
             Spacer(minLength: 4)
-            if family != .systemSmall, let box = item.timeboxMinutes {
-                Text("\(box) MIN BOX").font(.nogMeta).foregroundStyle(Theme.muted)
+            if family != .systemSmall, let end = item.timeboxEnd {
+                if end <= entry.date {
+                    Text("KEEP GOING OR STOP").font(.nogMeta).foregroundStyle(Theme.violet)
+                } else if let box = item.timeboxMinutes {
+                    Text("\(box) MIN START").font(.nogMeta).foregroundStyle(Theme.muted)
+                }
             }
         }
     }
@@ -612,8 +617,7 @@ private struct NowWidget: View {
                 .padding(.trailing, size == .small ? 0 : buttonRoom)
             if now.isEmpty { nothingOn }
             ForEach(Array(nowShown.enumerated()), id: \.element.id) { index, item in
-                TimeRow(item: item, date: entry.date, size: size, bold: index == 0,
-                        detail: size == .large && index == 0 ? item.suggestedMinutes.map { "~\(IntervalLabel.amount($0))" } : nil)
+                TimeRow(item: item, date: entry.date, size: size, bold: index == 0, detail: nil)
                     .padding(.trailing, size == .medium && index < 2 ? buttonRoom : 0)
                 if size == .large && index < nowShown.count - 1 { Rule() }
             }
@@ -712,7 +716,7 @@ private struct NowWidget: View {
         }
     }
 
-    /// "Since 9:10 · 2 more", "Since 9:10 · ~15 min", "12:40", "No time".
+    /// "Since 9:10 · 2 more", "12:40", "No time".
     private func heroDetail(_ hero: WidgetSnapshot.Entry, isNow: Bool, more: Int) -> String? {
         var parts: [String] = []
         if let when = moment(of: hero, at: entry.date) {
@@ -720,9 +724,7 @@ private struct NowWidget: View {
         } else if !isNow {
             parts.append(hero.isDream ? "Someday" : "No time")
         }
-        if size == .large {
-            if let box = hero.suggestedMinutes { parts.append("~\(IntervalLabel.amount(box))") }
-        } else if more > 0 {
+        if size != .large, more > 0 {
             parts.append(size == .small ? "\(more) more" : "\(more) more on now")
         }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
@@ -824,10 +826,10 @@ private struct LockRectangular: View {
         .widgetAccentable()
     }
 
-    /// "12:04 of 25".
+    /// "1:04 of 2", then counting up the time logged once the starter timer is done.
     private func timerLine(_ item: WidgetSnapshot.Entry) -> Text {
         if let end = item.timeboxEnd {
-            if end <= entry.date { return Text("TIME'S UP") }
+            if end <= entry.date { return Text(item.doingSince ?? end, style: .timer) }
             let timer = Text(timerInterval: min(item.doingSince ?? entry.date, end)...end, countsDown: true)
             guard let minutes = item.timeboxMinutes else { return timer }
             let total = Text(" of \(minutes)").font(.system(size: 11))
@@ -857,7 +859,12 @@ private struct LockInline: View {
                     Image(systemName: "play.fill")
                 }
             } else {
-                Label("\(entry.lockTitle(item)) · time's up", systemImage: "play.fill")
+                // Past the starter timer (or open-ended): the time logged, counting up.
+                Label {
+                    Text("\(entry.lockTitle(item)) · \(Text(item.doingSince ?? entry.date, style: .timer))")
+                } icon: {
+                    Image(systemName: "play.fill")
+                }
             }
         } else {
             let nogging = entry.nogging.count
@@ -937,8 +944,9 @@ extension WidgetSnapshot {
         var snapshot = sample(now: now)
         snapshot.entries.insert(Entry(
             id: UUID(), title: "Write the reno budget", status: "doing", tags: [], parentTitle: "Kitchen reno",
-            start: nil, nextNog: nil, alarm: false, suggestedMinutes: 25,
-            doingSince: now.addingTimeInterval(-12 * 60), timeboxMinutes: 25,
+            start: nil, nextNog: nil, alarm: false, suggestedMinutes: 2,
+            // Twelve minutes in: past the two-minute start and counting up.
+            doingSince: now.addingTimeInterval(-12 * 60), timeboxMinutes: 2,
             subItems: [SubItem(title: "Tile and fixtures", done: false), SubItem(title: "Contingency (10%)", done: false),
                        SubItem(title: "Quotes from two plumbers", done: true)],
             subDone: 1, subTotal: 3, updated: now), at: 0)

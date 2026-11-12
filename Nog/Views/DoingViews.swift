@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// ▶︎ Tap to start with the suggested timebox; press and hold for the timebox panel.
+/// ▶︎ Tap for the two-minute start; press and hold for a longer timer. On a nog with sub-nogs it
+/// starts the first unfinished one, the small physical step.
 struct StartButton: View {
     @Environment(ItemStore.self) private var store
     let item: Item
@@ -13,6 +14,7 @@ struct StartButton: View {
 
     var body: some View {
         let suggestion = store.suggestedTimebox(for: item.id)
+        let step = stepTitle
         Button {
             if didHold { didHold = false; return }
             store.start(item.id, timebox: suggestion.minutes)
@@ -26,12 +28,13 @@ struct StartButton: View {
         })
             .nogFeedback(.impact(weight: .medium), trigger: showPanel) { _, isShowing in isShowing }
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Start \(item.title)")
-            .accessibilityHint("Starts with \(suggestion.label.lowercased()). Hold to choose a timebox.")
+            .accessibilityLabel("Start \(step ?? item.title)")
+            .accessibilityHint((step == nil ? "" : "The first step of \(item.title). ")
+                               + "Starts with \(suggestion.label.lowercased()). Hold to choose a longer timer.")
             .accessibilityValue(subItems.map { "\($0.done) of \($0.total) sub-nogs done" } ?? "")
             .accessibilityAddTraits(.isButton)
             .accessibilityAction { store.start(item.id, timebox: suggestion.minutes) }
-            .accessibilityAction(named: "Choose timebox") { showPanel = true }
+            .accessibilityAction(named: "Choose a longer timer") { showPanel = true }
             .popover(isPresented: $showPanel) {
                 TimeboxPanel(suggestion: suggestion) { minutes in
                     showPanel = false
@@ -44,14 +47,29 @@ struct StartButton: View {
             }
     }
 
+    /// The sub-nog ▶︎ would start instead of this one, if any.
+    private var stepTitle: String? {
+        let target = store.startTarget(for: item.id)
+        return target == item.id ? nil : store.items[target]?.title
+    }
+
     @ViewBuilder
     private func label(_ suggestion: TimeboxSuggestion) -> some View {
         if prominent {
-            HStack(spacing: 10) {
-                Image(systemName: "play.fill").nogFont(12, weight: .bold)
-                Text(suggestion.minutes.map { "START · \(IntervalFormat.amount($0).uppercased())" } ?? "START")
-                    .font(.nogTitle(13))
-                    .tracking(2)
+            VStack(spacing: 3) {
+                HStack(spacing: 10) {
+                    Image(systemName: "play.fill").nogFont(12, weight: .bold)
+                    Text(suggestion.minutes.map { "START · \(IntervalFormat.amount($0).uppercased())" } ?? "START")
+                        .font(.nogTitle(13))
+                        .tracking(2)
+                }
+                if let step = stepTitle {
+                    Text(step)
+                        .font(.caption)
+                        .foregroundStyle(Theme.muted)
+                        .nogLineLimit(1, accessibilityLines: 3)
+                        .padding(.horizontal, 10)
+                }
             }
             .foregroundStyle(.primary)
             .padding(.vertical, 15)
@@ -78,7 +96,7 @@ struct TimeboxPanel: View {
         VStack(spacing: 0) {
             // Title bar
             ZStack {
-                Text("TIMEBOX")
+                Text("TIMER")
                     .font(.nogLabel)
                     .tracking(2.2)
                     .foregroundStyle(Color(white: 0.78))
@@ -103,15 +121,14 @@ struct TimeboxPanel: View {
             .background(LinearGradient(colors: [.white.opacity(0.07), .clear], startPoint: .top, endPoint: .bottom))
             .overlay(alignment: .bottom) { Rectangle().fill(.white.opacity(0.1)).frame(height: 1) }
 
-            group("Suggested")
+            group("Starter")
             row(suggestion.minutes.map(IntervalFormat.amount) ?? "No timer", detail: suggestion.reason, isSelected: true) {
                 choose(suggestion.minutes)
             }
             separator
-            group("Choose")
-            ForEach(NogSettings.timeboxChoices, id: \.self) { minutes in
-                row(IntervalFormat.amount(minutes),
-                    detail: minutes == NogSettings.timeboxMinutes ? "default" : nil) { choose(minutes) }
+            group("Longer")
+            ForEach(NogSettings.timeboxChoices.filter { $0 != suggestion.minutes }, id: \.self) { minutes in
+                row(IntervalFormat.amount(minutes), detail: nil) { choose(minutes) }
             }
             separator
             row("No timer", detail: "count up") { choose(nil) }
@@ -170,6 +187,7 @@ struct TimeboxPanel: View {
 
 /// Logic-transport-style readout: an inset display with faint "88:88" ghost segments
 /// behind softly glowing digits, its labels and progress bar inside the glass.
+/// Counts down the starter timer (two minutes), then flips to counting up the time logged.
 struct RecessedTimer: View {
     let item: Item
     let now: Date
@@ -177,9 +195,13 @@ struct RecessedTimer: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             HStack {
-                Text(isCountdown ? "REMAINING" : "ELAPSED")
+                Text(isCountdown ? "STARTER" : isOver ? "LOGGING" : "ELAPSED")
                 Spacer()
-                if let box = item.timeboxMinutes { Text("BOX \(clock(TimeInterval(box * 60)))") }
+                if isCountdown, let box = item.timeboxMinutes {
+                    Text("OF \(clock(TimeInterval(box * 60)))")
+                } else if let gap = item.checkInGap(policy: NogSettings.policy) {
+                    Text("CHECK-IN \(IntervalFormat.short(gap).uppercased())")
+                }
             }
             .font(.nogMicroLabel)
             .tracking(1.8)
@@ -189,9 +211,9 @@ struct RecessedTimer: View {
                 Text(ghost)
                     .foregroundStyle(Theme.blue.opacity(0.07))
                 Text(display)
-                    .foregroundStyle(isOver ? Theme.pink : Theme.lcd)
-                    .nogGlow(color: (isOver ? Theme.pink : Theme.blue).opacity(0.55), radius: 8)
-                    .nogGlow(color: (isOver ? Theme.pink : Theme.blue).opacity(0.9), radius: 1)
+                    .foregroundStyle(Theme.lcd)
+                    .nogGlow(color: (isOver ? Theme.violet : Theme.blue).opacity(0.55), radius: 8)
+                    .nogGlow(color: (isOver ? Theme.violet : Theme.blue).opacity(0.9), radius: 1)
             }
             .nogReadout(44)
             .monospacedDigit()
@@ -200,7 +222,7 @@ struct RecessedTimer: View {
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
                         Capsule().fill(.white.opacity(0.06))
-                        Capsule().fill(isOver ? AnyShapeStyle(Theme.pink) : AnyShapeStyle(Theme.synth))
+                        Capsule().fill(Theme.synth)
                             .frame(width: geo.size.width * fraction)
                     }
                 }
@@ -229,27 +251,37 @@ struct RecessedTimer: View {
         }
         .environment(\.colorScheme, .dark)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(isCountdown ? "Remaining" : "Elapsed") \(display)")
+        .accessibilityLabel(isCountdown ? "Starter timer, \(spoken) left"
+                            : isOver ? "Starter done. \(spoken) logged. Keep going or stop." : "\(spoken) elapsed")
     }
 
-    private var isCountdown: Bool { item.timeboxEnd != nil }
-    private var isOver: Bool { item.timeboxEnd.map { now >= $0 } ?? false }
+    /// Still in the starter timer (the two minutes).
+    private var isCountdown: Bool { item.timeboxEnd.map { now < $0 } ?? false }
+    /// Past the starter timer: counting up.
+    private var isOver: Bool { item.isCountingUp(now: now) }
 
     private var seconds: TimeInterval {
-        if let end = item.timeboxEnd { return max(0, end.timeIntervalSince(now)) }
+        if isCountdown, let end = item.timeboxEnd { return max(0, end.timeIntervalSince(now)) }
         return item.doingSince.map { max(0, now.timeIntervalSince($0)) } ?? 0
     }
 
-    private var display: String { isOver ? "TIME'S UP" : clock(seconds) }
+    private var display: String { clock(seconds) }
+
+    /// "1 minute 20 seconds", for VoiceOver.
+    private var spoken: String {
+        Duration.seconds(Int(seconds.rounded(isCountdown ? .up : .down)))
+            .formatted(.units(allowed: [.hours, .minutes, .seconds], width: .wide))
+    }
 
     /// Unlit segments matching the digit layout.
     private var ghost: String {
-        if isOver { return "" }
-        return seconds >= 3600 ? "8:88:88" : "88:88"
+        seconds >= 3600 ? "8:88:88" : "88:88"
     }
 
+    /// The starter timer filling up; full once it's counting up.
     private var fraction: Double? {
         guard let since = item.doingSince, let end = item.timeboxEnd else { return nil }
+        if isOver { return 1 }
         return min(1, max(0, now.timeIntervalSince(since) / end.timeIntervalSince(since)))
     }
 
@@ -291,30 +323,14 @@ struct DoingCard: View {
 
             TimelineView(.periodic(from: .now, by: 1)) { context in
                 RecessedTimer(item: item, now: context.date)
+                    // A little "you did it" tap the moment the starter timer flips to counting up.
+                    .nogFeedback(.success, trigger: item.isCountingUp(now: context.date)) { old, new in !old && new }
             }
+            .contextMenu { CheckInMenu(item: item) }
+            .accessibilityHint("Hold to change how often Nog checks in")
 
-            HStack(spacing: 8) {
-                Button {
-                    store.markDone(item.id)
-                } label: {
-                    Label("Done", systemImage: "checkmark")
-                }
-                .buttonStyle(OutlineButtonStyle(tint: Theme.blue))
-                Button {
-                    store.extend(item.id, minutes: 10)
-                } label: {
-                    Text("+10 min")
-                }
-                .buttonStyle(OutlineButtonStyle(tint: Theme.pink))
-                Button {
-                    store.stopDoing(item.id)
-                } label: {
-                    Image(systemName: "stop.fill").font(.caption)
-                }
-                .buttonStyle(OutlineButtonStyle(tint: Theme.muted, expands: false))
-                .accessibilityLabel("Stop")
-            }
-            .padding(.top, 4)
+            DoingActions(item: item)
+                .padding(.top, 4)
         }
         .padding(16)
         .nogPanel()
@@ -332,6 +348,72 @@ struct DoingCard: View {
         return parts.joined(separator: " · ")
     }
 
+}
+
+/// The two ways out of a session. "Done for now" stops it (the time is logged, and the nog comes
+/// back tomorrow); "Complete" finishes the nog for good. Same order everywhere: stop, then finish.
+struct DoingActions: View {
+    @Environment(ItemStore.self) private var store
+    @Environment(\.dynamicTypeSize) private var typeSize
+    let item: Item
+
+    var body: some View {
+        // Stacked at the accessibility text sizes, so neither label truncates.
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(spacing: 8)) : AnyLayout(HStackLayout(spacing: 8))
+        layout {
+            Button {
+                let logged = store.stopDoing(item.id)
+                AccessibilityNotification.Announcement(Self.loggedLine(logged)).post()
+            } label: {
+                Label("Done for now", systemImage: "pause.fill")
+            }
+            .buttonStyle(OutlineButtonStyle(tint: Theme.violet))
+            .accessibilityHint("Stops for now and logs your time. It comes back tomorrow.")
+            Button {
+                store.markDone(item.id)
+            } label: {
+                Label("Complete", systemImage: "checkmark")
+            }
+            .buttonStyle(OutlineButtonStyle(tint: StatusDial.tint(.done)))
+            .accessibilityHint("Marks it finished")
+        }
+    }
+
+    /// "Logged 7 min. Nice start."
+    static func loggedLine(_ seconds: TimeInterval) -> String {
+        seconds < 60 ? "Stopped for now. Nice start." : "Logged \(DurationFormat.short(seconds)). Nice start."
+    }
+}
+
+/// Long press on the timer: how often "still on it?" comes, for this session only.
+struct CheckInMenu: View {
+    @Environment(ItemStore.self) private var store
+    let item: Item
+
+    var body: some View {
+        let current = item.checkInGap(policy: NogSettings.policy) ?? 0
+        Section("“Still on it?” this session") {
+            ForEach(NogSettings.checkInChoices, id: \.self) { minutes in
+                Button {
+                    store.setCheckIn(item.id, minutes: minutes)
+                } label: {
+                    if minutes == current {
+                        Label(Self.label(minutes), systemImage: "checkmark")
+                    } else {
+                        Text(Self.label(minutes))
+                    }
+                }
+            }
+        }
+        if item.checkInMinutes != nil {
+            Button("Use my usual (Settings)") { store.setCheckIn(item.id, minutes: nil) }
+        }
+    }
+
+    static func label(_ minutes: Int) -> String {
+        minutes == 0 ? "No check-ins" : "Every \(IntervalFormat.short(minutes))"
+    }
 }
 
 /// HUD-style corner ticks (top-left and bottom-right).

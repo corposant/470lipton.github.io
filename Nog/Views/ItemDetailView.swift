@@ -64,7 +64,8 @@ private struct ItemEditor: View {
         switch new {
         case .doing: store.start(item.id)
         case .done: store.markDone(item.id)
-        case .open: item.isDoing ? store.stopDoing(item.id) : store.reopen(item.id)
+        case .open:
+            if item.isDoing { store.stopDoing(item.id) } else { store.reopen(item.id) }
         case .someday: set(\.status, .someday)
         }
     }
@@ -80,7 +81,9 @@ private struct ItemEditor: View {
                 stateSection
                 notesSection(proxy)
                 childrenSection
-                detailsSection
+                if item.totalTimeSpent() >= 60 || (item.reminder != nil && item.status != .open) {
+                    detailsSection
+                }
                 linksSection
             }
             .scrollDismissesKeyboard(.interactively)
@@ -199,12 +202,9 @@ private struct ItemEditor: View {
         }
     }
 
-    /// "~15 min · Tue"
+    /// "Tue"
     private var metaLine: String {
-        var parts: [String] = []
-        if let estimate = item.estimateMinutes { parts.append("~" + IntervalFormat.amount(estimate)) }
-        parts.append(Self.dayWord(item.created).capitalized)
-        return parts.joined(separator: " · ")
+        Self.dayWord(item.created).capitalized
     }
 
     /// "today", "yesterday", "Tue", or "Nov 3".
@@ -237,7 +237,15 @@ private struct ItemEditor: View {
                     .listRowInsets(EdgeInsets(top: 4, leading: 4, bottom: 4, trailing: 4))
             }
         case .open, .someday:
-            // Start and Done sit inside the timer panel, under the next nog.
+            // ▶︎ on a nog with sub-nogs starts its first step: show that step's timer here too.
+            if let step = store.doingDescendant(of: item.id) {
+                Section {
+                    DoingCard(item: step)
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets(top: 4, leading: 4, bottom: 4, trailing: 4))
+                }
+            }
+            // Start and Complete sit inside the timer panel, under the next nog.
             Section {
                 if item.status == .someday {
                     DreamCard(reopen: { store.reopen(item.id) }) { actions }
@@ -250,7 +258,7 @@ private struct ItemEditor: View {
         }
     }
 
-    /// ▶︎ Start and ✓ Done, side by side, at the foot of the timer panel. Finishing is its own clearly-labelled
+    /// ▶︎ Start and ✓ Complete, side by side, at the foot of the timer panel. Finishing is its own clearly-labelled
     /// action, never a "save" button: edits on this page are saved as you make them.
     private var actions: some View {
         // Stacked at the accessibility text sizes, so neither button truncates.
@@ -263,7 +271,7 @@ private struct ItemEditor: View {
             } label: {
                 HStack(spacing: 8) {
                     Image(systemName: "checkmark").nogFont(12, weight: .bold)
-                    Text("DONE").font(.nogTitle(13)).tracking(2)
+                    Text("COMPLETE").font(.nogTitle(13)).tracking(2)
                 }
                 .foregroundStyle(StatusDial.tint(.done))
                 .padding(.vertical, 15)
@@ -273,7 +281,8 @@ private struct ItemEditor: View {
                 .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
             }
             .buttonStyle(.borderless)
-            .accessibilityLabel("Mark done")
+            .accessibilityLabel("Complete")
+            .accessibilityHint("Marks it finished")
         }
     }
 
@@ -500,13 +509,6 @@ private struct ItemEditor: View {
 
     private var detailsSection: some View {
         Section {
-            Picker("Estimate", selection: Binding(
-                get: { item.estimateMinutes ?? 0 },
-                set: { set(\.estimateMinutes, $0 > 0 ? $0 : nil) })) {
-                Text("None").tag(0)
-                ForEach(Array(Set(NogSettings.timeboxChoices + [item.estimateMinutes ?? 0])).filter { $0 > 0 }.sorted(),
-                        id: \.self) { Text(IntervalFormat.amount($0)).tag($0) }
-            }
             if item.totalTimeSpent() >= 60 {
                 LabeledContent("Time spent", value: DurationFormat.short(item.totalTimeSpent()))
             }
