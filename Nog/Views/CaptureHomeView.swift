@@ -484,34 +484,42 @@ struct CaptureHomeView: View {
                 .padding(.horizontal, 10)
                 .transition(.nog(.move(edge: .bottom).combined(with: .opacity)))
             }
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 6) {
-                    chip(result.reminder.map { Self.whenText($0.start, now: .now) } ?? "No time",
-                         systemImage: "calendar", tint: Theme.blue,
-                         isOn: draft.when != nil, isOpen: panel == .when) { toggle(.when) }
-                    chip(kind.label, systemImage: kind.systemImage, tint: kind.tint,
-                         isOn: kind != .note, isOpen: panel == .kind) { toggle(.kind) }
-                    chip(result.tags.isEmpty ? "Tags" : result.tags.map { "#\($0)" }.joined(separator: " "),
-                         systemImage: "number", tint: Theme.violet,
-                         isOn: !result.tags.isEmpty, isOpen: panel == .tags) { toggle(.tags) }
-                    chip(draft.subItems.isEmpty ? "Sub-nogs" : "\(draft.subItems.count) sub-nogs",
-                         systemImage: "list.bullet", tint: Theme.blue,
-                         isOn: !draft.subItems.isEmpty, isOpen: false) {
-                        panel = nil
-                        showSubItems = true
-                        focus = .subItem
+            // Done sits beside the chips, not on top of them: the scroller ends
+            // where Done begins, so a chip can never slide under it.
+            HStack(spacing: 0) {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        chip(result.reminder.map { Self.whenText($0.start, now: .now) } ?? "No time",
+                             systemImage: "calendar", tint: Theme.blue,
+                             isOn: draft.when != nil, isOpen: panel == .when) { toggle(.when) }
+                        chip(kind.label, systemImage: kind.systemImage, tint: kind.tint,
+                             isOn: kind != .note, isOpen: panel == .kind) { toggle(.kind) }
+                        chip(result.tags.isEmpty ? "Tags" : result.tags.map { "#\($0)" }.joined(separator: " "),
+                             systemImage: "number", tint: Theme.violet,
+                             isOn: !result.tags.isEmpty, isOpen: panel == .tags) { toggle(.tags) }
+                        chip(draft.subItems.isEmpty ? "Sub-nogs" : "\(draft.subItems.count) sub-nogs",
+                             systemImage: "list.bullet", tint: Theme.blue,
+                             isOn: !draft.subItems.isEmpty, isOpen: false) {
+                            panel = nil
+                            showSubItems = true
+                            focus = .subItem
+                        }
+                        chip(draft.parentID.flatMap { store.items[$0]?.title } ?? "Link",
+                             systemImage: "link", tint: Theme.violet,
+                             isOn: draft.parentID != nil, isOpen: false) { showParentPicker = true }
+                            .accessibilityLabel(draft.parentID.flatMap { store.items[$0]?.title }.map { "Linked to \($0)" } ?? "Link")
+                            .accessibilityHint("Puts it inside another nog")
                     }
-                    chip(draft.parentID.flatMap { store.items[$0]?.title } ?? "Link",
-                         systemImage: "link", tint: Theme.violet,
-                         isOn: draft.parentID != nil, isOpen: false) { showParentPicker = true }
-                        .accessibilityLabel(draft.parentID.flatMap { store.items[$0]?.title }.map { "Linked to \($0)" } ?? "Link")
-                        .accessibilityHint("Puts it inside another nog")
+                    .padding(.horizontal, 12)
                 }
-                .padding(.horizontal, 12)
-            }
-            .padding(.vertical, 8)
-            // Done stays pinned outside the scrolling chips, so it's always on screen.
-            .safeAreaInset(edge: .trailing, spacing: 0) {
+                // Chips fade out at the edge Done guards, which also hints there's more to scroll.
+                .mask {
+                    HStack(spacing: 0) {
+                        Color.black
+                        LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing)
+                            .frame(width: focus != nil ? 24 : 12)
+                    }
+                }
                 if focus != nil {
                     Button {
                         focus = nil
@@ -530,8 +538,10 @@ struct CaptureHomeView: View {
                     .padding(.trailing, 12)
                     .padding(.leading, 4)
                     .accessibilityHint("Hides the keyboard")
+                    .transition(.opacity)
                 }
             }
+            .padding(.vertical, 8)
             .background(.bar)
         }
         .nogAnimation(.snappy, value: panel)
