@@ -22,6 +22,7 @@ extension AppTab {
         case .agenda: "Agenda"
         case .nogs: "List"
         case .map: "Map"
+        case .search: "Search"
         }
     }
 
@@ -31,6 +32,8 @@ extension AppTab {
         case .agenda: Theme.violet
         case .nogs: Theme.blue
         case .map: Theme.teal
+        // Search finds nogs for the List, so it shares the List's blue.
+        case .search: Theme.blue
         }
     }
 }

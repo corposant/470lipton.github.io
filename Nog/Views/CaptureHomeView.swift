@@ -867,6 +867,11 @@ struct RootView: View {
                     MapTab().nogTabTheme(.map)
                 }
             }
+            // iOS 26: search lives at the bottom, as its own round button beside the tab bar,
+            // in thumb reach. Tapping it opens the field just above the keyboard.
+            Tab(value: AppTab.search, role: .search) {
+                SearchTab().nogTabTheme(.search)
+            }
         }
         .onChange(of: showMapTab) { _, on in
             if !on && router.tab == .map { router.tab = .nogs }
