@@ -50,16 +50,11 @@ enum ListColumn: String, CaseIterable, Identifiable {
     func lines(_ item: Item, now: Date, counts: (done: Int, total: Int)) -> (String, String?) {
         switch self {
         case .next:
+            // One line: a time today, a weekday this week, a date after that.
             guard let date = item.nextDate(after: now) else { return ("–", nil) }
-            let calendar = Calendar.current
-            let time = date.formatted(date: .omitted, time: .shortened)
-            if calendar.isDate(date, inSameDayAs: now) { return (time, date > now ? "today" : "now") }
-            if let tomorrow = calendar.date(byAdding: .day, value: 1, to: now), calendar.isDate(date, inSameDayAs: tomorrow) {
-                return (time, "tomorrow")
-            }
-            if abs(date.timeIntervalSince(now)) < 6 * 86_400 {
-                return (date.formatted(.dateTime.weekday(.abbreviated)), time)
-            }
+            if date <= now { return ("now", nil) }
+            if Calendar.current.isDate(date, inSameDayAs: now) { return (date.formatted(date: .omitted, time: .shortened), nil) }
+            if date.timeIntervalSince(now) < 6 * 86_400 { return (date.formatted(.dateTime.weekday(.abbreviated)), nil) }
             return (date.formatted(.dateTime.month(.abbreviated).day()), nil)
         case .repeats:
             if item.isOpen, let minutes = item.reminder?.repeatMinutes { return (IntervalFormat.short(minutes), nil) }
@@ -69,7 +64,7 @@ enum ListColumn: String, CaseIterable, Identifiable {
             return counts.total > 0 ? ("\(counts.done)/\(counts.total)", nil) : ("–", nil)
         case .tags:
             guard let first = item.tags.first else { return ("–", nil) }
-            return ("#\(first)", item.tags.count > 1 ? "+\(item.tags.count - 1)" : nil)
+            return ("#\(first)" + (item.tags.count > 1 ? " +\(item.tags.count - 1)" : ""), nil)
         case .added:
             return (item.created.formatted(.dateTime.month(.abbreviated).day()), nil)
         }
@@ -124,8 +119,8 @@ struct TableCell: View {
                     Text(main)
                         .font(.caption.monospacedDigit())
                         .foregroundStyle(main == "–" ? Theme.muted : Color.primary)
-                        .lineLimit(2)
-                        .minimumScaleFactor(0.85)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
                     if let sub {
                         Text(sub)
                             .font(.caption2)
@@ -173,6 +168,8 @@ struct NogTable: View {
                     .listRowBackground(Theme.glass)
                     .listRowSeparator(.hidden)
                     .selectionDisabled()
+                    // The same insets as the rows (zebraRow), so the columns line up.
+                    .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 12))
                 ForEach(Array(rows.enumerated()), id: \.element.id) { index, item in
                     NogRow(item: item, now: now, stats: stats, columns: columns, reservesStartSlot: true)
                         .zebraRow(index)

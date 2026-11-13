@@ -62,6 +62,19 @@ struct NogRow: View {
     /// Table: keep Start's space even when there's no Start button, so the columns line up.
     var reservesStartSlot = false
     @State private var confirmDelete = false
+    @AppStorage(NogSettings.Key.escalateAfter) private var globalEscalate = 0
+
+    /// What the hidden detail line would have said, plus the alarm profile, for VoiceOver.
+    private func spokenDetail(_ counts: (done: Int, total: Int)) -> String {
+        var parts: [String] = []
+        if item.isOpen, let r = item.reminder, let profile = NogProfile.matching(r) {
+            parts.append(profile.spokenLabel(globalEscalateAfter: globalEscalate))
+        }
+        if let detail = RowDetail.text(item, now: now, counts: counts, store: store, omit: omit) {
+            parts.append(String(detail.characters))
+        }
+        return parts.joined(separator: ", ")
+    }
 
     private var isSelecting: Bool { editMode?.wrappedValue.isEditing == true }
     private var canStart: Bool { item.status == .open || item.status == .someday }
@@ -81,19 +94,21 @@ struct NogRow: View {
                     VStack(alignment: .leading, spacing: 3) {
                         if let margin, folded, !margin.text.isEmpty { margin.label }
                         NogTitle(item: item)
-                        if let detail = RowDetail.text(item, now: now, counts: counts, store: store,
-                                                       omit: omit.union(folded ? [] : Set(columns.compactMap(\.fact))),
-                                                       folded: folded ? columns : []) {
-                            Text(detail)
-                                .font(.caption)
-                                .foregroundStyle(Theme.muted)
-                                .lineLimit(folded ? nil : 2)
+                        // One line: no detail line. At the accessibility text sizes the Table's
+                        // columns can't fit beside the title, so only they fold underneath.
+                        if folded, !columns.isEmpty,
+                           let cells = RowDetail.text(item, now: now, counts: counts, store: store,
+                                                      omit: [.when, .repeats, .steps, .parent, .tags], folded: columns) {
+                            Text(cells).font(.caption).foregroundStyle(Theme.muted)
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
             .navigationLinkIndicatorVisibility(.hidden)
+            // The row shows only the title; VoiceOver still hears when it's next, its steps,
+            // where it sits and its tags.
+            .accessibilityValue(spokenDetail(counts))
 
             if !folded {
                 ForEach(columns) { column in
@@ -191,15 +206,17 @@ struct NogTitle: View {
             Text(item.title.isEmpty ? "Untitled" : item.title)
                 .strikethrough(done)
                 .foregroundStyle(done ? Theme.muted : Color.primary)
-                .lineLimit(typeSize.isAccessibilitySize ? nil : 2)
+                .lineLimit(typeSize.isAccessibilitySize ? 3 : 1)
         }
         .font(font)
     }
 }
 
 /// What kind of nog this is, at a glance: a ring with a folder for one with steps (the
-/// ring is its progress), a bell or alarm for a reminder, a page for a note.
+/// ring is its progress), its alarm profile's icon (with the rings-through-Silent mark when
+/// it has one), a bell for a rhythm of its own. A plain note shows nothing.
 struct NogKindIcon: View {
+    @AppStorage(NogSettings.Key.escalateAfter) private var globalEscalate = 0
     let item: Item
     let now: Date
     let steps: (done: Int, total: Int)
@@ -214,24 +231,32 @@ struct NogKindIcon: View {
                     .overlay {
                         ProgressRing(fraction: Double(steps.done) / Double(steps.total), lineWidth: 2)
                     }
-            } else {
+            } else if item.isOpen, let r = item.reminder, let profile = NogProfile.matching(r) {
+                Image(systemName: profile.systemImage)
+                    .foregroundStyle(tint)
+                    .nogFrame(width: 28, height: 28)
+                    .breaksSilentBadge(profile.breaksSilent(globalEscalateAfter: globalEscalate))
+            } else if let symbol {
                 Image(systemName: symbol)
                     .foregroundStyle(tint)
                     .nogFrame(width: 28, height: 28)
+            } else {
+                // Keeps titles lined up.
+                Color.clear.nogFrame(width: 28, height: 28)
             }
         }
-        // The detail line and the steps button already say all of this in words.
+        // The row's VoiceOver value says all of this in words.
         .accessibilityHidden(true)
     }
 
-    private var symbol: String {
+    private var symbol: String? {
         switch item.status {
         case .done: return "checkmark.circle"
         case .doing: return "play.circle"
         case .someday: return "moon.stars"
         case .open:
             if let r = item.reminder { return r.alarm ? "alarm" : "bell" }
-            return item.place != nil ? "location" : "doc.text"
+            return item.place != nil ? "location" : nil
         }
     }
 
@@ -360,6 +385,8 @@ extension View {
     func zebraRow(_ index: Int) -> some View {
         listRowBackground(ZebraRowBackground(index: index))
             .listRowSeparator(.hidden)
+            // One-line rows, close together; the ▶︎ and steps buttons keep 44 pt targets.
+            .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 12))
     }
 }
 
