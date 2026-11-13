@@ -2,6 +2,7 @@ import CoreLocation
 import AppIntents
 import Foundation
 import UserNotifications
+import os
 
 /// Keeps iOS's pending notifications in line with `NogPlanner`'s plan.
 @MainActor
@@ -154,7 +155,7 @@ final class NotificationScheduler {
             do {
                 try await center.add(request(for: planned))
             } catch {
-                print("Nog: failed to schedule \(id): \(error)")
+                Log.nog.error("failed to schedule \(String(describing: id)): \(String(describing: error))")
             }
         }
         lastPlannedCount = desired.count

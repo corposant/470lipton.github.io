@@ -1,5 +1,6 @@
 import AVFoundation
 import Observation
+import os
 
 /// Plays one voice note at a time, anywhere in the app. Plays out loud even with the
 /// ring switch on silent, like Voice Memos: you tapped Play, so you want to hear it.
@@ -40,7 +41,7 @@ final class VoicePlayer: NSObject, AVAudioPlayerDelegate {
             playing = note.file
             watchForInterruption()
         } catch {
-            print("Nog: couldn't play \(note.file): \(error)")
+            Log.nog.error("couldn't play \(note.file): \(String(describing: error))")
             failed = note.file
             VoiceRecorder.deactivateSession()
         }
