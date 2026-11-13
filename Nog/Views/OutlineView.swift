@@ -77,7 +77,9 @@ struct OutlineBrowser: View {
                 overview(all, stats: stats)
             }
         }
-        .nogListStyle()
+        // No backdrop of its own: the List tab's stays put behind, so a page sliding in or
+        // out (or following a back swipe) doesn't drag a seam of background across the screen.
+        .scrollContentBackground(.hidden)
         .accessibilityAction(.escape) { if !trail.isEmpty { back() } }
     }
 
