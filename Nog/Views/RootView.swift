@@ -16,6 +16,8 @@ struct NogsTab: View {
     @State private var outlineForward = true
     /// How far a swipe from the left edge has pulled the Overview page (to go back).
     @State private var edgeDrag: CGFloat = 0
+    /// How far through that swipe it is, 0 to 1.
+    @State private var backProgress: CGFloat = 0
 
     private var isSelecting: Bool { editMode.isEditing }
 
@@ -40,15 +42,21 @@ struct NogsTab: View {
             .safeAreaInset(edge: .top) {
                 VStack(spacing: 8) {
                     SilenceBanner()
-                    if !isSelecting {
-                        Picker("View", selection: $mode) {
-                            ForEach(ListMode.allCases) { Text($0.rawValue).tag($0) }
+                    VStack(spacing: 0) {
+                        if !isSelecting {
+                            Picker("View", selection: $mode) {
+                                ForEach(ListMode.allCases) { Text($0.rawValue).tag($0) }
+                            }
+                            .pickerStyle(.segmented)
+                            .padding(.horizontal, 16)
                         }
-                        .pickerStyle(.segmented)
-                        .padding(.horizontal, 16)
-                    }
-                    if mode == .overview && !trail.isEmpty {
-                        OutlinePathBar(trail: trail) { go(to: $0) }
+                        if mode == .overview && !trail.isEmpty {
+                            // Swiping back to the top level, the bar fades and folds away
+                            // with your finger, so the page doesn't jump up at the end.
+                            OutlinePathBar(trail: trail) { go(to: $0) }
+                                .padding(.top, isSelecting ? 0 : 8)
+                                .collapsing(trail.count == 1 ? backProgress : 0)
+                        }
                     }
                 }
                 .padding(.bottom, 4)
@@ -149,12 +157,15 @@ struct NogsTab: View {
             .contentShape(Rectangle())
             .gesture(
                 DragGesture(minimumDistance: 8)
-                    .onChanged { value in edgeDrag = min(max(0, value.translation.width), width) }
+                    .onChanged { value in
+                        edgeDrag = min(max(0, value.translation.width), width)
+                        backProgress = edgeDrag / width
+                    }
                     .onEnded { value in
                         if value.translation.width > 90 || value.predictedEndTranslation.width > 200 {
                             finishBackSwipe(width: width)
                         } else {
-                            withNogAnimation(.snappy) { edgeDrag = 0 }
+                            withNogAnimation(.snappy) { edgeDrag = 0; backProgress = 0 }
                         }
                     }
             )
@@ -168,6 +179,7 @@ struct NogsTab: View {
         let newTrail = Array(trail.dropLast())
         withNogAnimation(.snappy) {
             edgeDrag = width
+            backProgress = 1
         } completion: {
             var quiet = Transaction()
             quiet.disablesAnimations = true
@@ -176,6 +188,7 @@ struct NogsTab: View {
                 selection = []
                 router.outlineTrail = newTrail
                 edgeDrag = 0
+                backProgress = 0
             }
         }
     }
@@ -218,5 +231,27 @@ struct DreamHaze: View {
             LinearGradient(colors: [Theme.violet.opacity(0.14), Theme.pink.opacity(0.05), Theme.violet.opacity(0.08)],
                            startPoint: .topLeading, endPoint: .bottomTrailing)
         }
+    }
+}
+
+/// Folds a view away from the bottom as `progress` goes from 0 to 1, fading it as it goes,
+/// so whatever sits below rises with it smoothly rather than jumping when it's removed.
+private struct Collapsing: ViewModifier {
+    let progress: CGFloat
+    @State private var height: CGFloat?
+
+    func body(content: Content) -> some View {
+        content
+            .fixedSize(horizontal: false, vertical: true)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height = $0 }
+            .frame(height: height.map { $0 * (1 - progress) }, alignment: .top)
+            .opacity(1 - progress)
+            .clipped()
+    }
+}
+
+private extension View {
+    func collapsing(_ progress: CGFloat) -> some View {
+        modifier(Collapsing(progress: min(max(progress, 0), 1)))
     }
 }
