@@ -47,6 +47,17 @@ struct StartButton: View {
             }
     }
 
+    /// The step's name on the big Start button, cut to 26 characters (at a word break when
+    /// one is near) so it reads at a glance. VoiceOver still hears the whole name.
+    static func short(_ title: String, max: Int = 26) -> String {
+        guard title.count > max else { return title }
+        let cut = title.prefix(max - 1)
+        if let space = cut.lastIndex(of: " "), cut.distance(from: cut.startIndex, to: space) >= max - 8 {
+            return String(cut[..<space]).trimmingCharacters(in: .whitespaces) + "…"
+        }
+        return String(cut).trimmingCharacters(in: .whitespaces) + "…"
+    }
+
     /// The sub-nog ▶︎ would start instead of this one, if any. Worked out once per body:
     /// every list row has a ▶︎, and each lookup walks the store.
     private var stepTitle: String? {
@@ -65,7 +76,7 @@ struct StartButton: View {
                         .tracking(2)
                 }
                 if let step {
-                    Text(step)
+                    Text(Self.short(step))
                         .font(.caption)
                         .foregroundStyle(Theme.muted)
                         .nogLineLimit(1, accessibilityLines: 3)
