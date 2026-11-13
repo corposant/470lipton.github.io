@@ -277,9 +277,9 @@ struct OutlinePathBar: View {
                     Button(titles[index]) { go(Array(trail.prefix(index + 1))) }
                 }
             } label: {
+                // Hugs its text; a long parent name truncates before the title does.
                 Label(backTitle, systemImage: "chevron.backward")
                     .lineLimit(1)
-                    .frame(maxWidth: 160, alignment: .leading)
                     .padding(.horizontal, 12)
                     .frame(minHeight: 44)
             } primaryAction: {
@@ -293,6 +293,7 @@ struct OutlinePathBar: View {
             Text(titles.last ?? "")
                 .font(.headline)
                 .lineLimit(2)
+                .layoutPriority(1)
                 .accessibilityAddTraits(.isHeader)
             Spacer(minLength: 0)
         }
