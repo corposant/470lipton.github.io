@@ -212,18 +212,23 @@ private struct ItemEditor: View {
         .accessibilityHint("Urgent nogs are listed first and keep nogging after Done for now")
     }
 
-    /// Opens the tag field in the row under the title (with recent tags to tap).
+    /// Opens the tag field in the row under the title (with recent tags to tap). Tap it
+    /// again to put the field away; anything typed is added first, as Return would.
     private var tagButton: some View {
         Button {
             if isAddingTag {
-                tagFieldFocused = true
+                tagFieldFocused = false
+                addTag()
             } else {
                 withNogAnimation(.snappy) { isAddingTag = true }
             }
         } label: {
-            Image(systemName: "tag")
+            Image(systemName: isAddingTag ? "tag.fill" : "tag")
+                .foregroundStyle(isAddingTag ? Theme.blue : .primary)
         }
         .accessibilityLabel("Add tag")
+        .accessibilityValue(isAddingTag ? "Open" : "")
+        .accessibilityHint(isAddingTag ? "Puts the tag field away" : "Shows a tag field and your recent tags")
     }
 
     /// Shown in the row only while the nog is urgent. Not a button: the flag in the top bar
