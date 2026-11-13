@@ -31,6 +31,8 @@ private struct ItemEditor: View {
     @FocusState private var childFieldFocused: Bool
     @State private var newTag = ""
     @State private var isAddingTag = false
+    /// Bumped by the top bar's flag and tag buttons to scroll the title row into view.
+    @State private var heroRequest = 0
     @FocusState private var tagFieldFocused: Bool
     @FocusState private var notesFocused: Bool
     @State private var notesCommitted = 0
@@ -90,6 +92,11 @@ private struct ItemEditor: View {
                 linksSection
             }
             .scrollDismissesKeyboard(.interactively)
+            // The flag and tag buttons change the row under the title: bring it into view
+            // so you see what they did, however far down you are.
+            .onChange(of: heroRequest) {
+                withNogAnimation(.snappy) { proxy.scrollTo(Self.heroAnchor, anchor: .top) }
+            }
         }
         // Leaving the page stops this nog's voice note if one is playing.
         .onDisappear {
@@ -192,19 +199,20 @@ private struct ItemEditor: View {
                 tagSuggestions
             }
             .padding(.vertical, 2)
+            .id(Self.heroAnchor)
             .listRowBackground(Color.clear)
             .listRowInsets(EdgeInsets(top: 4, leading: 4, bottom: 4, trailing: 4))
         }
     }
 
     /// Urgent on/off, in the top bar: urgent nogs are listed first and keep nogging after
-    /// "Done for now". Filled and pink when on.
+    /// "Done for now". The radiation trefoil: an outline when off, glowing synthwave when on.
     private var urgentButton: some View {
         Button {
+            heroRequest += 1
             withNogAnimation(.snappy) { store.setUrgent(item.id, !item.urgent) }
         } label: {
-            Image(systemName: item.urgent ? "flag.fill" : "flag")
-                .foregroundStyle(item.urgent ? Theme.pink : .primary)
+            UrgentSymbol(isOn: item.urgent, size: 20)
         }
         .accessibilityLabel("Urgent")
         .accessibilityValue(item.urgent ? "On" : "Off")
@@ -212,26 +220,32 @@ private struct ItemEditor: View {
         .accessibilityHint("Urgent nogs are listed first and keep nogging after Done for now")
     }
 
-    /// Opens the tag field in the row under the title (with recent tags to tap).
+    /// Opens the tag field in the row under the title (with recent tags to tap). Tap it
+    /// again to put the field away; anything typed is added first, as Return would.
     private var tagButton: some View {
         Button {
+            heroRequest += 1
             if isAddingTag {
-                tagFieldFocused = true
+                tagFieldFocused = false
+                addTag()
             } else {
                 withNogAnimation(.snappy) { isAddingTag = true }
             }
         } label: {
-            Image(systemName: "tag")
+            Image(systemName: isAddingTag ? "tag.fill" : "tag")
+                .foregroundStyle(isAddingTag ? Theme.blue : .primary)
         }
         .accessibilityLabel("Add tag")
+        .accessibilityValue(isAddingTag ? "Open" : "")
+        .accessibilityHint(isAddingTag ? "Puts the tag field away" : "Shows a tag field and your recent tags")
     }
 
-    /// Shown in the row only while the nog is urgent. Not a button: the flag in the top bar
+    /// Shown in the row only while the nog is urgent. Not a button: the trefoil in the top bar
     /// turns it off.
     private var urgentMark: some View {
         // Fixed to its own size, so the wrapping row can never stretch it.
         HStack(spacing: 5) {
-            Image(systemName: "flag.fill").nogFont(11, weight: .semibold)
+            UrgentSymbol(size: 12, glows: false)
             Text("URGENT").font(.nogLabel).tracking(1.5)
         }
         .foregroundStyle(Theme.pink)
@@ -353,7 +367,9 @@ private struct ItemEditor: View {
                 }
                 .foregroundStyle(StatusDial.tint(.done))
                 .padding(.vertical, 15)
-                .frame(minWidth: 124, maxWidth: typeSize.isAccessibilitySize ? .infinity : nil)
+                // Side by side, as tall as Start (which grows a line when it names the step).
+                .frame(minWidth: 124, maxWidth: typeSize.isAccessibilitySize ? .infinity : nil,
+                       maxHeight: typeSize.isAccessibilitySize ? nil : .infinity)
                 .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous)
                     .strokeBorder(StatusDial.tint(.done).opacity(0.75), lineWidth: 1.5))
                 .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
@@ -362,11 +378,14 @@ private struct ItemEditor: View {
             .accessibilityLabel("Complete")
             .accessibilityHint("Marks it finished")
         }
+        // The row is as tall as its tallest button, so Complete can stretch to match Start.
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     // MARK: Content
 
     private static let notesAnchor = "notes"
+    private static let heroAnchor = "hero"
 
     private func commitNotes() {
         notesFocused = false

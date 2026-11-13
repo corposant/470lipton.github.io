@@ -82,6 +82,32 @@ enum ItemAssistant {
         return label
     }
 
+    @Generable
+    struct ShortStep {
+        @Guide(description: "The same action in at most 26 characters, starting with its verb. No full stop.")
+        var step: String
+    }
+
+    static let shortStepInstructions = """
+        You shorten one step of a to-do list so it fits on a small Start button: at most 26 characters. \
+        Keep the verb first and keep the thing being acted on, using the person's own words. \
+        Drop where, when, why, filler and extra detail. Never add anything that isn't there.
+
+        Example: "Check for structural damage on the north side of the roof" -> Check roof damage
+        Example: "Call the dentist to book a cleaning for next Tuesday" -> Call the dentist
+        Example: "Find the renewal form for the passport online" -> Find passport form
+        Example: "Put all the dirty dishes from the living room in the sink" -> Put dishes in the sink
+        """
+
+    /// A long step cut down for the Start button: "Check roof damage". nil when it isn't usable.
+    static func shortStep(for title: String, limit: Int = 26) async throws -> String? {
+        let session = LanguageModelSession(instructions: shortStepInstructions)
+        let response = try await session.respond(to: "Step: \(title.prefix(500))", generating: ShortStep.self)
+        let short = ParentContext.tidy(cleaned(response.content.step))
+        guard !short.isEmpty, short.count <= limit, short.count < title.count else { return nil }
+        return short
+    }
+
     /// Trims spaces, list numbering ("1.", "2 -", "•") and a trailing full stop.
     static func cleaned(_ step: String) -> String {
         var s = step.trimmingCharacters(in: .whitespacesAndNewlines)

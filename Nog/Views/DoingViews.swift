@@ -11,6 +11,8 @@ struct StartButton: View {
     @State private var showPanel = false
     /// Set by a hold, so the button's tap (which fires on release) doesn't also start it.
     @State private var didHold = false
+    /// Apple Intelligence's short name for a long step, once it's ready.
+    @State private var smartStep: String?
 
     var body: some View {
         let suggestion = store.suggestedTimebox(for: item.id)
@@ -47,6 +49,21 @@ struct StartButton: View {
             }
     }
 
+    /// The most characters of a step's name the big Start button shows.
+    static let maxStep = 26
+
+    /// The step's name on the big Start button, cut to 26 characters (at a word break when
+    /// one is near) so it reads at a glance. Apple Intelligence's shorter name replaces this
+    /// when it's ready. VoiceOver still hears the whole name.
+    static func short(_ title: String, max: Int = maxStep) -> String {
+        guard title.count > max else { return title }
+        let cut = title.prefix(max - 1)
+        if let space = cut.lastIndex(of: " "), cut.distance(from: cut.startIndex, to: space) >= max - 8 {
+            return String(cut[..<space]).trimmingCharacters(in: .whitespaces) + "…"
+        }
+        return String(cut).trimmingCharacters(in: .whitespaces) + "…"
+    }
+
     /// The sub-nog ▶︎ would start instead of this one, if any. Worked out once per body:
     /// every list row has a ▶︎, and each lookup walks the store.
     private var stepTitle: String? {
@@ -65,7 +82,7 @@ struct StartButton: View {
                         .tracking(2)
                 }
                 if let step {
-                    Text(step)
+                    Text(smartStep ?? StepLabelCache.label(for: step).flatMap { $0.isEmpty ? nil : $0 } ?? Self.short(step))
                         .font(.caption)
                         .foregroundStyle(Theme.muted)
                         .nogLineLimit(1, accessibilityLines: 3)
@@ -73,6 +90,12 @@ struct StartButton: View {
                 }
             }
             .foregroundStyle(.primary)
+            // A long step gets a smarter short name from Apple Intelligence (on device, once).
+            .task(id: step) {
+                smartStep = nil
+                guard let step, step.count > Self.maxStep else { return }
+                smartStep = await StepLabelCache.shorten(step, limit: Self.maxStep)
+            }
             .padding(.vertical, 15)
             .frame(maxWidth: .infinity)
             .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(Theme.synth, lineWidth: 1.5))
