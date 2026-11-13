@@ -1,3 +1,4 @@
+import ActivityKit
 import AlarmKit
 import AppIntents
 import Foundation
@@ -51,6 +52,8 @@ final class AlarmScheduler {
         // A sub-nog's alarm names its parent too: "Call back (Get the oil changed)".
         let titles = ParentContext.titles(for: items, shortened: shortParents)
         var desired: [UUID: (item: Item, title: String, date: Date)] = [:]
+        // The sound is part of each alarm's ID, so changing Settings › Alarm sound replaces them.
+        let sound = NotificationChime.alarm
         var ringing: [UUID: [Date]] = [:]
         // A nog whose sub-nog is being worked on doesn't ring either.
         let paused = NogPlanner.pausedAncestors(in: items)
@@ -58,7 +61,7 @@ final class AlarmScheduler {
             let dates = Self.alarmDates(for: item, policy: policy, now: now)
             let title = titles[item.id] ?? item.title
             for date in dates {
-                desired[Self.alarmID(item: item, title: title, date: date)] = (item, title, date)
+                desired[Self.alarmID(item: item, title: title + "|" + sound.rawValue, date: date)] = (item, title, date)
             }
             if !dates.isEmpty { ringing[item.id] = dates }
         }
@@ -116,7 +119,14 @@ final class AlarmScheduler {
             // iOS 27: lets people say "Siri, snooze it" while it rings.
             appEntityIdentifier: EntityIdentifier(for: ReminderEntity.self, identifier: item.id),
             stopIntent: nil,
-            secondaryIntent: CompleteItemIntent(itemID: item.id.uuidString))
+            secondaryIntent: CompleteItemIntent(itemID: item.id.uuidString),
+            sound: Self.alertSound(NotificationChime.alarm))
+    }
+
+    /// Settings › Alarm sound: Heyhey unless changed. iOS repeats it while the alarm rings.
+    nonisolated static func alertSound(_ chime: NotificationChime) -> AlertConfiguration.AlertSound {
+        guard let file = chime.fileName else { return .default }
+        return .named(file)
     }
 
     /// Stable per (item, time, title), so unchanged alarms are left alone.

@@ -1,8 +1,8 @@
 """Synthesizes Nog's notification chimes with the same soft, celesta-like recipe as
-the starter chime: Nudge (everyday reminder), Ripple (heads-up) and Insist (loud
-profiles). Nudge and Ripple last 0.75 s, Insist 1 s, each with a short sustain.
+the starter chime: Nodge (the default reminder), Bipple and Heyhey (the default
+alarm). Nodge and Bipple last 0.75 s, Heyhey 1 s, each with a short sustain.
 Run: python3 design/sounds/make_notification_chimes.py [out_dir]
-(needs numpy and ffmpeg; writes NudgeChime.caf, RippleChime.caf, InsistChime.caf)."""
+(needs numpy and ffmpeg; writes NodgeChime.caf, BippleChime.caf, HeyheyChime.caf)."""
 import os, subprocess, sys, tempfile, wave
 import numpy as np
 
@@ -30,12 +30,12 @@ def render(notes, peak, length=0.75, **kw):
 
 CHIMES = {
     # Up a fifth, "hey there".
-    "NudgeChime": render([(G5, 0.00, 0.55, 0.14), (C6, 0.11, 0.6, 0.19)], 0.45),
-    # The starter chime turned over: falling C6 G5 E5 C5, "coming up".
-    "RippleChime": render([(C6, 0.00, 0.5, 0.10), (G5, 0.08, 0.5, 0.10),
+    "NodgeChime": render([(G5, 0.00, 0.55, 0.14), (C6, 0.11, 0.6, 0.19)], 0.45),
+    # The starter chime turned over: falling C6 G5 E5 C5.
+    "BippleChime": render([(C6, 0.00, 0.5, 0.10), (G5, 0.08, 0.5, 0.10),
                            (E5, 0.16, 0.5, 0.10), (C5, 0.24, 0.6, 0.17)], 0.42),
     # Brighter C E G, twice. Firm, never harsh.
-    "InsistChime": render([(C6, 0.00, 0.55, 0.09), (E6, 0.08, 0.55, 0.09), (G6, 0.16, 0.55, 0.12),
+    "HeyheyChime": render([(C6, 0.00, 0.55, 0.09), (E6, 0.08, 0.55, 0.09), (G6, 0.16, 0.55, 0.12),
                            (C6, 0.42, 0.55, 0.09), (E6, 0.50, 0.55, 0.09), (G6, 0.58, 0.6, 0.18)],
                           0.6, length=1.0, bright=0.3, attack=0.008),
 }
