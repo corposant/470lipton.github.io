@@ -859,7 +859,7 @@ final class ItemStore {
 }
 
 enum AppTab: Hashable {
-    case capture, agenda, nogs, map
+    case capture, agenda, nogs, map, search
 }
 
 /// Navigation state shared with the notification delegate (tapping a nog opens its item).
@@ -873,6 +873,11 @@ final class Router {
     /// The List tab's stack.
     var path: [UUID] = []
     var mapPath: [UUID] = []
+    /// The Search tab's stack.
+    var searchPath: [UUID] = []
+    /// Where the List tab's Outline is: the nog you're inside and the nogs around it,
+    /// outermost first. Empty = the top level.
+    var outlineTrail: [UUID] = []
     /// Bumped to ask the capture field to take focus.
     var captureFocusRequest = 0
     /// Asks the app to show the Silence choices (from the app icon's "Silence for…").
@@ -887,6 +892,7 @@ final class Router {
         case .agenda: agendaPath.append(id)
         case .nogs: path.append(id)
         case .map: mapPath.append(id)
+        case .search: searchPath.append(id)
         }
     }
 
@@ -900,6 +906,7 @@ final class Router {
         case .agenda: up(&agendaPath)
         case .nogs: up(&path)
         case .map: up(&mapPath)
+        case .search: up(&searchPath)
         }
     }
 
@@ -907,6 +914,15 @@ final class Router {
     func open(_ id: UUID) {
         tab = .nogs
         path = [id]
+    }
+
+    /// Shows a nog's steps in the List tab's Outline (from Search, or a row anywhere).
+    /// `chain` is the nog and the nogs it sits inside, outermost first.
+    func showSteps(_ chain: [UUID]) {
+        tab = .nogs
+        path = []
+        outlineTrail = chain
+        UserDefaults.standard.set(ListMode.outline.rawValue, forKey: ListMode.key)
     }
 
     func focusCapture() {

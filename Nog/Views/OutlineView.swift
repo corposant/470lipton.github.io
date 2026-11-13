@@ -1,222 +1,176 @@
 import SwiftUI
 
-/// Folders-and-files view: top-level items, with projects expanding into their sub-items.
-struct OutlineView: View {
+/// The Outline: one level at a time, like an iPod menu. The top level lists the top nogs;
+/// a nog's steps button ("4 ›") slides you inside it, where a summary card sits above its
+/// steps. The path bar above takes you back up.
+struct OutlineBrowser: View {
     @Environment(ItemStore.self) private var store
-    let showNogged: Bool
-    /// "" = All, otherwise only this tag's items (and what's filed under them).
-    var page: String = ""
+    @Environment(\.editMode) private var editMode
+    let now: Date
+    @Binding var selection: Set<UUID>
+    /// Where you are: the nog you're inside and the nogs around it, outermost first.
+    let trail: [UUID]
+    /// Goes up a level (the VoiceOver escape gesture).
+    let back: () -> Void
+    @AppStorage(ListSort.key) private var sort: ListSort = .next
+    @AppStorage(ListSort.reversedKey) private var reversed = false
+    @AppStorage(ListSort.urgentFirstKey) private var urgentFirst = true
+    @AppStorage(ListSort.showDoneKey) private var showDone = false
 
-    struct Node: Identifiable {
-        let item: Item
-        var children: [Node]?
-        var id: UUID { item.id }
+    private var listSelection: Binding<Set<UUID>>? {
+        editMode?.wrappedValue.isEditing == true ? $selection : nil
     }
-
-    @Environment(Router.self) private var router
-    /// Collapsed folder ids, remembered between launches.
-    @AppStorage("outlineCollapsed") private var collapsedRaw = ""
-    static let unfiledID = UUID(uuidString: "00000000-0000-0000-0000-00000000F11E")!
 
     var body: some View {
-        let roots = Self.tree(MapPage.items(Array(store.items.values), page: page, showNogged: showNogged),
-                              showNogged: showNogged)
-        let folders = roots.filter { $0.children != nil }
-        let unfiled = roots.filter { $0.children == nil }
-
-        List {
-            // Every node with things connected under it on the map is a folder.
-            ForEach(folders) { folder in
-                Section(isExpanded: expanded(folder.id)) {
-                    ForEach(folder.children ?? []) { child in
-                        OutlineBranch(node: child, expanded: expanded)
-                    }
-                } header: {
-                    FolderHeader(item: folder.item, count: Self.count(folder)) { router.push(folder.item.id) }
-                }
-            }
-            if !unfiled.isEmpty {
-                Section(isExpanded: expanded(Self.unfiledID)) {
-                    ForEach(unfiled) { node in
-                        OutlineBranch(node: node, expanded: expanded)
-                    }
-                } header: {
-                    // The same section title as every other list in the app.
-                    SectionLabel(title: "Unfiled", count: unfiled.count)
-                }
+        let all = Array(store.items.values)
+        let stats = ChildStats(all)
+        Group {
+            if let id = trail.last, let parent = store.items[id] {
+                inside(parent, stats: stats)
+            } else {
+                topLevel(all, stats: stats)
             }
         }
-        .listStyle(.sidebar) // makes section headers collapsible
         .nogListStyle()
+        .accessibilityAction(.escape) { if !trail.isEmpty { back() } }
+    }
+
+    private func topLevel(_ all: [Item], stats: ChildStats) -> some View {
+        let doing = all.filter(\.isDoing).sorted { ($0.doingSince ?? .distantPast) < ($1.doingSince ?? .distantPast) }
+        let visible = all.filter { $0.status == .open || $0.status == .someday || (showDone && $0.status == .done) }
+        let tops = Item.outlineRoots(visible)
+        let rows = sort.sorted(tops, now: now, stats: stats, reversed: reversed, urgentFirst: urgentFirst)
+        return List(selection: listSelection) {
+            DoingSection(items: doing)
+            Section {
+                ForEach(Array(rows.enumerated()), id: \.element.id) { index, item in
+                    NogRow(item: item, now: now, stats: stats)
+                        .zebraRow(index)
+                }
+            } header: {
+                SectionLabel(title: "All nogs", count: rows.count)
+            }
+        }
         .overlay {
-            if roots.isEmpty {
-                ContentUnavailableView("Nothing yet", systemImage: "folder")
+            if rows.isEmpty && doing.isEmpty {
+                ContentUnavailableView("Nothing yet", systemImage: "list.bullet.indent",
+                                       description: Text("Add one on the New Nog tab."))
             }
         }
     }
 
-    private var collapsed: Set<UUID> {
-        Set(collapsedRaw.split(separator: ",").compactMap { UUID(uuidString: String($0)) })
-    }
-
-    private func expanded(_ id: UUID) -> Binding<Bool> {
-        Binding(
-            get: { !collapsed.contains(id) },
-            set: { isOpen in
-                var set = collapsed
-                if isOpen { set.remove(id) } else { set.insert(id) }
-                collapsedRaw = set.map(\.uuidString).sorted().joined(separator: ",")
-            })
-    }
-
-    /// Items inside a folder, at any depth.
-    nonisolated static func count(_ node: Node) -> Int {
-        (node.children ?? []).reduce(0) { $0 + 1 + count($1) }
-    }
-
-    nonisolated static func tree(_ items: [Item], showNogged: Bool) -> [Node] {
-        let visible = items.filter { showNogged || $0.status != .done }
-        let ids = Set(visible.map(\.id))
-        var byParent: [UUID?: [Item]] = [:]
-        for item in visible {
-            let parent = item.parentID.flatMap { ids.contains($0) ? $0 : nil }
-            byParent[parent, default: []].append(item)
-        }
-        func order(_ a: Item, _ b: Item) -> Bool {
-            let rank: [ItemStatus: Int] = [.doing: 0, .open: 1, .someday: 2, .done: 3]
-            if rank[a.status] != rank[b.status] { return rank[a.status]! < rank[b.status]! }
-            return a.created < b.created
-        }
-        var visited = Set<UUID>()
-        func build(_ parent: UUID?) -> [Node] {
-            (byParent[parent] ?? []).sorted(by: order).compactMap { item in
-                guard visited.insert(item.id).inserted else { return nil } // guards against cycles
-                let children = build(item.id)
-                return Node(item: item, children: children.isEmpty ? nil : children)
+    private func inside(_ parent: Item, stats: ChildStats) -> some View {
+        // Steps keep the order you gave them (drag to reorder), finished ones included.
+        let steps = store.children(of: parent.id)
+        return List(selection: listSelection) {
+            Section {
+                OutlineSummary(item: parent, now: now, counts: stats[parent.id])
+                    .listRowBackground(Theme.glass)
+                    .selectionDisabled()
+            }
+            Section {
+                ForEach(Array(steps.enumerated()), id: \.element.id) { index, item in
+                    NogRow(item: item, now: now, stats: stats, omit: [.parent])
+                        .zebraRow(index)
+                }
+                .onMove { source, destination in
+                    store.moveChildren(of: parent.id, from: source, to: destination)
+                }
+            } header: {
+                SectionLabel(title: "Steps", count: steps.count)
             }
         }
-        var roots = build(nil)
-        // Items stuck in a parent loop (A inside B inside A) still show up, at the top level.
-        for item in visible.sorted(by: order) where !visited.contains(item.id) {
-            visited.insert(item.id)
-            let children = build(item.id)
-            roots.append(Node(item: item, children: children.isEmpty ? nil : children))
+        .overlay {
+            if steps.isEmpty {
+                ContentUnavailableView("No steps yet", systemImage: "list.bullet.indent",
+                                       description: Text("Open the nog and tap Break down, or add sub-nogs."))
+            }
         }
-        return roots
     }
 }
 
-/// A row, or a collapsible sub-folder with its own rows.
-private struct OutlineBranch: View {
-    let node: OutlineView.Node
-    let expanded: (UUID) -> Binding<Bool>
+/// The card at the top of a level: the nog you're inside, its progress, and Start next step.
+private struct OutlineSummary: View {
+    @Environment(ItemStore.self) private var store
+    let item: Item
+    let now: Date
+    let counts: (done: Int, total: Int)
 
     var body: some View {
-        if let children = node.children {
-            DisclosureGroup(isExpanded: expanded(node.id)) {
-                ForEach(children) { child in
-                    AnyView(OutlineBranch(node: child, expanded: expanded))
+        VStack(alignment: .leading, spacing: 10) {
+            NavigationLink(value: item.id) {
+                HStack(spacing: 10) {
+                    NogKindIcon(item: item, now: now, steps: counts)
+                    VStack(alignment: .leading, spacing: 3) {
+                        NogTitle(item: item, font: .title3.weight(.semibold))
+                        if let detail = RowDetail.text(item, now: now, counts: (0, 0), store: store, omit: [.steps]) {
+                            Text(detail).font(.caption).foregroundStyle(Theme.muted)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    Label("Details", systemImage: "info.circle")
+                        .labelStyle(.iconOnly)
+                        .foregroundStyle(Theme.blue)
+                        .frame(minWidth: 44, minHeight: 44)
+                }
+            }
+            .navigationLinkIndicatorVisibility(.hidden)
+            .accessibilityHint("Opens \(item.title)")
+
+            if counts.total > 0 {
+                VStack(alignment: .leading, spacing: 4) {
+                    ProgressView(value: Double(counts.done), total: Double(counts.total))
+                        .tint(Theme.blue)
+                    Text("\(counts.done) of \(counts.total) steps done")
+                        .font(.caption)
+                        .foregroundStyle(Theme.muted)
+                }
+                .accessibilityElement(children: .combine)
+            }
+            if item.status == .open || item.status == .someday {
+                StartButton(item: item, prominent: true, subItems: counts.total > 0 ? counts : nil)
+            }
+        }
+        .padding(.vertical, 6)
+    }
+}
+
+/// "‹ All  ›  Address Roof": where you are in the Outline. Tap back to go up one level;
+/// press and hold it to jump to any level above.
+struct OutlinePathBar: View {
+    @Environment(ItemStore.self) private var store
+    let trail: [UUID]
+    let go: ([UUID]) -> Void
+
+    var body: some View {
+        let titles = trail.map { store.items[$0].map { $0.title.isEmpty ? "Untitled" : $0.title } ?? "Gone" }
+        let backTitle = trail.count >= 2 ? titles[trail.count - 2] : "All"
+        HStack(spacing: 8) {
+            Menu {
+                Button("All nogs") { go([]) }
+                ForEach(Array(trail.dropLast().enumerated()), id: \.offset) { index, _ in
+                    Button(titles[index]) { go(Array(trail.prefix(index + 1))) }
                 }
             } label: {
-                NavigationLink(value: node.item.id) {
-                    OutlineRow(item: node.item, childCount: OutlineView.count(node))
-                }
+                Label(backTitle, systemImage: "chevron.backward")
+                    .lineLimit(1)
+                    .frame(maxWidth: 160, alignment: .leading)
+                    .padding(.horizontal, 12)
+                    .frame(minHeight: 44)
+            } primaryAction: {
+                go(Array(trail.dropLast()))
             }
-            .listRowBackground(Theme.glass)
-        } else {
-            NavigationLink(value: node.item.id) {
-                OutlineRow(item: node.item, childCount: 0)
-            }
-            .listRowBackground(Theme.glass)
+            .foregroundStyle(Theme.blue)
+            .nogGlass(in: Capsule(), interactive: true)
+            .accessibilityLabel("Back to \(backTitle)")
+            .accessibilityHint("Hold to jump to any level above")
+
+            Text(titles.last ?? "")
+                .font(.headline)
+                .lineLimit(2)
+                .accessibilityAddTraits(.isHeader)
+            Spacer(minLength: 0)
         }
-    }
-}
-
-/// Section header for a top-level folder: tap the header to collapse, the arrow to open it.
-private struct FolderHeader: View {
-    @Environment(ItemStore.self) private var store
-    let item: Item
-    let count: Int
-    let open: () -> Void
-
-    var body: some View {
-        let kids = store.children(of: item.id)
-        HStack(spacing: 8) {
-            Image(systemName: "folder.fill")
-                .font(.system(size: 11))
-                .foregroundStyle(Theme.blue)
-                .frame(width: 26, height: 26)
-                .overlay {
-                    if !kids.isEmpty {
-                        ProgressRing(fraction: Double(kids.filter { $0.status == .done }.count) / Double(kids.count),
-                                     lineWidth: 2)
-                    }
-                }
-            Text(item.title.uppercased())
-                .font(.nogLabel)
-                .tracking(1.6)
-                .foregroundStyle(.primary)
-                .lineLimit(1)
-            Text(String(format: "%02d", count)).font(.nogMeta).foregroundStyle(Theme.muted)
-            ForEach(item.tags.prefix(2), id: \.self) { tag in
-                let pair = TagPalette.color(for: tag)
-                Text("#\(tag)").font(.caption2.weight(.medium)).foregroundStyle(Color(light: pair.light, dark: pair.dark))
-            }
-            Spacer()
-            Button(action: open) {
-                Image(systemName: "arrow.up.right.circle").foregroundStyle(Theme.blue)
-            }
-            .buttonStyle(.borderless)
-            .accessibilityLabel("Open \(item.title)")
-        }
-        .textCase(nil)
-    }
-}
-
-private struct OutlineRow: View {
-    let item: Item
-    let childCount: Int
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: childCount > 0 ? "folder" : icon)
-                .foregroundStyle(childCount > 0 ? Theme.blue : tint)
-                .frame(width: 20)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(item.title.isEmpty ? "Untitled" : item.title)
-                    .strikethrough(item.status == .done)
-                    .foregroundStyle(item.status == .done ? .secondary : .primary)
-                if childCount > 0 || !item.tags.isEmpty {
-                    HStack(spacing: 6) {
-                        if childCount > 0 {
-                            Text("\(childCount) ITEMS").font(.nogMeta).foregroundStyle(Theme.muted)
-                        }
-                        ForEach(item.tags.prefix(3), id: \.self) { tag in
-                            let pair = TagPalette.color(for: tag)
-                            Text("#\(tag)")
-                                .font(.caption2.weight(.medium))
-                                .foregroundStyle(Color(light: pair.light, dark: pair.dark))
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private var icon: String {
-        switch item.status {
-        case .done: "checkmark.circle"
-        case .doing: "play.circle"
-        case .someday: "moon.stars"
-        case .open: item.reminder == nil ? "doc.text" : "bell"
-        }
-    }
-
-    private var tint: Color {
-        switch item.status {
-        case .done, .doing: Theme.blue
-        case .someday: Theme.violet
-        case .open: item.reminder == nil ? Theme.muted : Theme.pink
-        }
+        .padding(.horizontal, 16)
     }
 }

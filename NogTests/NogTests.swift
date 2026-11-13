@@ -743,18 +743,47 @@ final class MapLayoutTests: XCTestCase {
         XCTAssertTrue(a.values.allSatisfy { $0.x.isFinite && $0.y.isFinite })
     }
 
-    func testOutlineTreeNestsAndSurvivesCycles() {
+    func testListSortByNameStepsAndUrgent() {
+        let now = Date(timeIntervalSince1970: 1_900_000_000)
+        var roof = Item(title: "Roof")
+        var bank = Item(title: "Bank")
+        let cat = Item(title: "cat")
+        var step1 = Item(title: "Ladder"); step1.parentID = roof.id
+        var step2 = Item(title: "Tools"); step2.parentID = roof.id; step2.status = .done
+        var step3 = Item(title: "Call"); step3.parentID = bank.id
+        let all = [roof, bank, cat, step1, step2, step3]
+        let stats = ChildStats(all)
+        let tops = [roof, bank, cat]
+
+        XCTAssertEqual(ListSort.name.sorted(tops, now: now, stats: stats).map(\.title), ["Bank", "cat", "Roof"])
+        XCTAssertEqual(ListSort.name.sorted(tops, now: now, stats: stats, reversed: true).map(\.title), ["Roof", "cat", "Bank"])
+        // Steps left: Roof 1, Bank 1 (tie: by title), and cat has none, so it goes last even reversed.
+        XCTAssertEqual(ListSort.steps.sorted(tops, now: now, stats: stats).map(\.title), ["Bank", "Roof", "cat"])
+        XCTAssertEqual(ListSort.steps.sorted(tops, now: now, stats: stats, reversed: true).last?.title, "cat")
+        // No times at all: Next falls back to the title.
+        XCTAssertEqual(ListSort.next.sorted(tops, now: now, stats: stats).map(\.title), ["Bank", "cat", "Roof"])
+
+        roof.urgent = true
+        bank.urgent = false
+        XCTAssertEqual(ListSort.name.sorted([roof, bank, cat], now: now, stats: stats).first?.title, "Roof")
+        XCTAssertEqual(ListSort.name.sorted([roof, bank, cat], now: now, stats: stats, urgentFirst: false).first?.title, "Bank")
+    }
+
+    func testOutlineRootsSurviveCycles() {
         var a = Item(title: "A")
         var b = Item(title: "B")
         b.parentID = a.id
-        a.parentID = b.id // a cycle that should never crash the outline
+        a.parentID = b.id // a cycle that should never hide both, or hang
         let c = Item(title: "C")
-        let tree = OutlineView.tree([a, b, c], showNogged: false)
-        func titles(_ nodes: [OutlineView.Node]) -> [String] {
-            nodes.flatMap { [$0.item.title] + titles($0.children ?? []) }
-        }
-        XCTAssertEqual(Set(titles(tree)), ["A", "B", "C"])
-        XCTAssertEqual(titles(tree).count, 3)
+        var d = Item(title: "D")
+        d.parentID = a.id // hangs off the loop: found inside A, not at the top
+        var e = Item(title: "E")
+        e.parentID = UUID() // its parent is gone
+        let roots = Item.outlineRoots([a, b, c, d, e]).map(\.title)
+        XCTAssertEqual(roots.filter { $0 == "A" || $0 == "B" }.count, 1)
+        XCTAssertTrue(roots.contains("C"))
+        XCTAssertTrue(roots.contains("E"))
+        XCTAssertFalse(roots.contains("D"))
     }
 }
 
