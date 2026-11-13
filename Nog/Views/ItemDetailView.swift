@@ -611,6 +611,15 @@ private struct ItemEditor: View {
                             Button("Move down") { moveChild(child, by: 1) }
                         }
                     }
+                    // A grip, so it's clear the steps can be put in order (touch and hold a row,
+                    // then drag). Decoration only: VoiceOver has Move up / Move down.
+                    if children.count > 1 {
+                        Image(systemName: "line.3.horizontal")
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(Theme.muted)
+                            .frame(minWidth: 28, minHeight: 28)
+                            .accessibilityHidden(true)
+                    }
                 }
             }
             // Touch and hold a sub-nog, then drag it to a new place. The order is saved.
