@@ -31,6 +31,8 @@ private struct ItemEditor: View {
     @FocusState private var childFieldFocused: Bool
     @State private var newTag = ""
     @State private var isAddingTag = false
+    /// Bumped by the top bar's flag and tag buttons to scroll the title row into view.
+    @State private var heroRequest = 0
     @FocusState private var tagFieldFocused: Bool
     @FocusState private var notesFocused: Bool
     @State private var notesCommitted = 0
@@ -90,6 +92,11 @@ private struct ItemEditor: View {
                 linksSection
             }
             .scrollDismissesKeyboard(.interactively)
+            // The flag and tag buttons change the row under the title: bring it into view
+            // so you see what they did, however far down you are.
+            .onChange(of: heroRequest) {
+                withNogAnimation(.snappy) { proxy.scrollTo(Self.heroAnchor, anchor: .top) }
+            }
         }
         // Leaving the page stops this nog's voice note if one is playing.
         .onDisappear {
@@ -192,6 +199,7 @@ private struct ItemEditor: View {
                 tagSuggestions
             }
             .padding(.vertical, 2)
+            .id(Self.heroAnchor)
             .listRowBackground(Color.clear)
             .listRowInsets(EdgeInsets(top: 4, leading: 4, bottom: 4, trailing: 4))
         }
@@ -201,6 +209,7 @@ private struct ItemEditor: View {
     /// "Done for now". Filled and pink when on.
     private var urgentButton: some View {
         Button {
+            heroRequest += 1
             withNogAnimation(.snappy) { store.setUrgent(item.id, !item.urgent) }
         } label: {
             Image(systemName: item.urgent ? "flag.fill" : "flag")
@@ -216,6 +225,7 @@ private struct ItemEditor: View {
     /// again to put the field away; anything typed is added first, as Return would.
     private var tagButton: some View {
         Button {
+            heroRequest += 1
             if isAddingTag {
                 tagFieldFocused = false
                 addTag()
@@ -372,6 +382,7 @@ private struct ItemEditor: View {
     // MARK: Content
 
     private static let notesAnchor = "notes"
+    private static let heroAnchor = "hero"
 
     private func commitNotes() {
         notesFocused = false
