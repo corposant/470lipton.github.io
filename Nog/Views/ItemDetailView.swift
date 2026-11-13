@@ -367,7 +367,9 @@ private struct ItemEditor: View {
                 }
                 .foregroundStyle(StatusDial.tint(.done))
                 .padding(.vertical, 15)
-                .frame(minWidth: 124, maxWidth: typeSize.isAccessibilitySize ? .infinity : nil)
+                // Side by side, as tall as Start (which grows a line when it names the step).
+                .frame(minWidth: 124, maxWidth: typeSize.isAccessibilitySize ? .infinity : nil,
+                       maxHeight: typeSize.isAccessibilitySize ? nil : .infinity)
                 .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous)
                     .strokeBorder(StatusDial.tint(.done).opacity(0.75), lineWidth: 1.5))
                 .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
@@ -376,6 +378,8 @@ private struct ItemEditor: View {
             .accessibilityLabel("Complete")
             .accessibilityHint("Marks it finished")
         }
+        // The row is as tall as its tallest button, so Complete can stretch to match Start.
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     // MARK: Content
