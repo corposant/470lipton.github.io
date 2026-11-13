@@ -161,7 +161,7 @@ private struct CountTiles: View {
                         Label {
                             Text(filter.rawValue.uppercased())
                         } icon: {
-                            if filter == .urgent { Image(systemName: "flag.fill") }
+                            if filter == .urgent { UrgentSymbol(size: 12, glows: false) }
                         }
                         .labelStyle(.titleAndIcon)
                         .font(.nogLabel)

@@ -206,14 +206,13 @@ private struct ItemEditor: View {
     }
 
     /// Urgent on/off, in the top bar: urgent nogs are listed first and keep nogging after
-    /// "Done for now". Filled and pink when on.
+    /// "Done for now". The radiation trefoil: an outline when off, glowing synthwave when on.
     private var urgentButton: some View {
         Button {
             heroRequest += 1
             withNogAnimation(.snappy) { store.setUrgent(item.id, !item.urgent) }
         } label: {
-            Image(systemName: item.urgent ? "flag.fill" : "flag")
-                .foregroundStyle(item.urgent ? Theme.pink : .primary)
+            UrgentSymbol(isOn: item.urgent, size: 20)
         }
         .accessibilityLabel("Urgent")
         .accessibilityValue(item.urgent ? "On" : "Off")
@@ -241,12 +240,12 @@ private struct ItemEditor: View {
         .accessibilityHint(isAddingTag ? "Puts the tag field away" : "Shows a tag field and your recent tags")
     }
 
-    /// Shown in the row only while the nog is urgent. Not a button: the flag in the top bar
+    /// Shown in the row only while the nog is urgent. Not a button: the trefoil in the top bar
     /// turns it off.
     private var urgentMark: some View {
         // Fixed to its own size, so the wrapping row can never stretch it.
         HStack(spacing: 5) {
-            Image(systemName: "flag.fill").nogFont(11, weight: .semibold)
+            UrgentSymbol(size: 12, glows: false)
             Text("URGENT").font(.nogLabel).tracking(1.5)
         }
         .foregroundStyle(Theme.pink)
