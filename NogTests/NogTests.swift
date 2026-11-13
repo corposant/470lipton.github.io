@@ -1830,3 +1830,19 @@ final class ParentContextTests: XCTestCase {
         XCTAssertNotEqual(plan.map(\.identifier), replanned.map(\.identifier))
     }
 }
+
+final class NotificationChimeTests: XCTestCase {
+    func testDefaultsAreNodgeForRemindersAndHeyheyForAlarms() {
+        XCTAssertEqual(NotificationChime.reminderDefault, .nodge)
+        XCTAssertEqual(NotificationChime.alarmDefault, .heyhey)
+        XCTAssertEqual(NotificationChime.allCases.map(\.label), ["Nodge", "Bipple", "Heyhey", "iPhone default"])
+        XCTAssertNil(NotificationChime.system.fileName)
+    }
+
+    func testChimeFilesAreBundled() {
+        for chime in NotificationChime.allCases {
+            guard let file = chime.fileName else { continue }
+            XCTAssertNotNil(Bundle(for: NotificationScheduler.self).url(forResource: file, withExtension: nil), file)
+        }
+    }
+}

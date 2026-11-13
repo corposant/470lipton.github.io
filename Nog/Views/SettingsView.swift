@@ -397,6 +397,8 @@ private struct NogsAlertsPage: View {
     // How they look and sound
     @AppStorage(NogSettings.Key.timeSensitive) private var timeSensitive = true
     @AppStorage(NogSettings.Key.sound) private var sound = true
+    @AppStorage(NotificationChime.reminderKey) private var reminderChime = NotificationChime.reminderDefault
+    @AppStorage(NotificationChime.alarmKey) private var alarmChime = NotificationChime.alarmDefault
     @AppStorage(NogSettings.Key.showTitles) private var showTitles = true
     @AppStorage(NogSettings.Key.badge) private var badge = false
 
@@ -445,12 +447,16 @@ private struct NogsAlertsPage: View {
             Section {
                 Toggle("Time Sensitive", isOn: $timeSensitive)
                 Toggle("Sound", isOn: $sound)
+                if sound {
+                    chimePicker("Reminder chime", selection: $reminderChime)
+                }
+                chimePicker("Alarm sound", selection: $alarmChime)
                 Toggle("Show titles on Lock Screen", isOn: $showTitles)
                 Toggle("Badge the app icon", isOn: $badge)
             } header: {
                 SectionLabel(title: "Notifications")
             } footer: {
-                Text("Time Sensitive gets through Focus. Also allow it in Settings › Notifications › Nog.")
+                Text("Picking a sound plays it. Time Sensitive gets through Focus. Also allow it in Settings › Notifications › Nog.")
             }
             .listRowBackground(Theme.glass)
             .tint(Theme.pink)
@@ -468,6 +474,17 @@ private struct NogsAlertsPage: View {
 }
 
 extension NogsAlertsPage {
+    /// One sound picker; picking a chime plays it so people hear what they chose.
+    fileprivate func chimePicker(_ title: String, selection: Binding<NotificationChime>) -> some View {
+        Picker(title, selection: selection) {
+            ForEach(NotificationChime.allCases) { option in
+                Text(option.label).tag(option)
+            }
+        }
+        .accessibilityValue("\(selection.wrappedValue.label). \(selection.wrappedValue.detail)")
+        .onChange(of: selection.wrappedValue) { _, picked in ChimePreview.play(picked) }
+    }
+
     fileprivate var currentProfile: NogProfile? {
         NogProfile.allCases.first {
             $0.firstDelayMinutes == firstDelay && $0.repeatMinutes == repeatMinutes
