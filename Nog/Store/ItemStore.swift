@@ -875,9 +875,6 @@ final class Router {
     var mapPath: [UUID] = []
     /// The Search tab's stack.
     var searchPath: [UUID] = []
-    /// Where the List tab's Overview is: the nog you're inside and the nogs around it,
-    /// outermost first. Empty = the top level.
-    var outlineTrail: [UUID] = []
     /// Bumped to ask the capture field to take focus.
     var captureFocusRequest = 0
     /// Asks the app to show the Silence choices (from the app icon's "Silence for…").
@@ -914,15 +911,6 @@ final class Router {
     func open(_ id: UUID) {
         tab = .nogs
         path = [id]
-    }
-
-    /// Shows a nog's steps in the List tab's Outline (from Search, or a row anywhere).
-    /// `chain` is the nog and the nogs it sits inside, outermost first.
-    func showSteps(_ chain: [UUID]) {
-        tab = .nogs
-        path = []
-        outlineTrail = chain
-        UserDefaults.standard.set(ListMode.overview.rawValue, forKey: ListMode.key)
     }
 
     func focusCapture() {

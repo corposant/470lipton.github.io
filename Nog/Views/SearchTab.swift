@@ -16,8 +16,6 @@ struct SearchTab: View {
             .background { NogBackground() }
             .nogTabTitle(.search)
             .toolbar { SettingsToolbarItem() }
-            // A steps button here goes to the List tab's Outline, inside that nog.
-            .environment(\.openSteps, OpenStepsAction { id in router.showSteps(store.chain(to: id)) })
             .navigationDestination(for: UUID.self) { id in
                 ItemDetailView(id: id)
             }
