@@ -171,7 +171,7 @@ struct NogTable: View {
                     // The same insets as the rows (zebraRow), so the columns line up.
                     .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 12))
                 ForEach(Array(rows.enumerated()), id: \.element.id) { index, item in
-                    NogRow(item: item, now: now, stats: stats, columns: columns, reservesStartSlot: true)
+                    NogRow(item: item, now: now, stats: stats, columns: columns)
                         .zebraRow(index)
                 }
             } header: {
@@ -218,7 +218,7 @@ private struct TableHeader: View {
                 }
                 columnMenu {
                     Image(systemName: "ellipsis.circle")
-                        .frame(width: StartSlot.width(typeSize), height: 44)
+                        .frame(width: TrailingSlot.width(typeSize), height: 44)
                 }
             }
             .font(.caption.weight(.semibold))

@@ -24,7 +24,7 @@ struct NogsTab: View {
 
     /// The Outline's place, minus any nog that has since been deleted.
     private var trail: [UUID] {
-        Array(router.outlineTrail.prefix { store.items[$0] != nil })
+        Array(router.outlineTrail.prefix { $0 == OverviewPage.looseID || store.items[$0] != nil })
     }
 
     var body: some View {
@@ -45,7 +45,7 @@ struct NogsTab: View {
                         .pickerStyle(.segmented)
                         .padding(.horizontal, 16)
                     }
-                    if mode == .outline && !trail.isEmpty {
+                    if mode == .overview && !trail.isEmpty {
                         OutlinePathBar(trail: trail) { go(to: $0) }
                     }
                 }
@@ -105,13 +105,12 @@ struct NogsTab: View {
             NogTable(now: now, selection: $selection)
         case .agenda:
             AgendaList(now: now, selection: $selection)
-        case .outline:
+        case .overview:
             // Each level is its own page, so going in or out slides like an iPod menu
             // (a fade with Reduce Motion or Low stimulation).
             ZStack {
-                OutlineBrowser(now: now, selection: $selection, trail: trail) {
-                    go(to: Array(trail.dropLast()))
-                }
+                OutlineBrowser(now: now, selection: $selection, trail: trail,
+                               open: { go(to: $0) }, back: { go(to: Array(trail.dropLast())) })
                 .id(trail.last)
                 .transition(.nog(.push(from: outlineForward ? .trailing : .leading)))
             }
@@ -131,10 +130,10 @@ struct NogsTab: View {
     /// A steps button ("4 ›") in any view: open the Outline inside that nog.
     private func showSteps(_ id: UUID) {
         let chain = store.chain(to: id)
-        if mode != .outline {
+        if mode != .overview {
             outlineForward = true
             router.outlineTrail = chain
-            withNogAnimation(.snappy) { mode = .outline }
+            withNogAnimation(.snappy) { mode = .overview }
         } else {
             go(to: chain)
         }
