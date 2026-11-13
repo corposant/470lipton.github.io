@@ -1,43 +1,19 @@
 import SwiftUI
 
-/// Voice notes as rows inside the Notes section: each recording with Play, then Record.
+/// Voice notes as rows inside the Notes section, each recording with Play.
 /// Not a section of its own, so typed and spoken notes sit together.
 struct VoiceNoteRows: View {
     @Environment(ItemStore.self) private var store
     let item: Item
-    /// Opens the recorder as soon as the page appears (a voice nog made from New Nog).
-    var autoRecord = false
-    @State private var showRecorder = false
-    @State private var didAutoRecord = false
 
+    // Recording starts from the mic beside the notes (ItemDetailView), which also opens the
+    // recorder straight away for a voice nog. Stop-on-leave is on the page too, since a row
+    // scrolled out of sight also "disappears".
     var body: some View {
         ForEach(Array(item.voiceNotes.enumerated()), id: \.element.file) { index, note in
             VoiceNoteRow(note: note, name: item.voiceNotes.count == 1 ? "Voice note" : "Voice \(index + 1)")
                 .swipeActions { deleteButton(note) }
                 .contextMenu { deleteButton(note) }
-        }
-        // The recorder and auto-record hang off the Record row, the one row that is
-        // always there, so they're attached exactly once. (Stop-on-leave is on the page,
-        // since a row scrolled out of sight also "disappears".)
-        Button {
-            showRecorder = true
-        } label: {
-            Label(item.voiceNotes.isEmpty ? "Record" : "Record more", systemImage: "mic")
-                .foregroundStyle(Theme.pink)
-                .frame(minHeight: 32)
-        }
-        .buttonStyle(.borderless)
-        .accessibilityLabel(item.voiceNotes.isEmpty ? "Record voice note" : "Record another voice note")
-        .sheet(isPresented: $showRecorder) {
-            RecorderPanel { recording in
-                store.attachVoiceNote(recording, to: item.id)
-                AccessibilityNotification.Announcement("Voice note saved").post()
-            }
-        }
-        .onAppear {
-            guard autoRecord, !didAutoRecord else { return }
-            didAutoRecord = true
-            showRecorder = true
         }
     }
 

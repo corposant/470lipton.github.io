@@ -34,9 +34,12 @@ private struct ItemEditor: View {
     @FocusState private var tagFieldFocused: Bool
     @FocusState private var notesFocused: Bool
     @State private var notesCommitted = 0
-    /// Notes grow with the text up to this height, then scroll inside themselves,
-    /// so the caret is never pushed under the keyboard.
-    @ScaledMetric(relativeTo: .body) private var notesMaxHeight: CGFloat = 240
+    /// The notes show formatted until tapped; then the words underneath are edited.
+    @State private var editingNotes = false
+    @State private var notesSelection: TextSelection?
+    @State private var showRecorder = false
+    @State private var didAutoRecord = false
+    @ScaledMetric(relativeTo: .body) private var notesToolSize: CGFloat = 44
     @State private var showBreakdown = false
     @State private var showParentPicker = false
     @State private var showNogSheet = false
@@ -116,6 +119,29 @@ private struct ItemEditor: View {
             }
         }
         .nogFeedback(.success, trigger: notesCommitted)
+        // The recorder rises from the mic beside the notes.
+        .sheet(isPresented: $showRecorder) {
+            RecorderPanel { recording in
+                store.attachVoiceNote(recording, to: item.id)
+                AccessibilityNotification.Announcement("Voice note saved").post()
+            }
+        }
+        .onAppear {
+            guard autoRecord, !didAutoRecord else { return }
+            didAutoRecord = true
+            showRecorder = true
+        }
+        // [[Another nog]] in the notes opens it (or makes it, if there isn't one yet).
+        .environment(\.openURL, OpenURLAction { url in
+            guard let title = NotesMarkdown.title(from: url) else { return .systemAction }
+            notesFocused = false
+            if let target = store.resolve(title: title) {
+                router.push(target.id)
+            } else {
+                router.push(store.createIdea(title: title).id)
+            }
+            return .handled
+        })
         .sheet(isPresented: $showParentPicker) {
             ParentPicker(item: item)
         }
@@ -349,11 +375,39 @@ private struct ItemEditor: View {
     }
 
     private func notesSection(_ proxy: ScrollViewProxy) -> some View {
-        Section {
-            TextEditor(text: binding(\.body))
+        // Big text sizes put the buttons in a row under the notes, so the words keep the width.
+        let stacked = typeSize.isAccessibilitySize
+        let layout = stacked ? AnyLayout(VStackLayout(alignment: .trailing, spacing: 10))
+                             : AnyLayout(HStackLayout(alignment: .top, spacing: 12))
+        return Section {
+            layout {
+                notesContent(proxy)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                notesTools(stacked: stacked)
+            }
+            .padding(.vertical, 4)
+            // Spoken notes live with the typed ones.
+            VoiceNoteRows(item: item)
+        } header: {
+            SectionLabel(title: "Notes")
+        }
+        .listRowBackground(Theme.glass)
+    }
+
+    private var notesAreEmpty: Bool {
+        item.body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    /// Formatted to read; the plain words (with their Markdown marks) while editing. The field
+    /// grows with the notes instead of scrolling inside a box, so the card is all text.
+    @ViewBuilder
+    private func notesContent(_ proxy: ScrollViewProxy) -> some View {
+        if editingNotes || notesFocused || notesAreEmpty {
+            TextField("Notes", text: notesText, selection: $notesSelection,
+                      prompt: Text(verbatim: "[[Title]] links a nog.").italic().foregroundStyle(Theme.muted),
+                      axis: .vertical)
+                .lineLimit(4...)
                 .focused($notesFocused)
-                .frame(minHeight: 120, maxHeight: notesMaxHeight)
-                .scrollContentBackground(.hidden)
                 // As the notes grow a line, keep their bottom edge (and so the caret)
                 // above the keyboard instead of letting it slide underneath.
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { _ in
@@ -361,29 +415,152 @@ private struct ItemEditor: View {
                     withAnimation(.snappy) { proxy.scrollTo(Self.notesAnchor, anchor: .bottom) }
                 }
                 .onChange(of: notesFocused) { _, focused in
-                    guard focused else { return }
-                    withAnimation(.snappy) { proxy.scrollTo(Self.notesAnchor, anchor: .bottom) }
-                }
-                .id(Self.notesAnchor)
-                .overlay(alignment: .topLeading) {
-                    if item.body.isEmpty {
-                        Text(verbatim: "[[Title]] links a nog.")
-                            .italic()
-                            .foregroundStyle(Theme.muted.opacity(0.6))
-                            .padding(.top, 8)
-                            .padding(.leading, 5)
-                            .allowsHitTesting(false)
-                            .accessibilityHidden(true)
+                    if focused {
+                        withAnimation(.snappy) { proxy.scrollTo(Self.notesAnchor, anchor: .bottom) }
+                    } else {
+                        editingNotes = false
                     }
                 }
+                .onAppear {
+                    if editingNotes { notesFocused = true }
+                }
+                .id(Self.notesAnchor)
                 .foregroundStyle(item.status == .done ? Theme.muted : .primary)
                 .accessibilityLabel("Notes")
-            // Spoken notes live with the typed ones.
-            VoiceNoteRows(item: item, autoRecord: autoRecord)
-        } header: {
-            SectionLabel(title: "Notes")
+        } else {
+            NotesMarkdownView(text: item.body, dimmed: item.status == .done,
+                              toggleTask: { line in
+                                  set(\.body, NotesFormat.toggleTask(line: line, in: item.body))
+                              },
+                              edit: { startEditingNotes() })
+                .id(Self.notesAnchor)
         }
-        .listRowBackground(Theme.glass)
+    }
+
+    /// The notes' words. Return at the end of a list item starts the next one
+    /// ("- ", "2. ", "B. ", "- [ ] "); Return on an empty item ends the list.
+    private var notesText: Binding<String> {
+        Binding(
+            get: { store.items[item.id]?.body ?? item.body },
+            set: { new in
+                let old = store.items[item.id]?.body ?? item.body
+                let caret = notesSelectionOffsets(in: old).flatMap { $0.isEmpty ? $0.lowerBound : nil }
+                guard notesFocused, let continued = NotesFormat.continueList(old: old, new: new, caret: caret) else {
+                    set(\.body, new)
+                    return
+                }
+                set(\.body, continued.text)
+                // After the field has taken the keystroke, put the caret after the new mark.
+                Task { @MainActor in setNotesSelection(continued.selection, in: continued.text) }
+            })
+    }
+
+    private func startEditingNotes() {
+        let body = item.body
+        notesSelection = TextSelection(insertionPoint: body.endIndex)
+        editingNotes = true
+        notesFocused = true
+    }
+
+    /// The selection as character offsets, if the field has one.
+    private func notesSelectionOffsets(in text: String) -> Range<Int>? {
+        guard let notesSelection, case .selection(let range) = notesSelection.indices else { return nil }
+        func offset(_ i: String.Index) -> Int {
+            let u = min(max(0, i.utf16Offset(in: text)), text.utf16.count)
+            return text.distance(from: text.startIndex, to: String.Index(utf16Offset: u, in: text))
+        }
+        let lo = offset(range.lowerBound), hi = offset(range.upperBound)
+        return min(lo, hi)..<max(lo, hi)
+    }
+
+    private func setNotesSelection(_ range: Range<Int>, in text: String) {
+        let lo = text.index(text.startIndex, offsetBy: min(range.lowerBound, text.count))
+        let hi = text.index(text.startIndex, offsetBy: min(range.upperBound, text.count))
+        notesSelection = TextSelection(range: lo..<hi)
+    }
+
+    /// Runs a formatting change on the notes at the selection (or at the end, if the notes
+    /// aren't being edited), then keeps editing there.
+    private func formatNotes(_ change: (String, Range<Int>) -> NotesFormat.Result) {
+        let text = item.body
+        let selection = (editingNotes || notesFocused) ? notesSelectionOffsets(in: text) : nil
+        let result = change(text, selection ?? text.count..<text.count)
+        set(\.body, result.text)
+        setNotesSelection(result.selection, in: result.text)
+        editingNotes = true
+        notesFocused = true
+    }
+
+    /// Record and Format, in a column of glass buttons on the right like the map's.
+    private func notesTools(stacked: Bool) -> some View {
+        let layout = stacked ? AnyLayout(HStackLayout(spacing: 10)) : AnyLayout(VStackLayout(spacing: 10))
+        return GlassEffectContainer(spacing: 10) {
+            layout {
+                Button {
+                    notesFocused = false
+                    showRecorder = true
+                } label: {
+                    notesToolIcon("mic", tint: Theme.pink)
+                }
+                .buttonStyle(.borderless)
+                .glassEffect(.regular.interactive(), in: .circle)
+                .accessibilityLabel(item.voiceNotes.isEmpty ? "Record voice note" : "Record another voice note")
+                .accessibilityHint("It's kept here in Notes.")
+
+                Menu {
+                    Section {
+                        Button("Bulleted list", systemImage: "list.bullet") {
+                            formatNotes { NotesFormat.toggle(.bullet, in: $0, selection: $1) }
+                        }
+                        Button("Numbered list", systemImage: "list.number") {
+                            formatNotes { NotesFormat.toggle(.numbered, in: $0, selection: $1) }
+                        }
+                        Button("Lettered steps", systemImage: "textformat.abc") {
+                            formatNotes { NotesFormat.toggle(.lettered, in: $0, selection: $1) }
+                        }
+                        Button("Checklist", systemImage: "checklist") {
+                            formatNotes { NotesFormat.toggle(.checklist, in: $0, selection: $1) }
+                        }
+                        Button("Heading", systemImage: "textformat.size.larger") {
+                            formatNotes { NotesFormat.toggle(.heading, in: $0, selection: $1) }
+                        }
+                    }
+                    Section {
+                        Button("Indent", systemImage: "increase.indent") {
+                            formatNotes { NotesFormat.indent(false, in: $0, selection: $1) }
+                        }
+                        Button("Outdent", systemImage: "decrease.indent") {
+                            formatNotes { NotesFormat.indent(true, in: $0, selection: $1) }
+                        }
+                    }
+                    Section {
+                        Button("Bold", systemImage: "bold") {
+                            formatNotes { NotesFormat.wrap(.bold, in: $0, selection: $1) }
+                        }
+                        Button("Italic", systemImage: "italic") {
+                            formatNotes { NotesFormat.wrap(.italic, in: $0, selection: $1) }
+                        }
+                        Button("Strikethrough", systemImage: "strikethrough") {
+                            formatNotes { NotesFormat.wrap(.strikethrough, in: $0, selection: $1) }
+                        }
+                    }
+                } label: {
+                    notesToolIcon("textformat", tint: Theme.violet)
+                }
+                .buttonStyle(.borderless)
+                .glassEffect(.regular.interactive(), in: .circle)
+                .accessibilityLabel("Format")
+                .accessibilityHint("Lists, checklists, headings, bold and italic")
+            }
+        }
+    }
+
+    private func notesToolIcon(_ systemImage: String, tint: Color) -> some View {
+        Image(systemName: systemImage)
+            .font(.body.weight(.semibold))
+            .foregroundStyle(tint)
+            .frame(width: notesToolSize, height: notesToolSize)
+            .contentShape(Circle())
     }
 
     private var childrenSection: some View {
