@@ -27,9 +27,21 @@ enum RowFact: Hashable {
     case when, repeats, steps, parent, tags
 }
 
+/// Opens a nog's steps in the Outline. A struct rather than a bare closure, like SwiftUI's
+/// own DismissAction: closures can't be compared, so an environment closure would make
+/// every row redraw on every update. Two of these always count as equal; the action
+/// itself never changes what a row looks like.
+struct OpenStepsAction: Equatable {
+    let open: @MainActor (UUID) -> Void
+
+    @MainActor func callAsFunction(_ id: UUID) { open(id) }
+
+    static func == (lhs: Self, rhs: Self) -> Bool { true }
+}
+
 extension EnvironmentValues {
     /// Opens a nog's steps in the Outline. The List tab sets it; the Search tab sends you there.
-    @Entry var openSteps: (@MainActor (UUID) -> Void)? = nil
+    @Entry var openSteps: OpenStepsAction? = nil
 }
 
 /// One nog, the same in every view.
@@ -86,7 +98,7 @@ struct NogRow: View {
             if !folded {
                 ForEach(columns) { column in
                     TableCell(column: column, item: item, now: now, counts: counts) {
-                        openSteps?(item.id)
+                        openSteps?.callAsFunction(item.id)
                     }
                 }
             }

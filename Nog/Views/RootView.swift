@@ -53,7 +53,7 @@ struct NogsTab: View {
             }
             .nogTabTitle(.nogs, title: isSelecting ? (selection.isEmpty ? "Select nogs" : "\(selection.count) selected") : nil)
             .environment(\.editMode, $editMode)
-            .environment(\.openSteps, { id in showSteps(id) })
+            .environment(\.openSteps, OpenStepsAction { id in showSteps(id) })
             .toolbar {
                 if isSelecting {
                     ToolbarItem(placement: .topBarLeading) {
