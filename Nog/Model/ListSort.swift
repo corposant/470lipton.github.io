@@ -1,7 +1,7 @@
 import Foundation
 
-/// The List tab's one Sort menu. Table, Agenda and Outline all read it: the Table by
-/// column, the Agenda within a time slot, the Outline at the top level.
+/// The List tab's one Sort menu. Table, Agenda and Overview all read it: the Table by
+/// column, the Agenda within a time slot, the Overview at the top level.
 enum ListSort: String, CaseIterable, Identifiable {
     case next = "Next"
     case name = "Name"
@@ -54,7 +54,7 @@ enum ListSort: String, CaseIterable, Identifiable {
 }
 
 extension Item {
-    /// The Outline's top level among `items`: nogs with no parent, or whose parent isn't in
+    /// The Overview's top level among `items`: nogs with no parent, or whose parent isn't in
     /// `items` (gone, or a finished one that's hidden). A nog stuck in a loop (A inside B
     /// inside A) shows here once, as the loop's first member by id, so it can still be found.
     static func outlineRoots(_ items: [Item]) -> [Item] {
@@ -98,18 +98,4 @@ struct ChildStats {
     }
 
     subscript(id: UUID) -> (done: Int, total: Int) { counts[id] ?? (0, 0) }
-}
-
-extension ItemStore {
-    /// A nog and the nogs it sits inside, outermost first: the Outline's path to it.
-    func chain(to id: UUID) -> [UUID] {
-        var chain: [UUID] = []
-        var seen = Set<UUID>()
-        var current: UUID? = id
-        while let next = current, seen.insert(next).inserted, let item = items[next] {
-            chain.insert(next, at: 0)
-            current = item.parentID
-        }
-        return chain
-    }
 }

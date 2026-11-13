@@ -1,7 +1,7 @@
 import AppIntents
 import SwiftUI
 
-// The List tab's shared language. Table, Agenda and Outline (and Search) all draw the
+// The List tab's shared language. Table, Agenda and Overview (and Search) all draw the
 // same one-line row, NogRow:
 //
 //   [folder ring | Note · Nog · Alarm]  Title          [steps "4 ›"] [profile icon]
@@ -22,34 +22,15 @@ enum ListMode: String, CaseIterable, Identifiable {
 }
 
 /// Facts a view shows somewhere else (a Table column, the Agenda's time margin, the
-/// Outline's path), so the row's detail line leaves them out.
+/// nog's own page), so the row's detail line leaves them out.
 enum RowFact: Hashable {
     case when, repeats, steps, parent, tags
-}
-
-/// Opens a nog's steps in the Outline. A struct rather than a bare closure, like SwiftUI's
-/// own DismissAction: closures can't be compared, so an environment closure would make
-/// every row redraw on every update. Two of these always count as equal; the action
-/// itself never changes what a row looks like.
-struct OpenStepsAction: Equatable {
-    let open: @MainActor (UUID) -> Void
-
-    @MainActor func callAsFunction(_ id: UUID) { open(id) }
-
-    static func == (lhs: Self, rhs: Self) -> Bool { true }
-}
-
-extension EnvironmentValues {
-    /// Opens a nog's steps in the Outline. The List tab sets it; the Search tab sends you there.
-    @Entry var openSteps: OpenStepsAction? = nil
 }
 
 /// One nog, the same in every view.
 struct NogRow: View {
     @Environment(ItemStore.self) private var store
-    @Environment(\.editMode) private var editMode
     @Environment(\.dynamicTypeSize) private var typeSize
-    @Environment(\.openSteps) private var openSteps
     let item: Item
     let now: Date
     let stats: ChildStats
@@ -76,7 +57,6 @@ struct NogRow: View {
         return parts.joined(separator: ", ")
     }
 
-    private var isSelecting: Bool { editMode?.wrappedValue.isEditing == true }
     private var canStart: Bool { item.status == .open || item.status == .someday }
     /// At the accessibility text sizes columns and the margin fold under the title.
     private var folded: Bool { typeSize.isAccessibilitySize }
@@ -118,16 +98,11 @@ struct NogRow: View {
 
             if !folded {
                 ForEach(columns) { column in
-                    TableCell(column: column, item: item, now: now, counts: counts) {
-                        openSteps?.callAsFunction(item.id)
-                    }
+                    TableCell(column: column, item: item, now: now, counts: counts)
                 }
             }
-            if counts.total > 0, !isSelecting, folded || !columns.contains(.steps), let openSteps {
-                StepsButton(item: item, count: counts.total) { openSteps(item.id) }
-            }
             // The alarm profile, at the right end. Its slot is kept when there's none,
-            // so the Table's columns line up. Start lives in the swipe and the Outline card.
+            // so the Table's columns line up. Start lives in the swipe and the nog's page.
             ProfileMark(item: item)
                 .frame(width: TrailingSlot.width(typeSize))
         }
@@ -283,32 +258,6 @@ struct ProfileMark: View {
             Color.clear.nogFrame(width: 28, height: 28)
                 .accessibilityHidden(true)
         }
-    }
-}
-
-/// "4 ›": this nog has four steps; tap to go inside it in the Outline.
-struct StepsButton: View {
-    let item: Item
-    let count: Int
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 3) {
-                Text("\(count)").monospacedDigit()
-                Image(systemName: "chevron.forward").imageScale(.small)
-            }
-            .font(.subheadline.weight(.semibold))
-            .foregroundStyle(Theme.blue)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 5)
-            .background(Capsule().fill(Theme.blue.opacity(0.14)))
-            .overlay(Capsule().strokeBorder(Theme.blue.opacity(0.4), lineWidth: 1))
-            .frame(minWidth: 44, minHeight: 44)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.borderless)
-        .accessibilityLabel("Show \(count) \(count == 1 ? "step" : "steps") inside \(item.title)")
     }
 }
 

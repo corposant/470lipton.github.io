@@ -2,7 +2,7 @@ import SwiftUI
 
 /// The Agenda: the week ahead as a planner. A strip of days on top, then a page per day
 /// with the time in the left margin. Everything nogging now sits in one "now" slot at the
-/// top of today. Only nogs with a time are here; the Table and Outline have the rest.
+/// top of today. Only nogs with a time are here; the Table and Overview have the rest.
 struct AgendaList: View {
     @Environment(ItemStore.self) private var store
     @Environment(\.editMode) private var editMode

@@ -86,52 +86,32 @@ enum ListColumn: String, CaseIterable, Identifiable {
     }
 }
 
-/// One Table cell. The Steps cell is the steps button: tap it to go inside in the Outline.
+/// One Table cell.
 struct TableCell: View {
     @Environment(\.dynamicTypeSize) private var typeSize
     let column: ListColumn
     let item: Item
     let now: Date
     let counts: (done: Int, total: Int)
-    let openSteps: () -> Void
 
     var body: some View {
         let lines = column.lines(item, now: now, counts: counts)
         let main = lines.0, sub = lines.1
-        Group {
-            if column == .steps && counts.total > 0 {
-                Button(action: openSteps) {
-                    Text(main)
-                        .font(.caption.weight(.semibold).monospacedDigit())
-                        .foregroundStyle(Theme.blue)
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 5)
-                        .background(Capsule().fill(Theme.blue.opacity(0.14)))
-                        .overlay(Capsule().strokeBorder(Theme.blue.opacity(0.4), lineWidth: 1))
-                        .frame(minHeight: 44)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.borderless)
-                .accessibilityLabel("Steps, \(counts.done) of \(counts.total) done")
-                .accessibilityHint("Shows the steps inside \(item.title)")
-            } else {
-                VStack(alignment: .trailing, spacing: 1) {
-                    Text(main)
-                        .font(.caption.monospacedDigit())
-                        .foregroundStyle(main == "–" ? Theme.muted : Color.primary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.75)
-                    if let sub {
-                        Text(sub)
-                            .font(.caption2)
-                            .foregroundStyle(Theme.muted)
-                            .lineLimit(1)
-                    }
-                }
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel("\(column.rawValue), \(column.spoken(item, now: now, counts: counts))")
+        VStack(alignment: .trailing, spacing: 1) {
+            Text(main)
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(main == "–" ? Theme.muted : Color.primary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+            if let sub {
+                Text(sub)
+                    .font(.caption2)
+                    .foregroundStyle(Theme.muted)
+                    .lineLimit(1)
             }
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(column.rawValue), \(column.spoken(item, now: now, counts: counts))")
         .frame(width: NogScale.value(column.baseWidth, for: typeSize, maxScale: 1.6), alignment: .trailing)
     }
 }
