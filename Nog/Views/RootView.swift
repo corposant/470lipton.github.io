@@ -110,14 +110,30 @@ struct NogsTab: View {
         case .overview:
             // Each level is its own page, so going in or out slides like an iPod menu
             // (a fade with Reduce Motion or Low stimulation).
-            ZStack(alignment: .leading) {
-                OutlineBrowser(now: now, selection: $selection, trail: trail,
-                               open: { go(to: $0) }, back: { go(to: Array(trail.dropLast())) })
-                .id(trail.last)
-                .transition(.nog(.push(from: outlineForward ? .trailing : .leading)))
-                .offset(x: edgeDrag)
-                if !trail.isEmpty && !isSelecting {
-                    backSwipeEdge
+            GeometryReader { proxy in
+                let width = max(proxy.size.width, 1)
+                let progress = min(edgeDrag / width, 1)
+                ZStack(alignment: .leading) {
+                    // While a back swipe is under way, the level you're going back to waits
+                    // underneath, sliding in from a little to the left as it fades up.
+                    if edgeDrag > 0 {
+                        OutlineBrowser(now: now, selection: $selection, trail: Array(trail.dropLast()),
+                                       open: { _ in }, back: {})
+                        .id(trail.dropLast().last)
+                        .offset(x: (progress - 1) * width * 0.3)
+                        .opacity(progress)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                    }
+                    OutlineBrowser(now: now, selection: $selection, trail: trail,
+                                   open: { go(to: $0) }, back: { go(to: Array(trail.dropLast())) })
+                    .id(trail.last)
+                    .transition(.nog(.push(from: outlineForward ? .trailing : .leading)))
+                    .offset(x: edgeDrag)
+                    .opacity(1 - progress)
+                    if !trail.isEmpty && !isSelecting {
+                        backSwipeEdge(width: width)
+                    }
                 }
             }
         }
@@ -125,19 +141,18 @@ struct NogsTab: View {
 
     /// Swipe right from the left edge to go back a level, as on any iOS page. A thin strip
     /// along the edge takes the swipe, so rows' own swipe actions (which start further in)
-    /// don't fire too. The page follows your finger.
-    private var backSwipeEdge: some View {
+    /// don't fire too. The page follows your finger, with the level above showing through.
+    private func backSwipeEdge(width: CGFloat) -> some View {
         Color.clear
             .frame(width: 22)
             .frame(maxHeight: .infinity)
             .contentShape(Rectangle())
             .gesture(
                 DragGesture(minimumDistance: 8)
-                    .onChanged { value in edgeDrag = max(0, value.translation.width) }
+                    .onChanged { value in edgeDrag = min(max(0, value.translation.width), width) }
                     .onEnded { value in
                         if value.translation.width > 90 || value.predictedEndTranslation.width > 200 {
-                            edgeDrag = 0
-                            go(to: Array(trail.dropLast()))
+                            finishBackSwipe(width: width)
                         } else {
                             withNogAnimation(.snappy) { edgeDrag = 0 }
                         }
@@ -145,6 +160,24 @@ struct NogsTab: View {
             )
             // VoiceOver goes back with the path bar or the two-finger scrub.
             .accessibilityHidden(true)
+    }
+
+    /// Carries a back swipe through: the page slides the rest of the way off, then the level
+    /// underneath takes its place without a second slide.
+    private func finishBackSwipe(width: CGFloat) {
+        let newTrail = Array(trail.dropLast())
+        withNogAnimation(.snappy) {
+            edgeDrag = width
+        } completion: {
+            var quiet = Transaction()
+            quiet.disablesAnimations = true
+            withTransaction(quiet) {
+                outlineForward = false
+                selection = []
+                router.outlineTrail = newTrail
+                edgeDrag = 0
+            }
+        }
     }
 
     /// Moves the Outline to `newTrail`, sliding in when it's deeper and out when it's shallower.
