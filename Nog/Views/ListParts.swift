@@ -2,13 +2,13 @@ import AppIntents
 import SwiftUI
 
 // The List tab's shared language. Table, Agenda and Outline (and Search) all draw the
-// same row, NogRow:
+// same one-line row, NogRow:
 //
-//   [kind icon] Title (wraps to two lines)        [steps "4 ›"] [▶︎ Start]
-//               one detail line: when · repeat · steps · parent · tags
+//   [folder ring | Note · Nog · Alarm]  Title          [steps "4 ›"] [profile icon]
 //
-// with the same swipes, the same Select mode and the same Sort menu. A chevron only ever
-// means "go inside" (the steps button); tapping the row itself opens the nog.
+// with the same swipes (Start is a swipe right), the same Select mode and the same Sort
+// menu. A chevron only ever means "go inside" (the steps button); tapping the row opens
+// the nog. Everything the row leaves out is in its VoiceOver value.
 
 /// The List tab's three views.
 enum ListMode: String, CaseIterable, Identifiable {
@@ -59,8 +59,6 @@ struct NogRow: View {
     var columns: [ListColumn] = []
     /// Agenda: the time in the left margin.
     var margin: AgendaMargin? = nil
-    /// Table: keep Start's space even when there's no Start button, so the columns line up.
-    var reservesStartSlot = false
     @State private var confirmDelete = false
     @AppStorage(NogSettings.Key.escalateAfter) private var globalEscalate = 0
 
@@ -120,12 +118,10 @@ struct NogRow: View {
             if counts.total > 0, !isSelecting, folded || !columns.contains(.steps), let openSteps {
                 StepsButton(item: item, count: counts.total) { openSteps(item.id) }
             }
-            if canStart && !isSelecting {
-                StartButton(item: item, subItems: counts.total > 0 ? counts : nil)
-                    .frame(minWidth: StartSlot.width(typeSize))
-            } else if reservesStartSlot && !folded {
-                Color.clear.frame(width: StartSlot.width(typeSize), height: 1)
-            }
+            // The alarm profile, at the right end. Its slot is kept when there's none,
+            // so the Table's columns line up. Start lives in the swipe and the Outline card.
+            ProfileMark(item: item)
+                .frame(width: TrailingSlot.width(typeSize))
         }
         // iOS 27: Siri can act on whichever row you're looking at.
         .appEntityIdentifier(EntityIdentifier(for: ReminderEntity.self, identifier: item.id))
@@ -181,8 +177,8 @@ struct NogRow: View {
     }
 }
 
-/// The width kept for the row's ▶︎, matching how far StartButton's circle grows with text size.
-enum StartSlot {
+/// The width of a row's right end (the profile icon), and of the Table header's ⋯ above it.
+enum TrailingSlot {
     static func width(_ typeSize: DynamicTypeSize) -> CGFloat {
         NogScale.value(44, for: typeSize, maxScale: 1.6)
     }
@@ -212,11 +208,10 @@ struct NogTitle: View {
     }
 }
 
-/// What kind of nog this is, at a glance: a ring with a folder for one with steps (the
-/// ring is its progress), its alarm profile's icon (with the rings-through-Silent mark when
-/// it has one), a bell for a rhythm of its own. A plain note shows nothing.
+/// What kind of nog this is, at a glance, on the left of every row: a folder in a ring for
+/// one with steps (the ring is its progress), otherwise Note, Nog or Alarm, the same icons
+/// as the New Nog picker. Done, doing and someday nogs show that instead.
 struct NogKindIcon: View {
-    @AppStorage(NogSettings.Key.escalateAfter) private var globalEscalate = 0
     let item: Item
     let now: Date
     let steps: (done: Int, total: Int)
@@ -231,32 +226,22 @@ struct NogKindIcon: View {
                     .overlay {
                         ProgressRing(fraction: Double(steps.done) / Double(steps.total), lineWidth: 2)
                     }
-            } else if item.isOpen, let r = item.reminder, let profile = NogProfile.matching(r) {
-                Image(systemName: profile.systemImage)
-                    .foregroundStyle(tint)
-                    .nogFrame(width: 28, height: 28)
-                    .breaksSilentBadge(profile.breaksSilent(globalEscalateAfter: globalEscalate))
-            } else if let symbol {
+            } else {
                 Image(systemName: symbol)
                     .foregroundStyle(tint)
                     .nogFrame(width: 28, height: 28)
-            } else {
-                // Keeps titles lined up.
-                Color.clear.nogFrame(width: 28, height: 28)
             }
         }
         // The row's VoiceOver value says all of this in words.
         .accessibilityHidden(true)
     }
 
-    private var symbol: String? {
+    private var symbol: String {
         switch item.status {
         case .done: return "checkmark.circle"
         case .doing: return "play.circle"
         case .someday: return "moon.stars"
-        case .open:
-            if let r = item.reminder { return r.alarm ? "alarm" : "bell" }
-            return item.place != nil ? "location" : nil
+        case .open: return NogKind.of(item.reminder).systemImage
         }
     }
 
@@ -268,6 +253,27 @@ struct NogKindIcon: View {
             // Pink = nogging now, violet = coming up, grey = no reminder.
             if let r = item.reminder { return r.isActive(at: now) ? Theme.pink : Theme.violet }
             return item.place != nil ? Theme.violet : Theme.muted
+        }
+    }
+}
+
+/// The alarm profile's icon at a row's right end, with the rings-through-Silent mark when it
+/// has one. Nothing for a note or a rhythm of its own. VoiceOver hears the profile in the
+/// row's value instead.
+struct ProfileMark: View {
+    @AppStorage(NogSettings.Key.escalateAfter) private var globalEscalate = 0
+    let item: Item
+
+    var body: some View {
+        if item.status != .done, let r = item.reminder, let profile = NogProfile.matching(r) {
+            Image(systemName: profile.systemImage)
+                .foregroundStyle(Theme.violet)
+                .nogFrame(width: 28, height: 28)
+                .breaksSilentBadge(profile.breaksSilent(globalEscalateAfter: globalEscalate))
+                .accessibilityHidden(true)
+        } else {
+            Color.clear.nogFrame(width: 28, height: 28)
+                .accessibilityHidden(true)
         }
     }
 }
