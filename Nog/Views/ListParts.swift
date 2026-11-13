@@ -14,7 +14,7 @@ import SwiftUI
 enum ListMode: String, CaseIterable, Identifiable {
     case table = "Table"
     case agenda = "Agenda"
-    case outline = "Outline"
+    case overview = "Overview"
 
     var id: String { rawValue }
 
@@ -59,6 +59,8 @@ struct NogRow: View {
     var columns: [ListColumn] = []
     /// Agenda: the time in the left margin.
     var margin: AgendaMargin? = nil
+    /// Overview: a project's next step, the one second line a row ever gets.
+    var subtitle: AttributedString? = nil
     @State private var confirmDelete = false
     @AppStorage(NogSettings.Key.escalateAfter) private var globalEscalate = 0
 
@@ -92,6 +94,12 @@ struct NogRow: View {
                     VStack(alignment: .leading, spacing: 3) {
                         if let margin, folded, !margin.text.isEmpty { margin.label }
                         NogTitle(item: item)
+                        if let subtitle {
+                            Text(subtitle)
+                                .font(.caption)
+                                .foregroundStyle(Theme.muted)
+                                .lineLimit(typeSize.isAccessibilitySize ? 3 : 1)
+                        }
                         // One line: no detail line. At the accessibility text sizes the Table's
                         // columns can't fit beside the title, so only they fold underneath.
                         if folded, !columns.isEmpty,

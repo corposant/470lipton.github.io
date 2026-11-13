@@ -875,7 +875,7 @@ final class Router {
     var mapPath: [UUID] = []
     /// The Search tab's stack.
     var searchPath: [UUID] = []
-    /// Where the List tab's Outline is: the nog you're inside and the nogs around it,
+    /// Where the List tab's Overview is: the nog you're inside and the nogs around it,
     /// outermost first. Empty = the top level.
     var outlineTrail: [UUID] = []
     /// Bumped to ask the capture field to take focus.
@@ -922,7 +922,7 @@ final class Router {
         tab = .nogs
         path = []
         outlineTrail = chain
-        UserDefaults.standard.set(ListMode.outline.rawValue, forKey: ListMode.key)
+        UserDefaults.standard.set(ListMode.overview.rawValue, forKey: ListMode.key)
     }
 
     func focusCapture() {
