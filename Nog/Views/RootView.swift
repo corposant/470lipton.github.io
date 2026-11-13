@@ -14,6 +14,8 @@ struct NogsTab: View {
     @State private var selection: Set<UUID> = []
     /// Which way the Outline slides: in (from the right) or back out (from the left).
     @State private var outlineForward = true
+    /// How far a swipe from the left edge has pulled the Overview page (to go back).
+    @State private var edgeDrag: CGFloat = 0
 
     private var isSelecting: Bool { editMode.isEditing }
 
@@ -108,13 +110,41 @@ struct NogsTab: View {
         case .overview:
             // Each level is its own page, so going in or out slides like an iPod menu
             // (a fade with Reduce Motion or Low stimulation).
-            ZStack {
+            ZStack(alignment: .leading) {
                 OutlineBrowser(now: now, selection: $selection, trail: trail,
                                open: { go(to: $0) }, back: { go(to: Array(trail.dropLast())) })
                 .id(trail.last)
                 .transition(.nog(.push(from: outlineForward ? .trailing : .leading)))
+                .offset(x: edgeDrag)
+                if !trail.isEmpty && !isSelecting {
+                    backSwipeEdge
+                }
             }
         }
+    }
+
+    /// Swipe right from the left edge to go back a level, as on any iOS page. A thin strip
+    /// along the edge takes the swipe, so rows' own swipe actions (which start further in)
+    /// don't fire too. The page follows your finger.
+    private var backSwipeEdge: some View {
+        Color.clear
+            .frame(width: 22)
+            .frame(maxHeight: .infinity)
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 8)
+                    .onChanged { value in edgeDrag = max(0, value.translation.width) }
+                    .onEnded { value in
+                        if value.translation.width > 90 || value.predictedEndTranslation.width > 200 {
+                            edgeDrag = 0
+                            go(to: Array(trail.dropLast()))
+                        } else {
+                            withNogAnimation(.snappy) { edgeDrag = 0 }
+                        }
+                    }
+            )
+            // VoiceOver goes back with the path bar or the two-finger scrub.
+            .accessibilityHidden(true)
     }
 
     /// Moves the Outline to `newTrail`, sliding in when it's deeper and out when it's shallower.
