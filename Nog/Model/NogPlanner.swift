@@ -29,6 +29,8 @@ struct PlannedNotification: Hashable {
     /// The end of the two-minute start: plays Nog's soft chime instead of the usual sound,
     /// and never breaks through as Time Sensitive.
     var chime = false
+    /// Builds or can ring as an alarm (Building, Unhinged): "Match profile" plays Insist.
+    var firm = false
 
     var fireDate: Date? {
         if case .at(let date) = trigger { return date }
@@ -157,15 +159,16 @@ enum NogPlanner {
             // A change of category (its buttons) must replace already-scheduled nogs.
             // So does turning Hush on or off (the sound is baked into each request), or a new banner line.
             // The title includes the parent, so renaming the parent (or its shorter label arriving) replaces them too.
+            let firm = NotificationChime.isFirm(r)
             let titleTag = stableHash((category == categoryNog || doing ? title : title + "|" + category)
-                                      + (r.silent ? "|silent" : "") + "|" + body)
+                                      + (r.silent ? "|silent" : "") + (firm ? "|firm" : "") + "|" + body)
             let base = "\(prefix)\(item.id.uuidString)\(doing ? ".doing" : "")"
 
             func oneShot(_ date: Date, body: String = body, kind: String = "at") -> PlannedNotification {
                 PlannedNotification(identifier: "\(base).\(kind).\(Int(date.timeIntervalSince1970)).\(titleTag)",
                                     itemID: item.id, title: title, body: body, trigger: .at(date),
                                     category: kind == "heads" ? categoryHeadsUp : category,
-                                    isHeadsUp: kind == "heads", silent: r.silent, chime: kind == "chime")
+                                    isHeadsUp: kind == "heads", silent: r.silent, chime: kind == "chime", firm: firm)
             }
 
             // Heads-up before a dated nog starts: the global one, plus Building's 15 / 5 / 1 min
@@ -197,13 +200,13 @@ enum NogPlanner {
                 primaries.append(PlannedNotification(
                     identifier: "\(base).daily.\(hour).\(minute).\(titleTag)",
                     itemID: item.id, title: title, body: body, trigger: .daily(hour: hour, minute: minute),
-                    category: category, silent: r.silent))
+                    category: category, silent: r.silent, firm: firm))
             } else if let settled {
                 let seconds = max(60, settled.gap)
                 primaries.append(PlannedNotification(
                     identifier: "\(base).every.\(Int(seconds)).\(Int(settled.since.timeIntervalSince1970)).\(titleTag)",
                     itemID: item.id, title: title, body: body, trigger: .every(seconds),
-                    category: category, silent: r.silent))
+                    category: category, silent: r.silent, firm: firm))
             } else {
                 // Exact times: skip the ones an alarm already covers, push quiet-hour ones to when quiet ends.
                 var dates: [Date] = []

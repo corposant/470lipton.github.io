@@ -175,9 +175,18 @@ final class NotificationScheduler {
     /// The soft, rising chime at the end of the two-minute start (bundled in Nog/Resources).
     nonisolated static let chimeSound = UNNotificationSoundName(rawValue: "StarterChime.caf")
 
+    /// The two-minute start keeps its rising starter chime; everything else plays the chosen chime.
+    static func sound(for planned: PlannedNotification,
+                      choice: NotificationChime = .current) -> UNNotificationSound {
+        if planned.chime { return UNNotificationSound(named: chimeSound) }
+        let chime = choice.resolved(isHeadsUp: planned.isHeadsUp, firm: planned.firm)
+        guard let file = chime.fileName else { return .default }
+        return UNNotificationSound(named: UNNotificationSoundName(rawValue: file))
+    }
+
     private static var contentSignature: String {
-        // "v3": the two-minute chime and Done for now / Complete buttons, so nogs scheduled by an older build are replaced.
-        "v3|\(NogSettings.playsSound)|\(NogSettings.timeSensitive)|\(NogSettings.showTitles)"
+        // "v4": Nog's own chimes (Settings › Chime), so nogs scheduled by an older build are replaced.
+        "v4|\(NotificationChime.current.rawValue)|\(NogSettings.playsSound)|\(NogSettings.timeSensitive)|\(NogSettings.showTitles)"
     }
 
     func clearDelivered(for itemID: UUID) async {
@@ -202,7 +211,7 @@ final class NotificationScheduler {
         // two-minute chime break through Focus.
         let quiet = planned.silent || planned.isHeadsUp || planned.chime
         if NogSettings.playsSound && !planned.silent {
-            content.sound = planned.chime ? UNNotificationSound(named: Self.chimeSound) : .default
+            content.sound = Self.sound(for: planned)
         }
         content.categoryIdentifier = planned.category
         content.threadIdentifier = planned.itemID.uuidString

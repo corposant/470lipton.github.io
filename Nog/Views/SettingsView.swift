@@ -397,6 +397,7 @@ private struct NogsAlertsPage: View {
     // How they look and sound
     @AppStorage(NogSettings.Key.timeSensitive) private var timeSensitive = true
     @AppStorage(NogSettings.Key.sound) private var sound = true
+    @AppStorage(NotificationChime.key) private var chime: NotificationChime = .matchProfile
     @AppStorage(NogSettings.Key.showTitles) private var showTitles = true
     @AppStorage(NogSettings.Key.badge) private var badge = false
 
@@ -445,12 +446,26 @@ private struct NogsAlertsPage: View {
             Section {
                 Toggle("Time Sensitive", isOn: $timeSensitive)
                 Toggle("Sound", isOn: $sound)
+                if sound {
+                    Picker("Chime", selection: $chime) {
+                        ForEach(NotificationChime.allCases) { option in
+                            Text(option.label).tag(option)
+                                .accessibilityHint(option.detail)
+                        }
+                    }
+                    .accessibilityValue("\(chime.label). \(chime.detail)")
+                    .onChange(of: chime) { _, picked in
+                        // Let people hear it. Match profile previews the everyday Nudge.
+                        ChimePreview.play(picked.resolved(isHeadsUp: false, firm: false))
+                    }
+                }
                 Toggle("Show titles on Lock Screen", isOn: $showTitles)
                 Toggle("Badge the app icon", isOn: $badge)
             } header: {
                 SectionLabel(title: "Notifications")
             } footer: {
-                Text("Time Sensitive gets through Focus. Also allow it in Settings › Notifications › Nog.")
+                Text(sound ? "\(chime.detail) Time Sensitive gets through Focus. Also allow it in Settings › Notifications › Nog."
+                     : "Time Sensitive gets through Focus. Also allow it in Settings › Notifications › Nog.")
             }
             .listRowBackground(Theme.glass)
             .tint(Theme.pink)

@@ -1801,3 +1801,38 @@ final class ParentContextTests: XCTestCase {
         XCTAssertNotEqual(plan.map(\.identifier), replanned.map(\.identifier))
     }
 }
+
+final class NotificationChimeTests: XCTestCase {
+    private let now = Date(timeIntervalSince1970: 1_800_000_000)
+
+    func testMatchProfileNudgesInsistsAndRipples() {
+        let match = NotificationChime.matchProfile
+        XCTAssertEqual(match.resolved(isHeadsUp: false, firm: false), .nudge)
+        XCTAssertEqual(match.resolved(isHeadsUp: false, firm: true), .insist)
+        XCTAssertEqual(match.resolved(isHeadsUp: true, firm: true), .ripple)
+        XCTAssertEqual(NotificationChime.nudge.resolved(isHeadsUp: true, firm: true), .nudge, "a single choice is used for everything")
+        XCTAssertNil(NotificationChime.system.fileName)
+    }
+
+    func testOnlyBuildingAndUnhingedAreFirm() {
+        let firm = NogProfile.allCases.filter { NotificationChime.isFirm($0.reminder(from: now)) }
+        XCTAssertEqual(firm, [.building, .unhinged])
+    }
+
+    func testPlannedNogsCarryFirmness() {
+        var item = Item(title: "Taxes")
+        item.reminder = NogProfile.unhinged.reminder(from: now)
+        let nogs = NogPlanner.plan(items: [item], now: now).filter { $0.category != NogPlanner.categoryPause }
+        XCTAssertFalse(nogs.isEmpty)
+        XCTAssertTrue(nogs.allSatisfy(\.firm))
+        item.reminder = NogProfile.whisper.reminder(from: now)
+        XCTAssertFalse(NogPlanner.plan(items: [item], now: now).contains(where: \.firm))
+    }
+
+    func testChimeFilesAreBundled() {
+        for chime in NotificationChime.allCases {
+            guard let file = chime.fileName else { continue }
+            XCTAssertNotNil(Bundle(for: NotificationScheduler.self).url(forResource: file, withExtension: nil), file)
+        }
+    }
+}
