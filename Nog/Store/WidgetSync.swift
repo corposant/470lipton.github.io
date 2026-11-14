@@ -28,7 +28,10 @@ enum WidgetSync {
                                      lowStimulation: Calm.lowStimulation)
         var comparable = snapshot
         comparable.generated = .distantPast
-        for i in comparable.entries.indices { comparable.entries[i].nextNog = nil }
+        for i in comparable.entries.indices {
+            comparable.entries[i].nextNog = nil
+            comparable.entries[i].updated = .distantPast
+        }
         var reminders: [UUID: Reminder] = [:]
         for item in items { if let r = item.reminder { reminders[item.id] = r } }
         var nextNogs: [UUID: Date] = [:]

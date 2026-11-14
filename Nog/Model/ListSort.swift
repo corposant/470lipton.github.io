@@ -20,13 +20,17 @@ enum ListSort: String, CaseIterable, Identifiable {
     /// title, then the id, so rows never shuffle between renders.
     func sorted(_ items: [Item], now: Date, stats: ChildStats,
                 reversed: Bool = false, urgentFirst: Bool = true) -> [Item] {
-        items.sorted { a, b in
+        // Compute expensive date keys once per item, not per comparison.
+        let keys = Dictionary(items.compactMap { item in
+            key(item, now: now, stats: stats).map { (item.id, $0) }
+        }, uniquingKeysWith: { first, _ in first })
+        return items.sorted { a, b in
             if urgentFirst, a.urgent != b.urgent { return a.urgent }
             if self == .name {
                 let order = a.title.localizedStandardCompare(b.title)
                 if order != .orderedSame { return reversed ? order == .orderedDescending : order == .orderedAscending }
             } else {
-                let ka = key(a, now: now, stats: stats), kb = key(b, now: now, stats: stats)
+                let ka = keys[a.id], kb = keys[b.id]
                 if (ka == nil) != (kb == nil) { return ka != nil }
                 if let ka, let kb, ka != kb { return reversed ? ka > kb : ka < kb }
             }

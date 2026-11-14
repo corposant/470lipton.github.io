@@ -466,6 +466,7 @@ private struct NogsAlertsPage: View {
         .navigationTitle("Timing & alerts")
         // Setting the first reminder by hand replaces Teatime's fixed time of day.
         .onChange(of: firstDelay) { profileTimeOfDay = -1 }
+        .onChange(of: showTitles) { Task { await store.syncNow() } }
         .onDisappear {
             NotificationScheduler.shared.registerCategories()
             Task { await store.syncNow() }
@@ -581,6 +582,8 @@ private struct PermissionsPage: View {
     @State private var notifications: UNAuthorizationStatus = .notDetermined
     @State private var pending = 0
     @State private var alarmsAuthorized = false
+    @State private var alarmsDenied = false
+    @Environment(\.scenePhase) private var scenePhase
     @State private var liveActivities = false
 
     var body: some View {
@@ -589,12 +592,12 @@ private struct PermissionsPage: View {
                 LabeledContent("Notifications", value: label(for: notifications))
                 LabeledContent("Alarms", value: alarmsAuthorized ? "Allowed" : "Not allowed")
                 LabeledContent("Live Activities", value: liveActivities ? "On" : "Off")
-                if notifications == .denied || !liveActivities {
+                if notifications == .denied || !liveActivities || alarmsDenied {
                     Button("Open iOS Settings") {
                         if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
                     }
                 }
-                if !alarmsAuthorized {
+                if !alarmsAuthorized && !alarmsDenied {
                     Button("Allow alarms") {
                         Task {
                             await AlarmScheduler.shared.requestAuthorization()
@@ -623,12 +626,16 @@ private struct PermissionsPage: View {
         .nogListStyle()
         .navigationTitle("Permissions")
         .task { await refresh() }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { Task { await refresh() } }
+        }
     }
 
     private func refresh() async {
         notifications = await NotificationScheduler.shared.authorizationStatus()
         pending = await NotificationScheduler.shared.pendingCount()
         alarmsAuthorized = AlarmScheduler.shared.isAuthorized
+        alarmsDenied = AlarmScheduler.shared.authorizationState == .denied
         liveActivities = ActivityAuthorizationInfo().areActivitiesEnabled
     }
 

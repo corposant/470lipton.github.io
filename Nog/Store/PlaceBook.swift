@@ -43,6 +43,9 @@ final class PlaceBook {
     }
 
     func save(_ place: SavedPlace) {
+        guard place.latitude.isFinite, place.longitude.isFinite, place.radius.isFinite,
+              (-90...90).contains(place.latitude), (-180...180).contains(place.longitude),
+              (100...100_000).contains(place.radius) else { return }
         if let i = places.firstIndex(where: { $0.id == place.id }) {
             places[i] = place
         } else {
@@ -87,8 +90,10 @@ final class LocationAccess: NSObject, CLLocationManagerDelegate {
     static let shared = LocationAccess()
 
     private let manager = CLLocationManager()
-    private var authContinuation: CheckedContinuation<Bool, Never>?
-    private var locationContinuation: CheckedContinuation<CLLocation?, Never>?
+    private var authWaiters: [UUID: CheckedContinuation<Bool, Never>] = [:]
+    private var locationWaiters: [UUID: CheckedContinuation<CLLocation?, Never>] = [:]
+    private var authTimeout: Task<Void, Never>?
+    private var locationTimeout: Task<Void, Never>?
 
     override init() {
         super.init()
@@ -99,46 +104,84 @@ final class LocationAccess: NSObject, CLLocationManagerDelegate {
     var status: CLAuthorizationStatus { manager.authorizationStatus }
     var isAllowed: Bool { status == .authorizedWhenInUse || status == .authorizedAlways }
 
-    /// Asks once; true when allowed.
+    /// Concurrent callers share one system request and each completes exactly once.
     func requestAccess() async -> Bool {
         if isAllowed { return true }
-        guard status == .notDetermined else { return false }
-        return await withCheckedContinuation { continuation in
-            authContinuation = continuation
-            manager.requestWhenInUseAuthorization()
+        guard status == .notDetermined, !Task.isCancelled else { return false }
+        let id = UUID()
+        return await withTaskCancellationHandler {
+            await withCheckedContinuation { c in
+                guard !Task.isCancelled else { c.resume(returning: false); return }
+                let first = authWaiters.isEmpty
+                authWaiters[id] = c
+                if first {
+                    authTimeout?.cancel()
+                    manager.requestWhenInUseAuthorization()
+                    authTimeout = Task { [weak self] in
+                        try? await Task.sleep(for: .seconds(60))
+                        guard !Task.isCancelled else { return }
+                        self?.finishAuthorization(false)
+                    }
+                }
+            }
+        } onCancel: {
+            Task { @MainActor [weak self] in self?.authWaiters.removeValue(forKey: id)?.resume(returning: false) }
         }
     }
 
-    /// Where you are right now, or nil if it isn't allowed or can't be found.
     func currentLocation() async -> CLLocation? {
-        guard await requestAccess() else { return nil }
-        return await withCheckedContinuation { continuation in
-            locationContinuation = continuation
-            manager.requestLocation()
+        guard await requestAccess(), !Task.isCancelled else { return nil }
+        let id = UUID()
+        return await withTaskCancellationHandler {
+            await withCheckedContinuation { c in
+                guard !Task.isCancelled else { c.resume(returning: nil); return }
+                let first = locationWaiters.isEmpty
+                locationWaiters[id] = c
+                if first {
+                    locationTimeout?.cancel()
+                    manager.requestLocation()
+                    locationTimeout = Task { [weak self] in
+                        try? await Task.sleep(for: .seconds(30))
+                        guard !Task.isCancelled else { return }
+                        self?.finishLocation(nil)
+                    }
+                }
+            }
+        } onCancel: {
+            Task { @MainActor [weak self] in self?.locationWaiters.removeValue(forKey: id)?.resume(returning: nil) }
         }
+    }
+
+    private func finishAuthorization(_ allowed: Bool) {
+        authTimeout?.cancel()
+        authTimeout = nil
+        let waiters = authWaiters
+        authWaiters = [:]
+        for c in waiters.values { c.resume(returning: allowed) }
+    }
+
+    private func finishLocation(_ location: CLLocation?) {
+        locationTimeout?.cancel()
+        locationTimeout = nil
+        let waiters = locationWaiters
+        locationWaiters = [:]
+        for c in waiters.values { c.resume(returning: location) }
     }
 
     nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         let status = manager.authorizationStatus
-        Task { @MainActor in
-            guard status != .notDetermined, let c = self.authContinuation else { return }
-            self.authContinuation = nil
-            c.resume(returning: status == .authorizedWhenInUse || status == .authorizedAlways)
+        Task { @MainActor [weak self] in
+            guard status != .notDetermined else { return }
+            self?.finishAuthorization(status == .authorizedWhenInUse || status == .authorizedAlways)
         }
     }
 
     nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         let last = locations.last
-        Task { @MainActor in
-            self.locationContinuation?.resume(returning: last)
-            self.locationContinuation = nil
-        }
+        Task { @MainActor [weak self] in self?.finishLocation(last) }
     }
 
     nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-        Task { @MainActor in
-            self.locationContinuation?.resume(returning: nil)
-            self.locationContinuation = nil
-        }
+        Task { @MainActor [weak self] in self?.finishLocation(nil) }
     }
 }

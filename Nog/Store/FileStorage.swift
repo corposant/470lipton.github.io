@@ -49,64 +49,165 @@ final class FileStorage: @unchecked Sendable {
     /// Only touched on `queue`.
     private var cache = FileCache()
 
+    /// Queue-owned failed operations retain their payload until retry or a newer
+    /// mutation of the same path supersedes them. Never treat queue-drained as saved.
+    private var failedOperations: [URL: () throws -> Void] = [:]
+    private var failures: [URL: String] = [:]
+
     // MARK: Writes
 
-    func write(_ text: String, to url: URL) {
-        write(data: Data(text.utf8), to: url)
+    func write(_ text: String, to url: URL, completion: (@Sendable (Bool) -> Void)? = nil) {
+        write(data: Data(text.utf8), to: url, completion: completion)
     }
 
-    func write(data: Data, to url: URL) {
-        queue.async {
-            var coordinationError: NSError?
-            NSFileCoordinator(filePresenter: nil).coordinate(
-                writingItemAt: url, options: .forReplacing, error: &coordinationError) { target in
-                do { try data.write(to: target, options: .atomic) } catch { print("Nog: write failed \(target.lastPathComponent): \(error)") }
-            }
-            if let coordinationError { print("Nog: write coordination failed: \(coordinationError)") }
+    func write(data: Data, to url: URL, completion: (@Sendable (Bool) -> Void)? = nil) {
+        enqueue(url, completion: completion) {
+            try Self.coordinatedWrite(data, to: url)
         }
     }
 
     func delete(_ url: URL) {
-        queue.async {
+        enqueue(url) {
             var coordinationError: NSError?
+            var operationError: Error?
             NSFileCoordinator(filePresenter: nil).coordinate(
                 writingItemAt: url, options: .forDeleting, error: &coordinationError) { target in
-                try? FileManager.default.removeItem(at: target)
-            }
-        }
-    }
-
-    /// Moves a finished recording into the items folder, coordinated with iCloud like any write.
-    func move(_ source: URL, to destination: URL) {
-        queue.async {
-            var coordinationError: NSError?
-            NSFileCoordinator(filePresenter: nil).coordinate(
-                writingItemAt: destination, options: .forReplacing, error: &coordinationError) { target in
-                let fm = FileManager.default
                 do {
-                    if fm.fileExists(atPath: target.path) { try fm.removeItem(at: target) }
-                    try fm.moveItem(at: source, to: target)
-                } catch { print("Nog: move failed \(target.lastPathComponent): \(error)") }
+                    if FileManager.default.fileExists(atPath: target.path) {
+                        try FileManager.default.removeItem(at: target)
+                    }
+                } catch { operationError = error }
             }
-            if let coordinationError { print("Nog: move coordination failed: \(coordinationError)") }
+            if let error = coordinationError ?? (operationError as NSError?) { throw error }
         }
     }
 
-    /// Copies files that aren't there yet from one folder to another (switching to on-phone storage).
-    func copyFiles(_ names: [String], from source: URL, to destination: URL) {
-        guard !names.isEmpty, source.standardizedFileURL != destination.standardizedFileURL else { return }
+    /// The source is retained until the destination has been written and checked.
+    /// This operation has no automatic retry: the owner must append metadata only
+    /// after success, and may retry the whole attach transaction on failure.
+    func move(_ source: URL, to destination: URL, completion: @escaping @Sendable (Bool) -> Void) {
         queue.async {
-            let fm = FileManager.default
-            for name in names {
-                let to = destination.appending(path: name)
-                guard !fm.fileExists(atPath: to.path) else { continue }
-                var coordinationError: NSError?
-                NSFileCoordinator(filePresenter: nil).coordinate(
-                    readingItemAt: source.appending(path: name), options: [], error: &coordinationError) { from in
-                    try? fm.copyItem(at: from, to: to)
+            do {
+                let data = try Data(contentsOf: source)
+                try Self.coordinatedWrite(data, to: destination)
+                // Removing the temporary copy is best effort; it is safer to leave
+                // an extra copy than report a successful recording as missing.
+                try? FileManager.default.removeItem(at: source)
+                completion(true)
+            } catch { completion(false) }
+        }
+    }
+
+    private func enqueue(_ url: URL, completion: (@Sendable (Bool) -> Void)? = nil,
+                         operation: @escaping @Sendable () throws -> Void) {
+        queue.async {
+            // A later edit/delete supersedes an older failed operation at this path.
+            self.failedOperations[url] = nil
+            do {
+                try operation()
+                self.failures[url] = nil
+                completion?(true)
+            } catch {
+                self.failedOperations[url] = operation
+                self.failures[url] = error.localizedDescription
+                completion?(false)
+            }
+        }
+    }
+
+    static func coordinatedWrite(_ data: Data, to url: URL) throws {
+        var coordinationError: NSError?
+        var operationError: Error?
+        var completed = false
+        NSFileCoordinator(filePresenter: nil).coordinate(
+            writingItemAt: url, options: .forReplacing, error: &coordinationError) { target in
+            do {
+                try data.write(to: target, options: .atomic)
+                // Read-back verifies the local write, not remote iCloud upload.
+                guard try Data(contentsOf: target) == data else { throw CocoaError(.fileWriteUnknown) }
+                completed = true
+            } catch { operationError = error }
+        }
+        if let error = coordinationError ?? (operationError as NSError?) { throw error }
+        guard completed else { throw CocoaError(.fileWriteUnknown) }
+    }
+
+    func failedPaths() async -> [String] {
+        await withCheckedContinuation { c in
+            queue.async { c.resume(returning: self.failures.keys.map(\.lastPathComponent).sorted()) }
+        }
+    }
+
+    func retryFailed() async {
+        await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in
+            queue.async {
+                for (url, operation) in Array(self.failedOperations) {
+                    do {
+                        try operation()
+                        self.failedOperations[url] = nil
+                        self.failures[url] = nil
+                    } catch { self.failures[url] = error.localizedDescription }
+                }
+                c.resume()
+            }
+        }
+    }
+
+    /// Includes sidecars and downloaded audio; keeps the source on any failure.
+    func copySupportingFiles(from source: URL, to destination: URL) async -> Bool {
+        await withCheckedContinuation { c in
+            queue.async {
+                do {
+                    try Self.copySupportNow(from: source, to: destination)
+                    c.resume(returning: true)
+                } catch { c.resume(returning: false) }
+            }
+        }
+    }
+
+    static func isSidecar(_ name: String) -> Bool {
+        name == "_places.json" || (name.hasPrefix("_nogmap") && name.hasSuffix(".json"))
+    }
+
+    private static func copySupportNow(from source: URL, to destination: URL) throws {
+        guard source.standardizedFileURL != destination.standardizedFileURL else { return }
+        let fm = FileManager.default
+        let urls = try fm.contentsOfDirectory(at: source, includingPropertiesForKeys: nil)
+        for url in urls where isSidecar(url.lastPathComponent) || url.pathExtension == VoiceNote.fileExtension {
+            let target = destination.appending(path: url.lastPathComponent)
+            let data = try readBytes(url)
+            if fm.fileExists(atPath: target.path) {
+                let existing = try readBytes(target)
+                if existing == data { continue }
+                // Switching storage carries the active source's sidecars. Keep
+                // the other version for recovery before replacement.
+                try archive(existing, named: target.lastPathComponent, beside: target)
+                if url.pathExtension == VoiceNote.fileExtension {
+                    // Same name with different audio: don't guess which is right.
+                    try archive(data, named: url.lastPathComponent, beside: target)
+                    throw CocoaError(.fileWriteFileExists)
                 }
             }
+            try coordinatedWrite(data, to: target)
         }
+    }
+
+    private static func readBytes(_ url: URL) throws -> Data {
+        var coordinationError: NSError?
+        var result: Result<Data, Error>?
+        NSFileCoordinator(filePresenter: nil).coordinate(
+            readingItemAt: url, options: [], error: &coordinationError) { target in
+            result = Result { try Data(contentsOf: target) }
+        }
+        if let coordinationError { throw coordinationError }
+        guard let result else { throw CocoaError(.fileReadUnknown) }
+        return try result.get()
+    }
+
+    private static func archive(_ data: Data, named name: String, beside url: URL) throws {
+        let folder = url.deletingLastPathComponent().appending(path: "_recovery", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try data.write(to: folder.appending(path: "\(UUID().uuidString)-\(name)"), options: .atomic)
     }
 
     /// Reads a whole file once queued writes have landed. With iCloud, waits for it to download.
@@ -232,16 +333,23 @@ final class FileStorage: @unchecked Sendable {
         return result
     }
 
-    /// If two devices edited the same item while offline, keep the most recent edit.
+    /// Archive every alternative before marking a conflict resolved. On any
+    /// read/write/replacement error leave the versions unresolved and recoverable.
     private static func resolveConflicts(at url: URL) {
         guard let conflicts = NSFileVersion.unresolvedConflictVersionsOfItem(at: url), !conflicts.isEmpty else { return }
-        let currentDate = NSFileVersion.currentVersionOfItem(at: url)?.modificationDate ?? .distantPast
-        if let newest = conflicts.max(by: { ($0.modificationDate ?? .distantPast) < ($1.modificationDate ?? .distantPast) }),
-           (newest.modificationDate ?? .distantPast) > currentDate {
-            _ = try? newest.replaceItem(at: url, options: [])
-        }
-        for version in conflicts { version.isResolved = true }
-        try? NSFileVersion.removeOtherVersionsOfItem(at: url)
+        do {
+            try archive(Data(contentsOf: url), named: url.lastPathComponent, beside: url)
+            for version in conflicts {
+                try archive(Data(contentsOf: version.url), named: url.lastPathComponent, beside: url)
+            }
+            let currentDate = NSFileVersion.currentVersionOfItem(at: url)?.modificationDate ?? .distantPast
+            if let newest = conflicts.max(by: { ($0.modificationDate ?? .distantPast) < ($1.modificationDate ?? .distantPast) }),
+               (newest.modificationDate ?? .distantPast) > currentDate {
+                _ = try newest.replaceItem(at: url, options: [])
+            }
+            for version in conflicts { version.isResolved = true }
+            // Keep archived versions; no unconditional removeOtherVersions call.
+        } catch { print("Nog: conflict retained for recovery: \(error)") }
     }
 
     // MARK: iCloud
@@ -257,47 +365,58 @@ final class FileStorage: @unchecked Sendable {
                 }
                 let folder = container.appending(path: "Documents", directoryHint: .isDirectory)
                     .appending(path: "Items", directoryHint: .isDirectory)
-                try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-                Self.migrate(from: local, to: folder)
-                c.resume(returning: folder)
+                do {
+                    try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+                    try Self.migrate(from: local, to: folder)
+                    c.resume(returning: folder)
+                } catch {
+                    print("Nog: storage migration incomplete; originals retained: \(error)")
+                    c.resume(returning: nil)
+                }
             }
         }
     }
 
-    private static func migrate(from local: URL, to cloud: URL) {
+    /// Internal for failure-injection tests. Originals are removed only after
+    /// successful comparison/archive/replacement; unavailable destinations abort.
+    static func migrate(from local: URL, to cloud: URL) throws {
         let fm = FileManager.default
-        guard local.standardizedFileURL != cloud.standardizedFileURL,
-              let urls = try? fm.contentsOfDirectory(at: local, includingPropertiesForKeys: nil) else { return }
+        guard local.standardizedFileURL != cloud.standardizedFileURL else { return }
+        guard fm.fileExists(atPath: local.path) else { return }
+        let urls = try fm.contentsOfDirectory(at: local, includingPropertiesForKeys: nil)
         for url in urls where url.pathExtension == "md" {
             let destination = cloud.appending(path: url.lastPathComponent)
+            let localData = try Data(contentsOf: url)
             if fm.fileExists(atPath: destination.path) {
-                // Both exist (e.g. you switched to on-phone storage and back): keep the newer edit.
-                let localItem = read(url, coordinated: false).flatMap(ItemFile.decode)
-                let cloudItem = read(destination, coordinated: true).flatMap(ItemFile.decode)
-                if let localItem, (cloudItem?.updated ?? .distantPast) < localItem.updated,
-                   let data = try? Data(contentsOf: url) {
-                    var coordinationError: NSError?
-                    NSFileCoordinator(filePresenter: nil).coordinate(
-                        writingItemAt: destination, options: .forReplacing, error: &coordinationError) { target in
-                        try? data.write(to: target, options: .atomic)
+                let cloudData = try readBytes(destination)
+                guard let localText = String(data: localData, encoding: .utf8),
+                      let cloudText = String(data: cloudData, encoding: .utf8),
+                      let localItem = ItemFile.decode(localText), let cloudItem = ItemFile.decode(cloudText)
+                else { throw CocoaError(.fileReadCorruptFile) }
+                if localData != cloudData {
+                    // Preserve the losing content even when all writes succeed.
+                    if localItem.updated > cloudItem.updated {
+                        try archive(cloudData, named: url.lastPathComponent, beside: destination)
+                        try coordinatedWrite(localData, to: destination)
+                    } else {
+                        try archive(localData, named: url.lastPathComponent, beside: destination)
                     }
                 }
-                try? fm.removeItem(at: url)
             } else {
-                do { try fm.setUbiquitous(true, itemAt: url, destinationURL: destination) }
-                catch { print("Nog: couldn't move \(url.lastPathComponent) to iCloud: \(error)") }
+                // Copy rather than move first: failure leaves the original intact.
+                try coordinatedWrite(localData, to: destination)
             }
         }
-        // Voice notes: each name is unique, so one already in iCloud (even not downloaded) is the same recording.
-        for url in urls where url.pathExtension == VoiceNote.fileExtension {
-            let name = url.lastPathComponent
-            let destination = cloud.appending(path: name)
-            if fm.fileExists(atPath: destination.path) || fm.fileExists(atPath: cloud.appending(path: ".\(name).icloud").path) {
-                try? fm.removeItem(at: url)
-            } else {
-                do { try fm.setUbiquitous(true, itemAt: url, destinationURL: destination) }
-                catch { print("Nog: couldn't move \(name) to iCloud: \(error)") }
-            }
+        // Do not remove any input until every migration phase succeeds.
+        // Sidecar alternatives are archived before replacement.
+        try copySupportNow(from: local, to: cloud)
+        for url in urls where isSidecar(url.lastPathComponent) || url.pathExtension == VoiceNote.fileExtension {
+            let data = try Data(contentsOf: url)
+            try archive(data, named: url.lastPathComponent, beside: cloud.appending(path: url.lastPathComponent))
+        }
+        for url in urls where url.pathExtension == "md" || isSidecar(url.lastPathComponent)
+            || url.pathExtension == VoiceNote.fileExtension {
+            try fm.removeItem(at: url)
         }
     }
 }

@@ -883,6 +883,18 @@ struct RootView: View {
                 SearchTab().nogTabTheme(.search)
             }
         }
+        .safeAreaInset(edge: .top) {
+            if let issue = store.persistenceIssue {
+                VStack(alignment: .leading, spacing: 6) {
+                    Label(issue, systemImage: "exclamationmark.triangle")
+                        .font(.callout)
+                    Button("Retry saving") { Task { await store.retrySaving() } }
+                }
+                .padding().frame(maxWidth: .infinity, alignment: .leading)
+                .background(.regularMaterial)
+                .accessibilityElement(children: .contain)
+            }
+        }
         .onChange(of: showMapTab) { _, on in
             if !on && router.tab == .map { router.tab = .nogs }
         }

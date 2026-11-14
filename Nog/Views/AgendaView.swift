@@ -42,6 +42,7 @@ struct AgendaList: View {
                     }
                 }
             }
+            .preference(key: SelectableNogsKey.self, value: Set(entries.map(\.id)))
             .nogListStyle()
             .overlay {
                 if days.isEmpty && doing.isEmpty {

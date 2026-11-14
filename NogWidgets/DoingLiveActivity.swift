@@ -8,6 +8,7 @@ struct NogWidgetsBundle: WidgetBundle {
     var body: some Widget {
         DoingLiveActivity()
         NogitivityWidget()
+        NogAlarmActivity()
     }
 }
 
@@ -33,7 +34,7 @@ struct DoingLiveActivity: Widget {
                         .multilineTextAlignment(.trailing)
                 }
                 DynamicIslandExpandedRegion(.center) {
-                    Text(context.attributes.title)
+                    Text((context.state.displayTitle ?? "Nog"))
                         .font(.headline)
                         .lineLimit(1)
                 }
@@ -42,15 +43,15 @@ struct DoingLiveActivity: Widget {
                 }
             } compactLeading: {
                 Image(systemName: "play.fill").foregroundStyle(Theme.blue)
-                    .accessibilityLabel("Doing \(context.attributes.title)")
+                    .accessibilityLabel("Doing \((context.state.displayTitle ?? "Nog"))")
             } compactTrailing: {
                 CompactTimer(context: context)
             } minimal: {
                 Image(systemName: context.isStale ? "sparkles" : "timer")
                     .foregroundStyle(context.isStale ? Theme.violet : Theme.blue)
                     .accessibilityLabel(context.isStale
-                        ? "Starter done, still on \(context.attributes.title)"
-                        : "Doing \(context.attributes.title)")
+                        ? "Starter done, still on \((context.state.displayTitle ?? "Nog"))"
+                        : "Doing \((context.state.displayTitle ?? "Nog"))")
             }
             .keylineTint(Theme.blue)
         }
@@ -68,7 +69,7 @@ private struct DoingActivityView: View {
             // Apple Watch and the CarPlay dashboard: title, big timer, one tap to finish.
             HStack(alignment: .center, spacing: 8) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Label(context.attributes.title, systemImage: "play.fill")
+                    Label((context.state.displayTitle ?? "Nog"), systemImage: "play.fill")
                         .font(.caption.weight(.semibold))
                         .lineLimit(1)
                     DoingTimer(context: context)
@@ -109,7 +110,7 @@ private struct DoingActivityView: View {
                     }
                 }
                 HStack(alignment: .center) {
-                    Text(context.attributes.title)
+                    Text((context.state.displayTitle ?? "Nog"))
                         .font(.headline)
                         .lineLimit(2)
                         .minimumScaleFactor(0.8)

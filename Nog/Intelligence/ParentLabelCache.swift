@@ -37,7 +37,15 @@ enum ParentLabelCache {
             for title in wanted.subtracting(stored.keys).subtracting(failed).sorted().prefix(perSync) {
                 // An error leaves it cut at a word, and it's tried again next launch. An unusable
                 // answer is remembered as "" (cut at a word) so it isn't asked every time.
-                do { stored[title] = try await ItemAssistant.shortLabel(for: title) ?? "" } catch { failed.insert(title) }
+                guard !Task.isCancelled else { return current(for: items) }
+                do {
+                    let label = try await ItemAssistant.shortLabel(for: title) ?? ""
+                    guard !Task.isCancelled else { return current(for: items) }
+                    stored[title] = label
+                } catch {
+                    guard !Task.isCancelled else { return current(for: items) }
+                    failed.insert(title)
+                }
             }
         }
         if stored != labels { UserDefaults.standard.set(stored, forKey: key) }

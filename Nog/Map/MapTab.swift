@@ -88,6 +88,8 @@ struct MindMapView: View {
     /// The chip it will be filed into if dropped now: armed after a short hold.
     @State private var dropTarget: UUID?
     @State private var dwell: Task<Void, Never>?
+    @State private var layoutTask: Task<Void, Never>?
+    @State private var layoutGeneration = 0
     /// "Moved · Undo": the last change, until you dismiss it or make another.
     @State private var notice: MapNotice?
     /// The item whose "File into…" list is showing (VoiceOver and the card).
@@ -177,6 +179,10 @@ struct MindMapView: View {
                 didCenter = false
                 viewMoved = false
                 cancelDrag()
+                layoutGeneration += 1
+                layoutTask?.cancel()
+                layoutTask = nil
+                landNow()
             }
             .task {
                 await Task.yield()
@@ -993,12 +999,18 @@ struct MindMapView: View {
             AccessibilityNotification.Announcement("Already tidy").post()
             return
         }
-        Task {
+        layoutGeneration += 1
+        let generation = layoutGeneration
+        layoutTask?.cancel()
+        layoutTask = Task {
             // Worked out off the main thread, so a big map doesn't freeze the screen.
             let targets = await Task.detached(priority: .userInitiated) { () -> [UUID: CGPoint] in
                 if let style { return MapLayout.layOut(style, items: items, sizes: sizes) }
                 return MapLayout.cleanup(items, positions: current, pinned: pinned, sizes: sizes, zones: zones)
             }.value
+            guard !Task.isCancelled, generation == layoutGeneration,
+                  doc.positions == current, doc.pinned == pinned,
+                  Set(cache.graph(store.items, page: page, showNogged: showNogged).ids) == onPage else { return }
             let moved = ids.filter { id in
                 guard let to = targets[id] else { return false }
                 guard let from = current[id] else { return true }

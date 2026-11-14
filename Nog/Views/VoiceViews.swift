@@ -5,6 +5,7 @@ import SwiftUI
 struct VoiceNoteRows: View {
     @Environment(ItemStore.self) private var store
     let item: Item
+    @State private var pendingDelete: VoiceNote?
 
     // Recording starts from the mic beside the notes (ItemDetailView), which also opens the
     // recorder straight away for a voice nog. Stop-on-leave is on the page too, since a row
@@ -12,16 +13,30 @@ struct VoiceNoteRows: View {
     var body: some View {
         ForEach(Array(item.voiceNotes.enumerated()), id: \.element.file) { index, note in
             VoiceNoteRow(note: note, name: item.voiceNotes.count == 1 ? "Voice note" : "Voice \(index + 1)")
-                .swipeActions { deleteButton(note) }
+                .swipeActions(allowsFullSwipe: false) { deleteButton(note) }
                 .contextMenu { deleteButton(note) }
+        }
+        .confirmationDialog("Delete this recording?", isPresented: Binding(
+            get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }), titleVisibility: .visible) {
+            if let note = pendingDelete {
+                Button("Delete recording", role: .destructive) {
+                    let player = VoicePlayer.shared
+                    if player.playing == note.file || player.loading == note.file { player.stop() }
+                    store.removeVoiceNote(note.file, from: item.id)
+                    pendingDelete = nil
+                }
+            }
+            Button("Cancel", role: .cancel) { pendingDelete = nil }
+        } message: {
+            Text("The audio file will be removed from this nog and its synced copies.")
         }
     }
 
     private func deleteButton(_ note: VoiceNote) -> some View {
-        Button("Delete", systemImage: "trash", role: .destructive) {
-            if VoicePlayer.shared.playing == note.file { VoicePlayer.shared.stop() }
-            store.removeVoiceNote(note.file, from: item.id)
+        Button("Delete", systemImage: "trash") {
+            pendingDelete = note
         }
+        .tint(.red)
     }
 }
 

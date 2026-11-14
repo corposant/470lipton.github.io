@@ -52,14 +52,11 @@ struct NogApp: App {
                 QuickActions.update()
                 BackgroundRefresh.schedule()
                 store.pauseWatching(true)
+                NotificationScheduler.shared.cancelOptionalWork()
                 // Ask iOS for a moment so edits still waiting out their debounce reach the
                 // disk (and nogs get rescheduled) before the app is suspended.
-                let finishing = UIApplication.shared.beginBackgroundTask(withName: "Save edits")
-                Task {
-                    await store.syncIfPending()
-                    await store.flush()
-                    UIApplication.shared.endBackgroundTask(finishing)
-                }
+                BackgroundSave.shared.finishEdits(store)
+
             default:
                 break
             }
@@ -133,6 +130,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
                 default:
                     break
                 }
+                await store.flush()
                 await store.syncNow()
                 await store.flush()
             }
@@ -150,9 +148,12 @@ enum BackgroundRefresh {
             schedule()
             let work = Task { @MainActor in
                 await ItemStore.shared.reloadFromDisk()
+                guard !Task.isCancelled else { task.setTaskCompleted(success: false); return }
+                let savedBefore = await ItemStore.shared.flush()
+                guard !Task.isCancelled else { task.setTaskCompleted(success: false); return }
                 await ItemStore.shared.syncNow()
-                await ItemStore.shared.flush()
-                task.setTaskCompleted(success: !Task.isCancelled)
+                let savedAfter = await ItemStore.shared.flush()
+                task.setTaskCompleted(success: savedBefore && savedAfter && !Task.isCancelled)
             }
             task.expirationHandler = { work.cancel() }
         }
@@ -163,6 +164,46 @@ enum BackgroundRefresh {
         request.earliestBeginDate = .now.addingTimeInterval(15 * 60)
         BGTaskScheduler.shared.submitTaskRequest(request) { error in
             if let error { print("Nog: background refresh not scheduled: \(error)") }
+        }
+    }
+}
+
+/// One expiring background save. Ending it is idempotent, including expiration.
+@MainActor
+private final class BackgroundSave {
+    static let shared = BackgroundSave()
+    private var identifier: UIBackgroundTaskIdentifier = .invalid
+    private var work: Task<Void, Never>?
+    private var generation = UUID()
+
+    func finishEdits(_ store: ItemStore) {
+        finish()
+        let current = UUID()
+        generation = current
+        identifier = UIApplication.shared.beginBackgroundTask(withName: "Save edits") { [weak self] in
+            Task { @MainActor in
+                guard let self, self.generation == current else { return }
+                self.finish()
+            }
+        }
+        work = Task { [weak self] in
+            await store.flush()
+            guard !Task.isCancelled else { return }
+            await store.syncIfPending()
+            guard !Task.isCancelled else { return }
+            await store.flush()
+            guard let self, self.generation == current else { return }
+            self.finish()
+        }
+    }
+
+    private func finish() {
+        generation = UUID()
+        work?.cancel()
+        work = nil
+        if identifier != .invalid {
+            UIApplication.shared.endBackgroundTask(identifier)
+            identifier = .invalid
         }
     }
 }

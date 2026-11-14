@@ -15,8 +15,9 @@ struct CaptureIntent: AppIntent {
         guard let item = ItemStore.shared.capture(text) else {
             return .result(dialog: "There was nothing to capture.")
         }
+        try await ItemStore.shared.flushOrThrow()
         await ItemStore.shared.syncNow()
-        await ItemStore.shared.flush()
+        try await ItemStore.shared.flushOrThrow()
         return .result(dialog: "Got it: \(item.title)")
     }
 }
@@ -52,6 +53,9 @@ struct StartItemIntent: LiveActivityIntent {
     func perform() async throws -> some IntentResult & ProvidesDialog {
         let store = ItemStore.shared
         guard let existing = store.items[item.id] else { throw NogIntentError.notFound }
+        if let minutes, !(1...ItemValidation.maxTimeboxMinutes).contains(minutes) {
+            throw NogIntentError.invalidDuration
+        }
         let timebox = minutes ?? store.suggestedTimebox(for: existing.id).minutes
         // A nog with sub-nogs starts its first unfinished one: say which.
         let target = store.items[store.startTarget(for: existing.id)] ?? existing
@@ -60,8 +64,9 @@ struct StartItemIntent: LiveActivityIntent {
             return .result(dialog: IntentDialog(full: "You're already on \(target.title).", supporting: "Already started"))
         }
         store.start(existing.id, timebox: timebox)
+        try await store.flushOrThrow()
         await store.syncNow()
-        await store.flush()
+        try await store.flushOrThrow()
         let length = timebox.map { "for \(IntervalFormat.amount($0))" } ?? "with no time limit"
         return .result(dialog: IntentDialog(full: "Started \(target.title) \(length). Just that, then you can stop.",
                                             supporting: "Started"))
