@@ -3,11 +3,11 @@ import Foundation
 
 /// The Live Activity shown while you're doing a nog (▶︎).
 /// Compiled into both the app and the NogWidgets extension.
-struct DoingAttributes: ActivityAttributes {
+nonisolated struct DoingAttributes: ActivityAttributes {
     var itemID: UUID
     var title: String
 
-    struct ContentState: Codable, Hashable {
+    nonisolated struct ContentState: Codable, Hashable {
         /// When this session started.
         var startedAt: Date
         /// When the timebox ends; nil = open-ended (counts up).
@@ -16,5 +16,7 @@ struct DoingAttributes: ActivityAttributes {
         var priorSeconds: TimeInterval
         /// Rings as an alarm when time's up.
         var isUrgent: Bool
+        /// Optional for decoding live activities created by earlier app versions.
+        var displayTitle: String? = nil
     }
 }

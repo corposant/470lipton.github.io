@@ -129,7 +129,7 @@ struct OnboardingView: View {
             permissionCard(
                 icon: "alarm", title: "Alarms (optional)", required: false,
                 why: "For things you can't miss. Rings through Silent and Focus, only when you ask.",
-                granted: alarmsAllowed, denied: false) {
+                granted: alarmsAllowed, denied: AlarmScheduler.shared.authorizationState == .denied) {
                     Task { alarmsAllowed = await AlarmScheduler.shared.requestAuthorization() }
                 }
 
@@ -165,7 +165,7 @@ struct OnboardingView: View {
                     .foregroundStyle(StatusDial.tint(.done))
                     .font(.subheadline.weight(.semibold))
             } else if denied {
-                Text("Off. Allow it in Settings › Notifications › Nog.")
+                Text("Off. You can allow access in iOS Settings for Nog.")
                     .font(.subheadline)
                     .foregroundStyle(Theme.pink)
             } else {

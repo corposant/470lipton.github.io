@@ -15,6 +15,7 @@ final class VoicePlayer: NSObject, AVAudioPlayerDelegate {
     private(set) var failed: String?
 
     @ObservationIgnored private var player: AVAudioPlayer?
+    @ObservationIgnored private var requestID = UUID()
     @ObservationIgnored private var watch: Task<Void, Never>?
 
     /// How far into the playing note, in seconds.
@@ -25,8 +26,9 @@ final class VoicePlayer: NSObject, AVAudioPlayerDelegate {
         stop()
         failed = nil
         loading = note.file
+        let request = requestID
         let data = await store.voiceNoteData(note.file)
-        guard loading == note.file else { return } // tapped something else meanwhile
+        guard !Task.isCancelled, request == requestID, loading == note.file else { return } // tapped something else meanwhile
         loading = nil
         do {
             guard let data else { throw CocoaError(.fileReadNoSuchFile) }
@@ -47,6 +49,7 @@ final class VoicePlayer: NSObject, AVAudioPlayerDelegate {
     }
 
     func stop() {
+        requestID = UUID()
         loading = nil
         watch?.cancel()
         watch = nil

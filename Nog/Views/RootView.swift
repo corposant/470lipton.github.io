@@ -15,10 +15,8 @@ struct NogsTab: View {
 
     private var isSelecting: Bool { editMode.isEditing }
 
-    /// What "Select All" picks: everything listed except the finished pile.
-    private var selectable: Set<UUID> {
-        Set(store.items.values.filter { $0.status != .done }.map(\.id))
-    }
+    /// Published by the active list, after that view applies its filters.
+    @State private var selectable: Set<UUID> = []
 
     var body: some View {
         @Bindable var router = router
@@ -73,12 +71,16 @@ struct NogsTab: View {
                 if isSelecting {
                     BulkActionBar(selection: $selection)
                         .padding(.horizontal, 18)
-                        .frame(height: 64)
+                        .frame(minHeight: 64)
                         .glassEffect(.regular, in: .capsule)
                         .padding(.horizontal, 16)
                         .padding(.bottom, 6)
                         .transition(.nog(.move(edge: .bottom).combined(with: .opacity)))
                 }
+            }
+            .onPreferenceChange(SelectableNogsKey.self) { ids in
+                selectable = ids
+                selection.formIntersection(ids)
             }
             .nogFeedback(.selection, trigger: selection.count)
             .navigationDestination(for: UUID.self) { id in
@@ -118,3 +120,11 @@ struct DreamHaze: View {
     }
 }
 
+
+/// Stable IDs of rows eligible for selection in the current list, not the whole store.
+struct SelectableNogsKey: PreferenceKey {
+    static var defaultValue: Set<UUID> { [] }
+    static func reduce(value: inout Set<UUID>, nextValue: () -> Set<UUID>) {
+        value.formUnion(nextValue())
+    }
+}

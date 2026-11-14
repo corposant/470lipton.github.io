@@ -282,7 +282,11 @@ enum NogPlanner {
     static let placePrefix = prefix + "place."
 
     static func placeNotifications(items: [Item], places: [SavedPlace], limit: Int,
-                                   shortParents: [String: String] = [:]) -> [PlannedNotification] {
+                                   shortParents: [String: String] = [:],
+                                   policy: NogPolicy = .standard, now: Date = .now) -> [PlannedNotification] {
+        // A location trigger cannot express a future time window. Remove it while
+        // silenced/quiet; a later app/background sync must re-arm it.
+        guard !policy.isSilenced(at: now), !policy.quiet.contains(now) else { return [] }
         let titles = ParentContext.titles(for: items, shortened: shortParents)
         let byName = Dictionary(places.map { ($0.name.lowercased(), $0) }, uniquingKeysWith: { a, _ in a })
         return items
@@ -299,7 +303,7 @@ enum NogPlanner {
                     body: trigger.leaving ? "You're leaving \(place.name)." : "You're at \(place.name).",
                     trigger: .place(latitude: place.latitude, longitude: place.longitude,
                                     radius: place.radius, leaving: trigger.leaving),
-                    category: category(for: item.reminder))
+                    category: category(for: item.reminder), silent: item.reminder?.silent ?? false)
             }
             .prefix(limit)
             .map { $0 }

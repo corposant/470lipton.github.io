@@ -65,8 +65,9 @@ struct MarkNoggedIntent: AppIntent {
         let store = ItemStore.shared
         guard let existing = store.items[item.id] else { throw NogIntentError.notFound }
         store.markDone(existing.id)
+        try await store.flushOrThrow()
         await store.syncNow()
-        await store.flush()
+        try await store.flushOrThrow()
         return .result(dialog: IntentDialog(full: "Done: \(existing.title).", supporting: "Done"))
     }
 }

@@ -145,6 +145,9 @@ enum ItemFile {
                     return VoiceNote(file: file, seconds: seconds)
                 }
         }
+        guard ItemValidation.accepts(item) else { return nil }
+        var seen = Set<String>()
+        item.tags = item.tags.filter { seen.insert($0.lowercased()).inserted }
         return item
     }
 

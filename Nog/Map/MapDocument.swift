@@ -1,3 +1,4 @@
+import CryptoKit
 import CoreGraphics
 import Foundation
 import Observation
@@ -31,10 +32,13 @@ final class MapDocument {
 
     var fileName: String {
         guard !page.isEmpty else { return "_nogmap.json" }
-        let slug = page.unicodeScalars
-            .map { CharacterSet.alphanumerics.contains($0) ? String($0) : "-" }
-            .joined()
-        return "_nogmap-\(slug).json"
+        let digest = SHA256.hash(data: Data(page.utf8)).map { String(format: "%02x", $0) }.joined()
+        return "_nogmap-v2-\(digest).json"
+    }
+
+    private var legacyFileName: String {
+        let slug = page.unicodeScalars.map { CharacterSet.alphanumerics.contains($0) ? String($0) : "-" }.joined()
+        return page.isEmpty ? "_nogmap.json" : "_nogmap-\(slug).json"
     }
 
     var positions: [UUID: CGPoint] = [:]
@@ -47,6 +51,7 @@ final class MapDocument {
     @ObservationIgnored private var saveTask: Task<Void, Never>?
     /// True from a change until it's written, so a reload from disk can't undo it.
     @ObservationIgnored private var hasPendingSave = false
+    @ObservationIgnored private var saveRevision = 0
     /// When we last read or wrote the file; anything newer came from another device.
     @ObservationIgnored private var lastSync = Date.distantPast
     /// Chips placed automatically before their real size was known; `settle` tidies them.
@@ -74,6 +79,7 @@ final class MapDocument {
         guard loadedFolder != store.folder else { return }
         loadedFolder = store.folder
         self.store = store
+        store.registerSidecarFlusher(fileName) { [weak self] in self?.writePending() }
         read(from: store)
     }
 
@@ -89,7 +95,9 @@ final class MapDocument {
 
     private func read(from store: ItemStore) {
         lastSync = .now
-        guard let data = store.readSidecar(fileName),
+        // Read legacy non-destructively. Ambiguous legacy tag collisions cannot
+        // be disambiguated; each page keeps a copy under its new distinct key.
+        guard let data = store.readSidecar(fileName) ?? store.readSidecar(legacyFileName),
               let stored = try? JSONDecoder().decode(Stored.self, from: data) else { return }
         var loaded: [UUID: CGPoint] = [:]
         for (key, xy) in stored.positions where xy.count == 2 {
@@ -106,21 +114,30 @@ final class MapDocument {
         }
     }
 
-    /// Debounced save. Spots of items that no longer exist anywhere are dropped.
+    /// Debounced while active, but registered with the store's background flush.
     func save() {
         hasPendingSave = true
+        saveRevision += 1
         saveTask?.cancel()
         saveTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(1))
-            guard !Task.isCancelled, let self, let store = self.store else { return }
-            self.pruneDeleted(store)
-            let stored = Stored(
-                positions: Dictionary(uniqueKeysWithValues: self.positions.map { ($0.key.uuidString, [Double($0.value.x), Double($0.value.y)]) }),
-                drawing: self.drawing.strokes.isEmpty ? nil : self.drawing.dataRepresentation(),
-                pinned: self.pinned.isEmpty ? nil : self.pinned.map(\.uuidString).sorted())
-            if let data = try? JSONEncoder().encode(stored) {
-                store.writeSidecar(self.fileName, data: data)
-            }
+            guard !Task.isCancelled else { return }
+            self?.writePending()
+        }
+    }
+
+    private func writePending() {
+        guard hasPendingSave, let store else { return }
+        saveTask?.cancel()
+        pruneDeleted(store)
+        let revision = saveRevision
+        let stored = Stored(
+            positions: Dictionary(uniqueKeysWithValues: positions.map { ($0.key.uuidString, [Double($0.value.x), Double($0.value.y)]) }),
+            drawing: drawing.strokes.isEmpty ? nil : drawing.dataRepresentation(),
+            pinned: pinned.isEmpty ? nil : pinned.map(\.uuidString).sorted())
+        guard let data = try? JSONEncoder().encode(stored) else { return }
+        store.writeSidecar(fileName, data: data) { [weak self] success in
+            guard let self, success, self.saveRevision == revision else { return }
             self.lastSync = .now
             self.hasPendingSave = false
         }

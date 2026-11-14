@@ -86,7 +86,7 @@ struct NogitivityProvider: AppIntentTimelineProvider {
     }
 
     func snapshot(for configuration: NogitivityConfiguration, in context: Context) async -> NogitivityEntry {
-        let snapshot = context.isPreview ? WidgetSnapshot.sample() : (WidgetStore.load() ?? .sample())
+        let snapshot: WidgetSnapshot? = context.isPreview ? WidgetSnapshot.sample() : WidgetStore.load()
         return NogitivityEntry(date: .now, snapshot: snapshot, configuration: configuration)
     }
 
@@ -97,7 +97,8 @@ struct NogitivityProvider: AppIntentTimelineProvider {
         // The app reloads the widgets whenever anything else changes.
         // Ask again at midnight (for Today) or in 6 hours at the latest. An entry at
         // midnight itself turns the date over on time, even if the reload comes late.
-        let midnight = Calendar.current.startOfDay(for: now.addingTimeInterval(86_400))
+        let midnight = Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: now))
+            ?? now.addingTimeInterval(86_400)
         let reloadAt = min(midnight, now.addingTimeInterval(6 * 3600))
         let changes = snapshot.map { WidgetPicker.changeDates($0, after: now) } ?? []
         let dates = [now] + changes.filter { $0 < reloadAt } + (reloadAt == midnight ? [midnight] : [])

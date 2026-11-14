@@ -15,6 +15,15 @@ final class ItemStore {
 
     private let schedulesNotifications: Bool
     private let storage = FileStorage()
+    /// Local write status, not a claim that iCloud finished uploading.
+    private(set) var persistenceIssue: String?
+    private(set) var writesInFlight = 0
+    @ObservationIgnored private var writeGeneration: [URL: UUID] = [:]
+    @ObservationIgnored private var submittedWrites = 0
+    var hasUnsavedChanges: Bool { !pendingWrites.isEmpty || writesInFlight > 0 || persistenceIssue != nil }
+    @ObservationIgnored private var attachments: [UUID: Task<Void, Never>] = [:]
+    @ObservationIgnored private var failedAttachments: [UUID: (VoiceRecording, UUID)] = [:]
+    @ObservationIgnored private var sidecarFlushers: [String: @MainActor () -> Void] = [:]
     @ObservationIgnored private var syncDebounce: Task<Void, Never>?
     /// The waiting sync also needs to reschedule nogs (not just widgets and Spotlight).
     @ObservationIgnored private var pendingSyncIncludesNogs = false
@@ -29,6 +38,8 @@ final class ItemStore {
     @ObservationIgnored private var query: NSMetadataQuery?
     @ObservationIgnored private var queryObservers: [NSObjectProtocol] = []
     @ObservationIgnored private var pendingWrites: [UUID: Item] = [:]
+    @ObservationIgnored private var pendingRemovalNames: Set<String> = []
+    @ObservationIgnored private var pendingSidecars: [String: (Data, (@MainActor (Bool) -> Void)?)] = [:]
     @ObservationIgnored private var writeDebounce: Task<Void, Never>?
     /// True while moving between on-phone and iCloud folders; reloads wait.
     @ObservationIgnored private var isSwitchingFolder = false
@@ -56,6 +67,7 @@ final class ItemStore {
     /// Debounced: a burst of edits (typing) becomes one write per item.
     private func write(_ item: Item) {
         recentlyWritten[item.id] = .now
+        pendingRemovalNames.remove("\(item.id.uuidString).md")
         pendingWrites[item.id] = item
         writeDebounce?.cancel()
         writeDebounce = Task { [weak self] in
@@ -66,18 +78,79 @@ final class ItemStore {
     }
 
     private func writePending() {
+        guard !isSwitchingFolder else { return } // retain edits for the chosen destination
+        let removals = pendingRemovalNames
+        pendingRemovalNames = []
+        for name in removals { storage.delete(folder.appending(path: name)) }
+        let sidecars = pendingSidecars
+        pendingSidecars = [:]
+        for (name, entry) in sidecars {
+            enqueueWrite(entry.0, to: folder.appending(path: name), completion: entry.1)
+        }
         let batch = pendingWrites
         pendingWrites = [:]
         for item in batch.values {
-            storage.write(ItemFile.encode(item), to: fileURL(for: item.id))
+            enqueueWrite(Data(ItemFile.encode(item).utf8), to: fileURL(for: item.id))
         }
     }
 
-    /// Writes everything pending and waits for the disk (call before the app may be suspended).
-    func flush() async {
+    private func enqueueWrite(_ data: Data, to url: URL,
+                              completion: (@MainActor (Bool) -> Void)? = nil) {
+        writesInFlight += 1
+        submittedWrites += 1
+        let generation = UUID()
+        writeGeneration[url] = generation
+        storage.write(data: data, to: url) { [weak self] succeeded in
+            Task { @MainActor in
+                guard let self else { return }
+                self.writesInFlight = max(0, self.writesInFlight - 1)
+                if self.writeGeneration[url] == generation {
+                    self.writeGeneration[url] = nil
+                    if !succeeded { self.persistenceIssue = "Some changes aren't saved. Retry before closing Nog." }
+                }
+                completion?(succeeded)
+            }
+        }
+    }
+
+    /// A queue drain is not success: check failures after queued work completes.
+    @discardableResult
+    func flush() async -> Bool {
+        for task in Array(attachments.values) { await task.value }
+        for prepare in Array(sidecarFlushers.values) { prepare() }
         writeDebounce?.cancel()
         writePending()
+        let submitted = submittedWrites
         await storage.flush()
+        let failed = await storage.failedPaths()
+        if isSwitchingFolder || !pendingWrites.isEmpty || submitted != submittedWrites { return false }
+        if !failed.isEmpty || !failedAttachments.isEmpty {
+            persistenceIssue = "Some changes aren't saved. Retry before closing Nog."
+            return false
+        }
+        writeGeneration = [:] // ignore delayed callbacks for the completed batch
+        persistenceIssue = nil
+        return true
+    }
+
+    func retrySaving() async {
+        for (key, entry) in Array(failedAttachments) {
+            failedAttachments[key] = nil
+            attachVoiceNote(entry.0, to: entry.1)
+        }
+        // Queue completions are hopped to MainActor; invalidate old failure
+        // callbacks before retry can clear the error state.
+        writeGeneration = [:]
+        await storage.retryFailed()
+        await flush()
+    }
+
+    func flushOrThrow() async throws {
+        guard await flush() else { throw CocoaError(.fileWriteUnknown) }
+    }
+
+    func registerSidecarFlusher(_ name: String, prepare: @escaping @MainActor () -> Void) {
+        sidecarFlushers[name] = prepare
     }
 
     func flushForTesting() {
@@ -92,28 +165,55 @@ final class ItemStore {
         try? Data(contentsOf: folder.appending(path: name))
     }
 
-    func writeSidecar(_ name: String, data: Data) {
-        storage.write(data: data, to: folder.appending(path: name))
+    func writeSidecar(_ name: String, data: Data, completion: (@MainActor (Bool) -> Void)? = nil) {
+        if isSwitchingFolder {
+            pendingSidecars[name] = (data, completion)
+            return
+        }
+        enqueueWrite(data, to: folder.appending(path: name), completion: completion)
     }
 
     // MARK: - Voice notes, stored and synced next to the items
 
     /// Moves a finished recording into the folder and lists it on the item.
     func attachVoiceNote(_ recording: VoiceRecording, to id: UUID) {
-        guard var item = items[id], VoiceNote.isValidFile(recording.file) else {
-            try? FileManager.default.removeItem(at: recording.url)
+        guard items[id] != nil, VoiceNote.isValidFile(recording.file) else {
+            // Preserve the temporary recording if its owning item disappeared.
+            persistenceIssue = "Recording couldn't be attached; its temporary file was retained."
             return
         }
-        storage.move(recording.url, to: folder.appending(path: recording.file))
-        item.voiceNotes.append(VoiceNote(file: recording.file, seconds: recording.seconds))
-        update(item)
+        let operation = UUID()
+        attachments[operation] = Task { [weak self] in
+            guard let self else { return }
+            while self.isSwitchingFolder {
+                try? await Task.sleep(for: .milliseconds(50))
+                guard !Task.isCancelled else { return }
+            }
+            let destination = self.folder.appending(path: recording.file)
+            let succeeded = await withCheckedContinuation { c in
+                self.storage.move(recording.url, to: destination) { c.resume(returning: $0) }
+            }
+            if succeeded, var current = self.items[id] {
+                current.voiceNotes.append(VoiceNote(file: recording.file, seconds: recording.seconds))
+                self.update(current)
+            } else if !succeeded {
+                self.failedAttachments[operation] = (recording, id)
+                self.persistenceIssue = "Recording isn't saved yet. Retry before closing Nog."
+            }
+            self.attachments[operation] = nil
+        }
+    }
+
+    private func removeFile(named name: String) {
+        if isSwitchingFolder { pendingRemovalNames.insert(name) }
+        else { storage.delete(folder.appending(path: name)) }
     }
 
     func removeVoiceNote(_ file: String, from id: UUID) {
         guard var item = items[id], item.voiceNotes.contains(where: { $0.file == file }) else { return }
         item.voiceNotes.removeAll { $0.file == file }
         update(item)
-        if VoiceNote.isValidFile(file) { storage.delete(folder.appending(path: file)) }
+        if VoiceNote.isValidFile(file) { removeFile(named: file) }
     }
 
     /// The recording's audio. From iCloud, this waits for it to download.
@@ -135,9 +235,12 @@ final class ItemStore {
         }
         // Launch and "app became active" can both ask at once; one connect at a time.
         guard !isSwitchingFolder else { return }
-        writePending()
+        guard await flush(), !isSwitchingFolder else { return }
         isSwitchingFolder = true
-        defer { isSwitchingFolder = false }
+        defer {
+            isSwitchingFolder = false
+            writePending()
+        }
         guard let cloud = await storage.resolveICloudFolder(migratingFrom: local) else {
             // iCloud is unavailable right now (signing in, Drive toggled, offline at launch).
             // Keep what's loaded and the folder we have; we'll try again next time the app is active.
@@ -154,6 +257,11 @@ final class ItemStore {
                 for item in items.values where !snapshot.presentIDs.contains(item.id) { write(item) }
             }
         }
+        // reloadFromDisk deliberately refuses to merge during a switch.
+        // Publish the new folder first, then merge while edits are still protected.
+        isSwitchingFolder = false
+        writePending()
+        await storage.flush()
         await reloadFromDisk()
         startWatching()
     }
@@ -181,28 +289,41 @@ final class ItemStore {
     /// Settings → Storage. Switching to on-phone copies every item to the phone
     /// (the iCloud copies stay put); switching back merges, keeping the newest edits.
     func setStorage(_ mode: StorageMode) async {
+        let previousMode = StorageMode.current
         UserDefaults.standard.set(mode.rawValue, forKey: StorageMode.key)
         switch mode {
         case .local: await useLocalStorage()
         case .iCloud: await connectToICloud()
         }
+        if (mode == .local && folder.standardizedFileURL != StorageLocation.localFolder.standardizedFileURL)
+            || (mode == .iCloud && !isUsingICloud) {
+            UserDefaults.standard.set(previousMode.rawValue, forKey: StorageMode.key)
+        }
         await syncNow()
     }
 
     private func useLocalStorage() async {
-        writePending()
-        stopWatching()
-        UserDefaults.standard.removeObject(forKey: StorageLocation.lastFolderKey)
+        guard !isSwitchingFolder, await flush(), !isSwitchingFolder else { return }
+        isSwitchingFolder = true
+        defer {
+            isSwitchingFolder = false
+            writePending()
+        }
         let local = StorageLocation.localFolder
         let wasElsewhere = folder.standardizedFileURL != local.standardizedFileURL
-        isUsingICloud = false
-        guard wasElsewhere else { return }
+        guard wasElsewhere else { isUsingICloud = false; return }
         try? FileManager.default.createDirectory(at: local, withIntermediateDirectories: true)
         let previous = folder
+        guard await storage.copySupportingFiles(from: previous, to: local) else {
+            persistenceIssue = "Storage wasn't switched because supporting files couldn't be copied."
+            return
+        }
+        stopWatching()
+        UserDefaults.standard.removeObject(forKey: StorageLocation.lastFolderKey)
+        isUsingICloud = false
         folder = local
         for item in items.values { write(item) }
-        storage.copyFiles(items.values.flatMap { $0.voiceNotes.map(\.file) }.filter(VoiceNote.isValidFile),
-                          from: previous, to: local)
+        isSwitchingFolder = false
         await flush()
     }
 
@@ -226,18 +347,25 @@ final class ItemStore {
         guard !isSwitchingFolder, readFolder == folder else { return }
         // Couldn't even list the folder: keep everything as it is and try again next time.
         guard snapshot.folderReadable else { return }
+        let failedNames = Set(await storage.failedPaths())
+        guard !isSwitchingFolder, readFolder == folder else { return }
         let now = Date.now
+        recentlyWritten = recentlyWritten.filter { now.timeIntervalSince($0.value) < 60 }
+        recentlyDeleted = recentlyDeleted.filter { now.timeIntervalSince($0.value) < 60 || failedNames.contains("\($0.key.uuidString).md") }
         func isRecent(_ date: Date?) -> Bool { date.map { now.timeIntervalSince($0) < 60 } ?? false }
 
         var next = items
         for disk in snapshot.items {
+            guard pendingWrites[disk.id] == nil,
+                  !failedNames.contains("\(disk.id.uuidString).md") else { continue }
             if let mine = next[disk.id] {
                 if disk.updated > mine.updated { next[disk.id] = disk }
             } else if !isRecent(recentlyDeleted[disk.id]) {
                 next[disk.id] = disk
             }
         }
-        for id in Array(next.keys) where !snapshot.presentIDs.contains(id) && !isRecent(recentlyWritten[id]) {
+        for id in Array(next.keys) where !snapshot.presentIDs.contains(id) && !isRecent(recentlyWritten[id])
+            && pendingWrites[id] == nil && !failedNames.contains("\(id.uuidString).md") {
             next[id] = nil // deleted on another device
         }
         if next != items {
@@ -317,6 +445,10 @@ final class ItemStore {
     }
 
     func insert(_ item: Item) {
+        guard ItemValidation.accepts(item) else {
+            persistenceIssue = "This nog has invalid timing data and wasn't saved."
+            return
+        }
         let item = firingSoonIfPast(item, previous: nil)
         items[item.id] = item
         write(item)
@@ -324,6 +456,10 @@ final class ItemStore {
     }
 
     func update(_ newValue: Item) {
+        guard ItemValidation.accepts(newValue) else {
+            persistenceIssue = "This nog has invalid timing data and wasn't saved."
+            return
+        }
         guard let old = items[newValue.id] else { return insert(newValue) }
         guard old != newValue else { return }
         var item = newValue
@@ -494,6 +630,7 @@ final class ItemStore {
 
     /// Starts working on an item: its first unfinished sub-nog if it has any. `timebox` nil = open-ended.
     func start(_ id: UUID, timebox: Int?) {
+        guard timebox.map({ (1...ItemValidation.maxTimeboxMinutes).contains($0) }) ?? true else { return }
         let target = startTarget(for: id)
         if target != id {
             // That step is already under way: leave its timer alone.
@@ -521,6 +658,7 @@ final class ItemStore {
     /// Once the starter has run out the session is counting up, with nothing left to extend:
     /// growing the timer then would turn it back into a countdown and play the chime again.
     func extend(_ id: UUID, minutes: Int) {
+        guard (1...ItemValidation.maxTimeboxMinutes).contains(minutes) else { return }
         guard var item = items[id], item.isDoing, let since = item.doingSince else { return }
         if item.isCountingUp() {
             clearDelivered(id)
@@ -688,13 +826,13 @@ final class ItemStore {
     func delete(_ id: UUID) {
         let wasDoing = items[id]?.isDoing == true
         for note in items[id]?.voiceNotes ?? [] where VoiceNote.isValidFile(note.file) {
-            storage.delete(folder.appending(path: note.file))
+            removeFile(named: note.file)
         }
         items[id] = nil
         pendingWrites[id] = nil
         recentlyDeleted[id] = .now
         if wasDoing { updateLiveActivities() }
-        storage.delete(fileURL(for: id))
+        removeFile(named: "\(id.uuidString).md")
         clearDelivered(id)
         scheduleSync()
     }
@@ -724,13 +862,14 @@ final class ItemStore {
         return (to + 1, kids.count)
     }
 
-    /// Order is bookkeeping, not an edit: `updated` stays put so lists sorted by
-    /// recent change don't jump, and no nog changes, so notifications aren't rebuilt.
+    /// Ordering is a persistent edit: advance the merge timestamp so another
+    /// running device accepts it. Notifications still need no reschedule.
     private func setOrder(_ ordered: [Item]) {
         var changed = false
         for (index, kid) in ordered.enumerated() where items[kid.id]?.position != index {
             guard var current = items[kid.id] else { continue }
             current.position = index
+            current.updated = max(.now, current.updated.addingTimeInterval(0.001))
             items[kid.id] = current
             write(current)
             changed = true
@@ -796,6 +935,7 @@ final class ItemStore {
         PlaceBook.shared.restoreIfEmpty(from: self)
         await nogFromPlaceArrivals()
         let all = Array(items.values)
+        DoingActivities.shared.reconcile(all)
         WidgetSync.publish(all)
         if nogs { await NotificationScheduler.shared.sync(items: all) }
         await SpotlightIndexer.update(self)
@@ -817,6 +957,8 @@ final class ItemStore {
         pendingSyncIncludesNogs = false
         let signpost = Perf.signposter.beginInterval("Sync")
         defer { Perf.signposter.endInterval("Sync", signpost) }
+        PlaceBook.shared.restoreIfEmpty(from: self)
+        await nogFromPlaceArrivals()
         let all = Array(items.values)
         DoingActivities.shared.reconcile(all)
         WidgetSync.publish(all)

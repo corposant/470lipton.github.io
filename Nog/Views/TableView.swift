@@ -158,6 +158,7 @@ struct NogTable: View {
                 SectionLabel(title: "All nogs", count: rows.count)
             }
         }
+        .preference(key: SelectableNogsKey.self, value: Set(rows.map(\.id)))
         .nogListStyle()
         .overlay {
             if rows.isEmpty && doing.isEmpty {

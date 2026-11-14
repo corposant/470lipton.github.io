@@ -91,7 +91,7 @@ extension ReminderEntity {
         recurrence = item.recurrence.map(Calendar.RecurrenceRule.nog(_:))
             ?? item.reminder?.repeatMinutes.map(Calendar.RecurrenceRule.nog(minutes:))
         isCompleted = item.status == .done
-        isFlagged = item.reminder?.alarm
+        isFlagged = item.urgent
         creationDate = item.created
         completionDate = item.completed
         list = store.parent(of: item).map(ListEntity.init(item:)) ?? .inbox
@@ -255,10 +255,11 @@ struct CreateReminderIntent {
             reminder.repeatMinutes = minutes
             item.reminder = reminder
         }
-        if isFlagged == true { item.reminder?.alarm = true }
+        if let isFlagged { item.urgent = isFlagged }
         store.update(item)
+        try await store.flushOrThrow()
         await store.syncNow()
-        await store.flush()
+        try await store.flushOrThrow()
 
         let saved = store.items[item.id] ?? item
         return .result(
@@ -304,15 +305,16 @@ struct UpdateReminderIntent {
             reminder.repeatMinutes = minutes
             item.reminder = reminder
         }
-        if let isFlagged, item.reminder != nil { item.reminder?.alarm = isFlagged }
+        if let isFlagged { item.urgent = isFlagged }
         // Never move an item inside itself or one of its own sub-items.
         if let list, list.id != item.id, !(list.parentID.map { store.isDescendant($0, of: item.id) } ?? false) {
             item.parentID = list.parentID
         }
         if let isCompleted { item.status = isCompleted ? .done : .open }
         store.update(item)
+        try await store.flushOrThrow()
         await store.syncNow()
-        await store.flush()
+        try await store.flushOrThrow()
         return .result(value: ReminderEntity(item: store.items[item.id] ?? item, store: store))
     }
 }
@@ -324,8 +326,9 @@ struct DeleteRemindersIntent: DeleteIntent {
     @MainActor
     func perform() async throws -> some IntentResult {
         for entity in entities { ItemStore.shared.delete(entity.id) }
+        try await ItemStore.shared.flushOrThrow()
         await ItemStore.shared.syncNow()
-        await ItemStore.shared.flush()
+        try await ItemStore.shared.flushOrThrow()
         return .result()
     }
 }
@@ -339,7 +342,7 @@ struct CreateListIntent {
     @MainActor
     func perform() async throws -> some ReturnsValue<ListEntity> {
         let item = ItemStore.shared.createIdea(title: name)
-        await ItemStore.shared.flush()
+        try await ItemStore.shared.flushOrThrow()
         return .result(value: ListEntity(item: item))
     }
 }
@@ -365,12 +368,13 @@ struct SectionEntity {
 }
 
 enum NogIntentError: Error, CustomLocalizedStringResourceConvertible {
-    case emptyTitle, notFound
+    case emptyTitle, notFound, invalidDuration
 
     var localizedStringResource: LocalizedStringResource {
         switch self {
         case .emptyTitle: "There was nothing to remind you about."
         case .notFound: "I couldn't find that item in Nog."
+        case .invalidDuration: "Choose a positive timer duration of no more than a week."
         }
     }
 }

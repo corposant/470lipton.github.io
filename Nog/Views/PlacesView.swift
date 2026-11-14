@@ -23,7 +23,8 @@ struct PlacesView: View {
                     .accessibilityElement(children: .combine)
                 }
                 .onDelete { offsets in
-                    for i in offsets { book.delete(book.places[i].id) }
+                    let ids = offsets.compactMap { book.places.indices.contains($0) ? book.places[$0].id : nil }
+                    for id in ids { book.delete(id) }
                 }
                 Button {
                     adding = true

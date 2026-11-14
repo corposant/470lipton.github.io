@@ -12,6 +12,7 @@ struct ItemDetailView: View {
     var body: some View {
         if let item = store.items[id] {
             ItemEditor(item: item, autoRecord: autoRecord, showsMenu: showsMenu)
+                .id(item.id)
         } else {
             ContentUnavailableView("Item deleted", systemImage: "trash")
         }
@@ -34,11 +35,11 @@ private struct ItemEditor: View {
     /// Bumped by the top bar's flag and tag buttons to scroll the title row into view.
     @State private var heroRequest = 0
     @FocusState private var tagFieldFocused: Bool
-    @FocusState private var notesFocused: Bool
+    @State private var notesFocused = false
     @State private var notesCommitted = 0
     /// The notes show formatted until tapped; then the words underneath are edited.
     @State private var editingNotes = false
-    @State private var notesSelection: TextSelection?
+    @State private var notesSelection: Range<Int>?
     @State private var showRecorder = false
     @State private var didAutoRecord = false
     @ScaledMetric(relativeTo: .body) private var notesToolSize: CGFloat = 44
@@ -84,7 +85,7 @@ private struct ItemEditor: View {
             Form {
                 hero
                 stateSection
-                notesSection(proxy)
+                notesSection
                 childrenSection
                 if item.totalTimeSpent() >= 60 || (item.reminder != nil && item.status != .open) {
                     detailsSection
@@ -100,7 +101,8 @@ private struct ItemEditor: View {
         }
         // Leaving the page stops this nog's voice note if one is playing.
         .onDisappear {
-            if let playing = VoicePlayer.shared.playing, item.voiceNotes.contains(where: { $0.file == playing }) {
+            let player = VoicePlayer.shared
+            if item.voiceNotes.contains(where: { $0.file == player.playing || $0.file == player.loading }) {
                 VoicePlayer.shared.stop()
             }
         }
@@ -115,22 +117,17 @@ private struct ItemEditor: View {
                 tagButton
                 if showsMenu { moreMenu }
             }
-            // Notes are saved as you type; Done puts the keyboard away and confirms it.
-            if notesFocused {
-                ToolbarItemGroup(placement: .keyboard) {
-                    Spacer()
-                    Button("Done") { commitNotes() }
-                        .fontWeight(.semibold)
-                        .accessibilityHint("Saves the notes and hides the keyboard")
-                }
-            }
         }
         .nogFeedback(.success, trigger: notesCommitted)
         // The recorder rises from the mic beside the notes.
         .sheet(isPresented: $showRecorder) {
             RecorderPanel { recording in
                 store.attachVoiceNote(recording, to: item.id)
-                AccessibilityNotification.Announcement("Voice note saved").post()
+                Task {
+                    if await store.flush() {
+                        AccessibilityNotification.Announcement("Voice note saved on this device").post()
+                    }
+                }
             }
         }
         .onAppear {
@@ -389,18 +386,24 @@ private struct ItemEditor: View {
 
     private func commitNotes() {
         notesFocused = false
-        notesCommitted += 1
-        AccessibilityNotification.Announcement("Notes saved").post()
+        Task {
+            if await store.flush() {
+                notesCommitted += 1
+                AccessibilityNotification.Announcement("Notes saved on this device").post()
+            } else {
+                AccessibilityNotification.Announcement("Notes aren't saved yet. Please retry.").post()
+            }
+        }
     }
 
-    private func notesSection(_ proxy: ScrollViewProxy) -> some View {
+    private var notesSection: some View {
         // Big text sizes put the buttons in a row under the notes, so the words keep the width.
         let stacked = typeSize.isAccessibilitySize
         let layout = stacked ? AnyLayout(VStackLayout(alignment: .trailing, spacing: 10))
                              : AnyLayout(HStackLayout(alignment: .top, spacing: 12))
         return Section {
             layout {
-                notesContent(proxy)
+                notesContent
                     .frame(maxWidth: .infinity, alignment: .leading)
                 notesTools(stacked: stacked)
             }
@@ -420,32 +423,26 @@ private struct ItemEditor: View {
     /// Formatted to read; the plain words (with their Markdown marks) while editing. The field
     /// grows with the notes instead of scrolling inside a box, so the card is all text.
     @ViewBuilder
-    private func notesContent(_ proxy: ScrollViewProxy) -> some View {
+    private var notesContent: some View {
         if editingNotes || notesFocused || notesAreEmpty {
-            TextField("Notes", text: notesText, selection: $notesSelection,
-                      prompt: Text(verbatim: "[[Title]] links a nog.").italic().foregroundStyle(Theme.muted),
-                      axis: .vertical)
-                .lineLimit(4...)
-                .focused($notesFocused)
-                // As the notes grow a line, keep their bottom edge (and so the caret)
-                // above the keyboard instead of letting it slide underneath.
-                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { _ in
-                    guard notesFocused else { return }
-                    withAnimation(.snappy) { proxy.scrollTo(Self.notesAnchor, anchor: .bottom) }
+            NotesTextView(text: binding(\.body), selection: $notesSelection,
+                          isFocused: notesFocused, dimmed: item.status == .done,
+                          commit: { commitNotes() }) { focused in
+                notesFocused = focused
+                if !focused { editingNotes = false }
+            }
+            .overlay(alignment: .topLeading) {
+                if item.body.isEmpty {
+                    Text(verbatim: "[[Title]] links a nog.")
+                        .italic().foregroundStyle(Theme.muted)
+                        .padding(.top, 4)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
                 }
-                .onChange(of: notesFocused) { _, focused in
-                    if focused {
-                        withAnimation(.snappy) { proxy.scrollTo(Self.notesAnchor, anchor: .bottom) }
-                    } else {
-                        editingNotes = false
-                    }
-                }
-                .onAppear {
-                    if editingNotes { notesFocused = true }
-                }
-                .id(Self.notesAnchor)
-                .foregroundStyle(item.status == .done ? Theme.muted : .primary)
-                .accessibilityLabel("Notes")
+            }
+            // Let Form handle keyboard avoidance. Scrolling a Form from its
+            // child's layout/focus callback can re-enter row layout on focus.
+            .id(Self.notesAnchor)
         } else {
             NotesMarkdownView(text: item.body, dimmed: item.status == .done,
                               toggleTask: { line in
@@ -456,56 +453,21 @@ private struct ItemEditor: View {
         }
     }
 
-    /// The notes' words. Return at the end of a list item starts the next one
-    /// ("- ", "2. ", "B. ", "- [ ] "); Return on an empty item ends the list.
-    private var notesText: Binding<String> {
-        Binding(
-            get: { store.items[item.id]?.body ?? item.body },
-            set: { new in
-                let old = store.items[item.id]?.body ?? item.body
-                let caret = notesSelectionOffsets(in: old).flatMap { $0.isEmpty ? $0.lowerBound : nil }
-                guard notesFocused, let continued = NotesFormat.continueList(old: old, new: new, caret: caret) else {
-                    set(\.body, new)
-                    return
-                }
-                set(\.body, continued.text)
-                // After the field has taken the keystroke, put the caret after the new mark.
-                Task { @MainActor in setNotesSelection(continued.selection, in: continued.text) }
-            })
-    }
-
     private func startEditingNotes() {
-        let body = item.body
-        notesSelection = TextSelection(insertionPoint: body.endIndex)
+        let text = store.items[item.id]?.body ?? item.body
+        notesSelection = text.count..<text.count
         editingNotes = true
         notesFocused = true
-    }
-
-    /// The selection as character offsets, if the field has one.
-    private func notesSelectionOffsets(in text: String) -> Range<Int>? {
-        guard let notesSelection, case .selection(let range) = notesSelection.indices else { return nil }
-        func offset(_ i: String.Index) -> Int {
-            let u = min(max(0, i.utf16Offset(in: text)), text.utf16.count)
-            return text.distance(from: text.startIndex, to: String.Index(utf16Offset: u, in: text))
-        }
-        let lo = offset(range.lowerBound), hi = offset(range.upperBound)
-        return min(lo, hi)..<max(lo, hi)
-    }
-
-    private func setNotesSelection(_ range: Range<Int>, in text: String) {
-        let lo = text.index(text.startIndex, offsetBy: min(range.lowerBound, text.count))
-        let hi = text.index(text.startIndex, offsetBy: min(range.upperBound, text.count))
-        notesSelection = TextSelection(range: lo..<hi)
     }
 
     /// Runs a formatting change on the notes at the selection (or at the end, if the notes
     /// aren't being edited), then keeps editing there.
     private func formatNotes(_ change: (String, Range<Int>) -> NotesFormat.Result) {
-        let text = item.body
-        let selection = (editingNotes || notesFocused) ? notesSelectionOffsets(in: text) : nil
+        let text = store.items[item.id]?.body ?? item.body
+        let selection = (editingNotes || notesFocused) ? notesSelection.map { NotesSelection.clamped($0, in: text) } : nil
         let result = change(text, selection ?? text.count..<text.count)
         set(\.body, result.text)
-        setNotesSelection(result.selection, in: result.text)
+        notesSelection = NotesSelection.clamped(result.selection, in: result.text)
         editingNotes = true
         notesFocused = true
     }

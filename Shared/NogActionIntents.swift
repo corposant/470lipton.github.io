@@ -19,7 +19,7 @@ struct CompleteItemIntent: LiveActivityIntent {
 
     func perform() async throws -> some IntentResult {
         #if !WIDGET_EXTENSION
-        await NogActions.run(itemID) { store, id in store.markDone(id) }
+        try await NogActions.run(itemID) { store, id in store.markDone(id) }
         #endif
         return .result()
     }
@@ -38,7 +38,7 @@ struct SnoozeItemIntent: LiveActivityIntent {
 
     func perform() async throws -> some IntentResult {
         #if !WIDGET_EXTENSION
-        await NogActions.run(itemID) { store, id in
+        try await NogActions.run(itemID) { store, id in
             // Snooze by the item's own gap (at least 5 minutes).
             let gap = max(300, store.items[id]?.reminder?.gap(after: 0) ?? 600)
             store.snooze(id, until: .now.addingTimeInterval(gap))
@@ -68,7 +68,7 @@ struct ExtendTimeboxIntent: LiveActivityIntent {
     func perform() async throws -> some IntentResult {
         #if !WIDGET_EXTENSION
         let minutes = minutes
-        await NogActions.run(itemID) { store, id in store.extend(id, minutes: minutes) }
+        try await NogActions.run(itemID) { store, id in store.extend(id, minutes: minutes) }
         #endif
         return .result()
     }
@@ -87,7 +87,7 @@ struct StopDoingIntent: LiveActivityIntent {
 
     func perform() async throws -> some IntentResult {
         #if !WIDGET_EXTENSION
-        await NogActions.run(itemID) { store, id in _ = store.stopDoing(id) }
+        try await NogActions.run(itemID) { store, id in _ = store.stopDoing(id) }
         #endif
         return .result()
     }
@@ -108,7 +108,7 @@ struct StartDoingIntent: LiveActivityIntent {
 
     func perform() async throws -> some IntentResult {
         #if !WIDGET_EXTENSION
-        await NogActions.run(itemID) { store, id in store.start(id) }
+        try await NogActions.run(itemID) { store, id in store.start(id) }
         #endif
         return .result()
     }
@@ -117,12 +117,13 @@ struct StartDoingIntent: LiveActivityIntent {
 #if !WIDGET_EXTENSION
 enum NogActions {
     @MainActor
-    static func run(_ itemID: String, _ action: @MainActor (ItemStore, UUID) -> Void) async {
+    static func run(_ itemID: String, _ action: @MainActor (ItemStore, UUID) -> Void) async throws {
         guard let id = UUID(uuidString: itemID) else { return }
         let store = ItemStore.shared
         action(store, id)
+        try await store.flushOrThrow()
         await store.syncNow()
-        await store.flush()
+        try await store.flushOrThrow()
     }
 }
 #endif

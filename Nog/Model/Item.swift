@@ -348,7 +348,9 @@ struct Reminder: Hashable {
         var result: [Date] = []
         var t = start
         var k = 0
-        while result.count < limit && k < 100_000 {
+        var iterations = 0
+        while result.count < limit && iterations < 100_000 {
+            iterations += 1
             guard let g = gap(after: k) else { break }
             // In a steady stretch that's still in the past, jump ahead instead of stepping.
             // (Not Balanced: its week of equal day-long gaps is followed by a different pattern.)

@@ -2,9 +2,9 @@
 set -e
 
 # 1. Add Homebrew to PATH (Apple Silicon / Intel)
-if [[ -d "/opt/homebrew/bin" ]]; then
+if [ -d "/opt/homebrew/bin" ]; then
     export PATH="/opt/homebrew/bin:$PATH"
-elif [[ -d "/usr/local/bin" ]]; then
+elif [ -d "/usr/local/bin" ]; then
     export PATH="/usr/local/bin:$PATH"
 fi
 

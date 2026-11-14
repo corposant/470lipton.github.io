@@ -118,6 +118,8 @@ struct OverviewList: View {
                 }
             }
         }
+        .preference(key: SelectableNogsKey.self,
+                    value: Set((filter == nil ? projects + loose : filtered).map(\.id)))
         .overlay {
             if projects.isEmpty && loose.isEmpty && doing.isEmpty {
                 ContentUnavailableView("Nothing yet", systemImage: "square.grid.2x2",

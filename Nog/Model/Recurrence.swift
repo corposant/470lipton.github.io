@@ -208,10 +208,10 @@ struct Recurrence: Hashable {
         let value = parts[1]
         switch parts[0].lowercased() {
         case "days":
-            guard let n = Int(value), n > 0 else { return nil }
+            guard let n = Int(value), (1...ItemValidation.maxRecurrenceInterval).contains(n) else { return nil }
             rule = .days(n)
         case "weeks":
-            guard let n = Int(value), n > 0 else { return nil }
+            guard let n = Int(value), (1...ItemValidation.maxRecurrenceInterval).contains(n) else { return nil }
             rule = .weeks(n)
         case "weekdays":
             let set = Set(value.split(separator: ",").compactMap { Int($0.trimmingCharacters(in: .whitespaces)) }

@@ -1,3 +1,4 @@
+import UIKit
 import CoreLocation
 import AppIntents
 import Foundation
@@ -29,6 +30,10 @@ final class NotificationScheduler {
 
     private let center = UNUserNotificationCenter.current()
     private var running: Task<Void, Never>?
+    private var enrichment: Task<Void, Never>?
+    private var enrichmentID = UUID()
+    private var latestItems: [Item] = []
+    private var syncGeneration = 0
     private(set) var lastPlannedCount = 0
 
     private var registeredCategories: Set<String> = []
@@ -103,18 +108,24 @@ final class NotificationScheduler {
 
     /// Serialized: each sync waits for the previous one so they never interleave.
     func sync(items: [Item]) async {
+        latestItems = items
+        syncGeneration += 1
+        let generation = syncGeneration
         let previous = running
         let task = Task {
             await previous?.value
-            await self.performSync(items: items)
+            // Coalesce queued snapshots; never replay a superseded one.
+            guard generation == self.syncGeneration else { return }
+            await self.performSync(items: self.latestItems)
         }
         running = task
         await task.value
+        // A coalesced caller also waits for the newer reconciliation replacing it.
+        if generation != syncGeneration, let latest = running { await latest.value }
     }
 
-    /// `shortenTitles`: afterwards, ask Apple Intelligence for any new short parent labels and,
-    /// if some arrive, line everything up again with them.
-    private func performSync(items: [Item], shortenTitles: Bool = true) async {
+    /// Critical scheduling never waits for optional model inference.
+    private func performSync(items: [Item]) async {
         registerCategories(items: items)
         let policy = NogSettings.policy
         // Sub-nogs name their parent: plan with the short labels already worked out. New ones
@@ -126,7 +137,7 @@ final class NotificationScheduler {
         // Places first (they wait for you, not the clock); one slot stays free for the
         // "open Nog to keep nogging" notice.
         let places = NogPlanner.placeNotifications(items: items, places: PlaceBook.shared.places,
-                                                   limit: PlaceBook.maxWatched, shortParents: shortParents)
+                                                   limit: PlaceBook.maxWatched, shortParents: shortParents, policy: policy, now: now)
         let plan = NogPlanner.plan(items: items, now: now, budget: NogPlanner.defaultBudget - 1 - places.count,
                                    policy: policy, alarmDates: ringing, shortParents: shortParents)
         var desired: [String: PlannedNotification] = [:]
@@ -165,9 +176,29 @@ final class NotificationScheduler {
             : 0
         try? await center.setBadgeCount(nogging)
 
-        if shortenTitles, await ParentLabelCache.refresh(items: items) != shortParents {
-            await performSync(items: items, shortenTitles: false)
+        startEnrichmentIfNeeded()
+    }
+
+    private func startEnrichmentIfNeeded() {
+        guard enrichment == nil, UIApplication.shared.applicationState == .active else { return }
+        let items = latestItems
+        let id = UUID()
+        enrichmentID = id
+        let before = ParentLabelCache.current(for: items)
+        enrichment = Task { [weak self] in
+            let after = await ParentLabelCache.refresh(items: items)
+            guard let self, self.enrichmentID == id else { return }
+            self.enrichment = nil
+            guard !Task.isCancelled, before != after else { return }
+            // Ask the store for current data, not the snapshot used by the model.
+            ItemStore.shared.scheduleSync()
         }
+    }
+
+    func cancelOptionalWork() {
+        enrichmentID = UUID()
+        enrichment?.cancel()
+        enrichment = nil
     }
 
     private static let signatureKey = "appliedNotificationSignature"
