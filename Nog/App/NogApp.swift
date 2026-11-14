@@ -2,6 +2,7 @@ import SwiftUI
 import UIKit
 import UserNotifications
 import BackgroundTasks
+import os
 
 @main
 struct NogApp: App {
@@ -162,7 +163,7 @@ enum BackgroundRefresh {
         let request = BGAppRefreshTaskRequest(identifier: identifier)
         request.earliestBeginDate = .now.addingTimeInterval(15 * 60)
         BGTaskScheduler.shared.submitTaskRequest(request) { error in
-            if let error { print("Nog: background refresh not scheduled: \(error)") }
+            if let error { Log.nog.error("background refresh not scheduled: \(String(describing: error))") }
         }
     }
 }

@@ -1,5 +1,6 @@
 import AVFoundation
 import Observation
+import os
 
 /// Records one voice note into the temporary folder. `stop()` hands it back; the store
 /// then moves it next to the nog's file.
@@ -64,7 +65,7 @@ final class VoiceRecorder: NSObject, AVAudioRecorderDelegate {
             state = .recording
             startMetering()
         } catch {
-            print("Nog: couldn't record: \(error)")
+            Log.nog.error("couldn't record: \(String(describing: error))")
             state = .failed
             Self.deactivateSession()
         }

@@ -2,6 +2,7 @@ import AppIntents
 import CoreSpotlight
 import Foundation
 import GeoToolbox
+import os
 
 // iOS 27 App Schemas — the `.reminders` domain.
 //
@@ -64,6 +65,8 @@ struct ReminderEntity: IndexedEntity, SyncableEntity {
 
         func suggestedEntities() async throws -> [ReminderEntity] {
             await MainActor.run {
+                // A locked phone doesn't list your nogs (Settings › Siri & Shortcuts).
+                guard !LockedSiri.blocks else { return [] }
                 let store = ItemStore.shared
                 var open: [Item] = store.items.values.filter { $0.isOpen }
                 open.sort { a, b in
@@ -148,6 +151,7 @@ struct ListEntity {
 
         func suggestedEntities() async throws -> [ListEntity] {
             await MainActor.run {
+                guard !LockedSiri.blocks else { return [ListEntity.inbox] }
                 let store = ItemStore.shared
                 let parentIDs: Set<UUID> = Set(store.items.values.compactMap { $0.parentID })
                 var parents: [Item] = parentIDs.compactMap { store.items[$0] }
@@ -284,6 +288,7 @@ struct UpdateReminderIntent {
 
     @MainActor
     func perform() async throws -> some ReturnsValue<ReminderEntity> {
+        try LockedSiri.check()
         let store = ItemStore.shared
         guard var item = store.items[target.id] else { throw NogIntentError.notFound }
         if let title, !title.isEmpty { item.title = title }
@@ -323,6 +328,7 @@ struct DeleteRemindersIntent: DeleteIntent {
 
     @MainActor
     func perform() async throws -> some IntentResult {
+        try LockedSiri.check()
         for entity in entities { ItemStore.shared.delete(entity.id) }
         await ItemStore.shared.syncNow()
         await ItemStore.shared.flush()
@@ -365,12 +371,13 @@ struct SectionEntity {
 }
 
 enum NogIntentError: Error, CustomLocalizedStringResourceConvertible {
-    case emptyTitle, notFound
+    case emptyTitle, notFound, locked
 
     var localizedStringResource: LocalizedStringResource {
         switch self {
         case .emptyTitle: "There was nothing to remind you about."
         case .notFound: "I couldn't find that item in Nog."
+        case .locked: "Unlock your iPhone first. You can change this in Nog's Siri settings."
         }
     }
 }
@@ -470,7 +477,7 @@ enum SpotlightIndexer {
             for id in removed { indexed[id] = nil }
             saveIndexed()
         } catch {
-            print("Nog: Spotlight indexing failed: \(error)")
+            Log.nog.error("Spotlight indexing failed: \(String(describing: error))")
         }
     }
 

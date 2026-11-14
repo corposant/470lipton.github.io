@@ -70,6 +70,11 @@ targets:
       path: Nog/Nog.entitlements
       properties:
         com.apple.security.application-groups: [group.$(NOG_BUNDLE_ID)]
+        # Every file Nog writes is encrypted while the iPhone is off or restarting, until it's
+        # first unlocked. Stricter ("Complete") would stop notification buttons, Siri, the widget
+        # and background refresh from reading nogs while the phone is locked. This is also the
+        # iOS default; it's set here so it's a decision, not an accident.
+        com.apple.developer.default-data-protection: NSFileProtectionCompleteUntilFirstUserAuthentication
         # Lets nogs break through Focus (the person still allows it per app in Settings).
         com.apple.developer.usernotifications.time-sensitive: true
         # iCloud Drive sync: each item is a Markdown file in iCloud Drive → Nog, so it's
@@ -107,6 +112,7 @@ targets:
       path: NogWidgets/NogWidgets.entitlements
       properties:
         com.apple.security.application-groups: [group.$(NOG_BUNDLE_ID)]
+        com.apple.developer.default-data-protection: NSFileProtectionCompleteUntilFirstUserAuthentication
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(NOG_BUNDLE_ID).widgets
