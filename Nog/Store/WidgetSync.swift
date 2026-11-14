@@ -1,6 +1,5 @@
 import Foundation
 import WidgetKit
-import os
 
 /// Keeps the widgets' snapshot (see `WidgetSnapshot`) in step with your items.
 @MainActor
@@ -47,7 +46,7 @@ enum WidgetSync {
             lastNextNogs = nextNogs
             WidgetCenter.shared.reloadAllTimelines()
         } catch {
-            Log.nog.error("couldn't write the widget snapshot: \(String(describing: error))")
+            print("Nog: couldn't write the widget snapshot: \(error)")
         }
     }
 

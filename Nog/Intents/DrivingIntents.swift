@@ -45,7 +45,6 @@ struct ReadNogsIntent: AppIntent {
 
     @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog {
-        try LockedSiri.check()
         let text = NogBriefing.text(for: list.section, items: Array(ItemStore.shared.items.values),
                                     now: .now, policy: NogSettings.policy)
         return .result(dialog: "\(text)")

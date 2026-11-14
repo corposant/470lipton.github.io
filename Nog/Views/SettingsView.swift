@@ -4,7 +4,6 @@ import AppIntents
 import SwiftUI
 import UIKit
 import UserNotifications
-import os
 
 /// Settings: the few things most people change, on one page. Everything else is
 /// under Advanced.
@@ -256,7 +255,7 @@ struct AdvancedSettingsPage: View {
             try await UIApplication.shared.setAlternateIconName(choice.alternateIconName)
             appIcon = choice
         } catch {
-            Log.nog.error("couldn't change icon: \(String(describing: error))")
+            print("Nog: couldn't change icon: \(error)")
         }
     }
 
@@ -649,19 +648,9 @@ private struct PermissionsPage: View {
 /// remember them or guess. Start each with "Hey Siri".
 private struct SiriPage: View {
     @AppStorage("siriTip.capture") private var showSiriTip = true
-    @AppStorage(LockedSiri.key) private var siriWhenLocked = false
 
     var body: some View {
         List {
-            Section {
-                Toggle("Use while iPhone is locked", isOn: $siriWhenLocked)
-            } footer: {
-                Text(siriWhenLocked
-                     ? "Anyone holding your iPhone can ask Siri to read, change or delete your nogs."
-                     : "Siri needs your iPhone unlocked to read, change or delete nogs. Adding, starting, finishing and silencing nogs always work hands-free.")
-            }
-            .listRowBackground(Theme.glass)
-            .tint(Theme.violet)
             group("Add something", footer: nil, [
                 "Take a Nog",
                 "Add something to Nog",
