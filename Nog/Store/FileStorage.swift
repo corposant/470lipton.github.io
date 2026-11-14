@@ -1,5 +1,4 @@
 import Foundation
-import os
 
 /// Where item files live: iCloud Drive when available, otherwise on the phone.
 enum StorageLocation {
@@ -61,9 +60,9 @@ final class FileStorage: @unchecked Sendable {
             var coordinationError: NSError?
             NSFileCoordinator(filePresenter: nil).coordinate(
                 writingItemAt: url, options: .forReplacing, error: &coordinationError) { target in
-                do { try data.write(to: target, options: .atomic) } catch { Log.nog.error("write failed \(target.lastPathComponent): \(String(describing: error))") }
+                do { try data.write(to: target, options: .atomic) } catch { print("Nog: write failed \(target.lastPathComponent): \(error)") }
             }
-            if let coordinationError { Log.nog.error("write coordination failed: \(String(describing: coordinationError))") }
+            if let coordinationError { print("Nog: write coordination failed: \(coordinationError)") }
         }
     }
 
@@ -87,9 +86,9 @@ final class FileStorage: @unchecked Sendable {
                 do {
                     if fm.fileExists(atPath: target.path) { try fm.removeItem(at: target) }
                     try fm.moveItem(at: source, to: target)
-                } catch { Log.nog.error("move failed \(target.lastPathComponent): \(String(describing: error))") }
+                } catch { print("Nog: move failed \(target.lastPathComponent): \(error)") }
             }
-            if let coordinationError { Log.nog.error("move coordination failed: \(String(describing: coordinationError))") }
+            if let coordinationError { print("Nog: move coordination failed: \(coordinationError)") }
         }
     }
 
@@ -165,7 +164,7 @@ final class FileStorage: @unchecked Sendable {
         do {
             urls = try fm.contentsOfDirectory(at: folder, includingPropertiesForKeys: Array(keys))
         } catch {
-            Log.nog.error("couldn't list \(folder.lastPathComponent): \(String(describing: error))")
+            print("Nog: couldn't list \(folder.lastPathComponent): \(error)")
             return Snapshot(items: [], presentIDs: [], folderReadable: false)
         }
         var items: [Item] = []
@@ -286,7 +285,7 @@ final class FileStorage: @unchecked Sendable {
                 try? fm.removeItem(at: url)
             } else {
                 do { try fm.setUbiquitous(true, itemAt: url, destinationURL: destination) }
-                catch { Log.nog.error("couldn't move \(url.lastPathComponent) to iCloud: \(String(describing: error))") }
+                catch { print("Nog: couldn't move \(url.lastPathComponent) to iCloud: \(error)") }
             }
         }
         // Voice notes: each name is unique, so one already in iCloud (even not downloaded) is the same recording.
@@ -297,7 +296,7 @@ final class FileStorage: @unchecked Sendable {
                 try? fm.removeItem(at: url)
             } else {
                 do { try fm.setUbiquitous(true, itemAt: url, destinationURL: destination) }
-                catch { Log.nog.error("couldn't move \(name) to iCloud: \(String(describing: error))") }
+                catch { print("Nog: couldn't move \(name) to iCloud: \(error)") }
             }
         }
     }

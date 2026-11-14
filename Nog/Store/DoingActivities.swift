@@ -1,6 +1,5 @@
 import ActivityKit
 import Foundation
-import os
 
 /// Keeps one Live Activity running for each item you're doing.
 @MainActor
@@ -16,9 +15,7 @@ final class DoingActivities {
         var live = Set<UUID>()
         for activity in Activity<DoingAttributes>.activities {
             let id = activity.attributes.itemID
-            // A Live Activity's title can't change once it's running, so one showing the wrong
-            // title (renamed, or "Show titles on Lock Screen" switched) is ended and started again.
-            if let item = doing[id], !live.contains(id), activity.attributes.title == Self.title(for: item) {
+            if let item = doing[id], !live.contains(id) {
                 live.insert(id)
                 let content = Self.content(for: item)
                 if activity.content.state != content.state {
@@ -32,21 +29,13 @@ final class DoingActivities {
         guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
         for (id, item) in doing where !live.contains(id) {
             do {
-                _ = try Activity.request(attributes: DoingAttributes(itemID: id, title: Self.title(for: item)),
+                _ = try Activity.request(attributes: DoingAttributes(itemID: id, title: item.title),
                                          content: Self.content(for: item))
             } catch {
-                Log.nog.error("couldn't start Live Activity: \(String(describing: error))")
+                print("Nog: couldn't start Live Activity: \(error)")
             }
         }
     }
-
-    /// The Live Activity shows on the Lock Screen, Apple Watch and CarPlay, so it follows
-    /// Settings › Timing & alerts › "Show titles on Lock Screen", like notifications and widgets.
-    static func title(for item: Item) -> String {
-        NogSettings.showTitles ? item.title : hiddenTitle
-    }
-
-    static let hiddenTitle = "Nogging"
 
     static func content(for item: Item) -> ActivityContent<DoingAttributes.ContentState> {
         let state = DoingAttributes.ContentState(

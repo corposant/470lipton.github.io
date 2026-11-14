@@ -4,7 +4,6 @@ import AppIntents
 import Foundation
 import SwiftUI
 import UIKit
-import os
 
 /// Data AlarmKit hands back to us with each alarm.
 struct NogAlarmMetadata: AlarmMetadata {
@@ -76,7 +75,7 @@ final class AlarmScheduler {
             do {
                 _ = try await manager.schedule(id: id, configuration: configuration(for: entry.item, title: entry.title, at: entry.date))
             } catch {
-                Log.nog.error("couldn't schedule alarm for \(entry.item.title): \(String(describing: error))")
+                print("Nog: couldn't schedule alarm for \(entry.item.title): \(error)")
             }
         }
         return ringing
