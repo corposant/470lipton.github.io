@@ -60,9 +60,12 @@ struct NogsTab: View {
                 } else {
                     // The same three in every view, sharing one glass capsule.
                     ToolbarItem(placement: .topBarTrailing) {
-                        Button("Select") {
+                        // An icon, like Sort and the gear beside it; VoiceOver still says "Select".
+                        Button("Select", systemImage: "checkmark.circle") {
                             withNogAnimation(.snappy) { editMode = .active }
                         }
+                        .labelStyle(.iconOnly)
+                        .accessibilityHint("Pick several nogs to act on together")
                     }
                     ToolbarItem(placement: .topBarTrailing) { ListSortMenu() }
                     // Last, so it's always the top-right corner, as on every tab.
