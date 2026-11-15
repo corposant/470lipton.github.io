@@ -353,6 +353,33 @@ extension View {
     }
 }
 
+extension View {
+    /// The List tab's lists: rows vanish behind the bars on top (toolbar, view picker,
+    /// Agenda week strip) and fade in over a short band just below them, so nothing shows
+    /// through the headers. Put it before `nogListStyle()` so the background isn't masked.
+    func fadeUnderTopBars() -> some View {
+        mask { TopBarsFadeMask() }
+    }
+}
+
+/// Clear over the top safe area (everything the bars cover), then a short fade to solid.
+/// A fade, not a blur, so it reads the same with Reduce Transparency.
+private struct TopBarsFadeMask: View {
+    @ScaledMetric private var fade: CGFloat = 20
+
+    var body: some View {
+        GeometryReader { proxy in
+            VStack(spacing: 0) {
+                Color.clear.frame(height: proxy.safeAreaInsets.top)
+                LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom)
+                    .frame(height: fade)
+                Color.black
+            }
+        }
+        .ignoresSafeArea(edges: .top)
+    }
+}
+
 /// Sort, reverse, urgent first, show done: one menu, the same in every view.
 struct ListSortMenu: View {
     @AppStorage(ListSort.key) private var sort: ListSort = .next

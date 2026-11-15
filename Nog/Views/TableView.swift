@@ -159,6 +159,7 @@ struct NogTable: View {
             }
         }
         .preference(key: SelectableNogsKey.self, value: Set(rows.map(\.id)))
+        .fadeUnderTopBars()
         .nogListStyle()
         .overlay {
             if rows.isEmpty && doing.isEmpty {
