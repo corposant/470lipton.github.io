@@ -80,17 +80,18 @@ def contained_carton(colors, dark=False, seed=11):
         carton += contour(d, w=15, color=line)
     # a flare where the light splits, sitting on the corner line
     carton += f'<circle cx="{split[0]}" cy="{split[1]}" r="15" fill="#fff" filter="url(#beamGlow)"/>'
+    sx, sy, L, w = split[0], split[1], 46, 6
+    carton += (f'<path d="M{sx} {sy - L} Q{sx} {sy} {sx + L} {sy} Q{sx} {sy} {sx} {sy + L} Q{sx} {sy} {sx - L} {sy} '
+               f'Q{sx} {sy} {sx} {sy - L} Z" fill="#fff" filter="url(#beamGlow)"/>')
     carton += (f'<g stroke="{line}" stroke-width="6" stroke-linecap="round" fill="none">'
                f'<path d="M{FL + 44} {TOP + 40} q-8 44 0 100"/></g>')
     # three shine ticks off the top-left corner, kept from the original drawing
-    shine = "#fff" if dark else INK
+    shine = "#fff" if dark else "#FBF3E0"
     carton += (f'<g stroke="{shine}" stroke-width="8" stroke-linecap="round" opacity=".9">'
                f'<line x1="{FL - 72}" y1="{TOP - 48}" x2="{FL - 36}" y2="{TOP - 24}"/>'
                f'<line x1="{FL - 84}" y1="{TOP + 12}" x2="{FL - 40}" y2="{TOP + 17}"/>'
                f'<line x1="{FL - 48}" y1="{TOP - 104}" x2="{FL - 22}" y2="{TOP - 70}"/></g>')
-    letters = (comix_letters(FL + 62, BOT - 100, 112, fill="#FF8CC6", ink="#F4EEFF", shadow_ink=INK) if dark
-               else comix_letters(FL + 62, BOT - 100, 112, fill="#FFF3DC"))
-    carton += f'<g transform="rotate(-5 400 800)">{letters}</g>'
+    carton += f'<g transform="rotate(-5 400 800)">{comix_letters(FL + 62, BOT - 100, 112, fill="#FF8CC6" if dark else "#FFF3DC")}</g>'
     body += carton
     return svg(body, clips)
 
