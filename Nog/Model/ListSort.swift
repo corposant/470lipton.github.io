@@ -44,6 +44,7 @@ enum ListSort: String, CaseIterable, Identifiable {
     static let reversedKey = "listSortReversed"
     static let urgentFirstKey = "listUrgentFirst"
     static let showDoneKey = "listShowsDone"
+    static let groupKey = "listGroupsProjects"
 
     /// `items` in this order. Urgent ones go first when `urgentFirst` is on. Nogs missing
     /// the value (no time, no steps, no tags, no reminder) always go last, even reversed.
@@ -103,6 +104,27 @@ enum ListSort: String, CaseIterable, Identifiable {
             // Newest first.
             return .numbers([-item.created.timeIntervalSinceReferenceDate])
         }
+    }
+}
+
+extension ListSort {
+    /// The Table with projects grouped: top-level nogs in this order, and each project's steps
+    /// right under it, a level deeper, in the project's own step order. A step whose project
+    /// isn't in `items` (finished and hidden) stands at the top level.
+    func groupedRows(_ items: [Item], now: Date, stats: ChildStats, reversed: Bool = false,
+                     urgentFirst: Bool = true) -> [(item: Item, depth: Int)] {
+        var children: [UUID: [Item]] = [:]
+        for item in items { if let parent = item.parentID { children[parent, default: []].append(item) } }
+        var rows: [(item: Item, depth: Int)] = []
+        var seen = Set<UUID>()
+        func add(_ item: Item, depth: Int) {
+            guard seen.insert(item.id).inserted else { return }
+            rows.append((item, depth))
+            for child in (children[item.id] ?? []).sorted(by: Item.siblingOrder) { add(child, depth: depth + 1) }
+        }
+        let roots = sorted(Item.outlineRoots(items), now: now, stats: stats, reversed: reversed, urgentFirst: urgentFirst)
+        for root in roots { add(root, depth: 0) }
+        return rows
     }
 }
 

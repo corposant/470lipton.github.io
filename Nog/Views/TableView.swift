@@ -86,6 +86,7 @@ struct NogTable: View {
     @AppStorage(ListSort.reversedKey) private var reversed = false
     @AppStorage(ListSort.urgentFirstKey) private var urgentFirst = true
     @AppStorage(ListSort.showDoneKey) private var showDone = false
+    @AppStorage(ListSort.groupKey) private var grouped = true
 
     private var listSelection: Binding<Set<UUID>>? {
         editMode?.wrappedValue.isEditing == true ? $selection : nil
@@ -96,7 +97,9 @@ struct NogTable: View {
         let stats = ChildStats(all)
         let doing = all.filter(\.isDoing).sorted { ($0.doingSince ?? .distantPast) < ($1.doingSince ?? .distantPast) }
         let listed = all.filter { $0.status == .open || $0.status == .someday || (showDone && $0.status == .done) }
-        let rows = sort.sorted(listed, now: now, stats: stats, reversed: reversed, urgentFirst: urgentFirst)
+        let rows: [(item: Item, depth: Int)] = grouped
+            ? sort.groupedRows(listed, now: now, stats: stats, reversed: reversed, urgentFirst: urgentFirst)
+            : sort.sorted(listed, now: now, stats: stats, reversed: reversed, urgentFirst: urgentFirst).map { ($0, 0) }
         let columns = ListColumn.allCases
 
         List(selection: listSelection) {
@@ -108,15 +111,15 @@ struct NogTable: View {
                     .selectionDisabled()
                     // The same insets as the rows (zebraRow), so the columns line up.
                     .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 12))
-                ForEach(Array(rows.enumerated()), id: \.element.id) { index, item in
-                    NogRow(item: item, now: now, stats: stats, columns: columns)
+                ForEach(Array(rows.enumerated()), id: \.element.item.id) { index, row in
+                    NogRow(item: row.item, now: now, stats: stats, columns: columns, depth: row.depth)
                         .zebraRow(index)
                 }
             } header: {
                 SectionLabel(title: "All nogs", count: rows.count)
             }
         }
-        .preference(key: SelectableNogsKey.self, value: Set(rows.map(\.id)))
+        .preference(key: SelectableNogsKey.self, value: Set(rows.map(\.item.id)))
         .fadeUnderTopBars()
         .nogListStyle()
         .overlay {
