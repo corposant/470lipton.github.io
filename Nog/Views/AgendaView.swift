@@ -50,7 +50,8 @@ struct AgendaList: View {
                                            description: Text("Nogs with a time show up here, day by day."))
                 }
             }
-            .safeAreaInset(edge: .top, spacing: 0) {
+            // A bar, so the day pages fade out under the week strip instead of showing through it.
+            .safeAreaBar(edge: .top, spacing: 0) {
                 WeekStrip(days: days, now: now) { day in
                     guard let first = day.entries.first else { return }
                     withNogAnimation(.snappy) { proxy.scrollTo(first.id, anchor: .top) }
