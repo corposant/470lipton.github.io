@@ -23,29 +23,38 @@ for p in polys:
     for h in p.interiors: d+=ring(list(h.coords))
 width=(maxx-minx)*s
 pad=3.0  # side bearings
-L=1391.3; R=L+width+2*pad
+# Xcode reads a v3 template by its text id "template-version", and builds every weight
+# and scale by interpolating Ultralight-S, Regular-S and Black-S. The three are the
+# same outline (same points), so every weight draws this carton; Regular-M is the
+# hand-checked size. S glyphs are drawn a little smaller, as in Apple's symbols.
+GUIDE='style="fill:none;stroke:#27AAE1;opacity:1;stroke-width:0.5;"'
+MARGIN='style="fill:none;stroke:#00AEEF;stroke-width:0.5;opacity:1.0;"'
+variants=[("Ultralight-S",560.0,696,0.8),("Regular-S",1390.0,696,0.8),("Black-S",2220.0,696,0.8),
+          ("Regular-M",1390.0,1126,1.0)]
+guides=""; symbols=""
+for name,L,base,k in variants:
+    R=L+(width+2*pad)*k
+    guides+=(f'  <line id="left-margin-{name}" {MARGIN} x1="{L:.2f}" x2="{L:.2f}" y1="{base-95.21:.2f}" y2="{base+24.12:.2f}"/>\n'
+             f'  <line id="right-margin-{name}" {MARGIN} x1="{R:.2f}" x2="{R:.2f}" y1="{base-95.21:.2f}" y2="{base+24.12:.2f}"/>\n')
+    symbols+=(f'  <g id="{name}" transform="matrix({k} 0 0 {k} {L+pad*k:.2f} {base})">\n'
+              f'   <path d="{d}"/>\n  </g>\n')
+lines="".join(f'  <line id="{n}" {GUIDE} x1="263" x2="3036" y1="{y}" y2="{y}"/>\n' for n,y in
+              [("Baseline-S",696),("Capline-S",625.541),("Baseline-M",1126),("Capline-M",1055.54),("Baseline-L",1556),("Capline-L",1485.54)])
 tmpl=f'''<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
 <!--Generator: design/control-symbol/make.py (outlined from NogWidgets Carton.imageset)-->
 <svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="3300" height="2200">
  <g id="Notes">
-  <text style="stroke:none;fill:black;font-family:sans-serif;font-size:13" x="18" y="98">Template v.3.0</text>
+  <rect height="2200" id="artboard" style="fill:white;opacity:1" width="3300" x="0" y="0"/>
+  <text style="stroke:none;fill:black;font-family:sans-serif;font-size:13;" transform="matrix(1 0 0 1 263 322)">Weight/Scale Variations</text>
+  <text id="template-version" style="stroke:none;fill:black;font-family:sans-serif;font-size:13;text-anchor:end;" transform="matrix(1 0 0 1 3036 1933)">Template v.3.0</text>
+  <text style="stroke:none;fill:black;font-family:sans-serif;font-size:13;text-anchor:end;" transform="matrix(1 0 0 1 3036 1951)">Requires Xcode 13 or greater</text>
+  <text id="descriptive-name" style="stroke:none;fill:black;font-family:sans-serif;font-size:13;text-anchor:end;" transform="matrix(1 0 0 1 3036 1969)">Generated from nog.carton</text>
  </g>
  <g id="Guides">
-  <line id="Baseline-S" style="fill:none;stroke:#27AAE1;opacity:1;stroke-width:0.5;" x1="263" x2="3036" y1="696" y2="696"/>
-  <line id="Capline-S" style="fill:none;stroke:#27AAE1;opacity:1;stroke-width:0.5;" x1="263" x2="3036" y1="625.541" y2="625.541"/>
-  <line id="Baseline-M" style="fill:none;stroke:#27AAE1;opacity:1;stroke-width:0.5;" x1="263" x2="3036" y1="1126" y2="1126"/>
-  <line id="Capline-M" style="fill:none;stroke:#27AAE1;opacity:1;stroke-width:0.5;" x1="263" x2="3036" y1="1055.54" y2="1055.54"/>
-  <line id="Baseline-L" style="fill:none;stroke:#27AAE1;opacity:1;stroke-width:0.5;" x1="263" x2="3036" y1="1556" y2="1556"/>
-  <line id="Capline-L" style="fill:none;stroke:#27AAE1;opacity:1;stroke-width:0.5;" x1="263" x2="3036" y1="1485.54" y2="1485.54"/>
-  <line id="left-margin-Regular-M" style="fill:none;stroke:#00AEEF;stroke-width:0.5;opacity:1.0;" x1="{L:.2f}" x2="{L:.2f}" y1="1030.79" y2="1150.12"/>
-  <line id="right-margin-Regular-M" style="fill:none;stroke:#00AEEF;stroke-width:0.5;opacity:1.0;" x1="{R:.2f}" x2="{R:.2f}" y1="1030.79" y2="1150.12"/>
- </g>
+{lines}{guides} </g>
  <g id="Symbols">
-  <g id="Regular-M" transform="matrix(1 0 0 1 {L+pad:.2f} 1126)">
-   <path d="{d}"/>
-  </g>
- </g>
+{symbols} </g>
 </svg>
 '''
 open(sys.argv[1],'w').write(tmpl)
