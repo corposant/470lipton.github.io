@@ -56,6 +56,7 @@ struct OverviewList: View {
         let all = Array(store.items.values)
         let stats = ChildStats(all)
         overview(all, stats: stats)
+            .fadeUnderTopBars()
             .nogListStyle()
     }
 
