@@ -19,8 +19,9 @@ enum ListColumn: String, CaseIterable, Identifiable {
         switch self {
         case .next: .next
         case .steps: .steps
+        case .tags: .tags
         case .added: .added
-        case .repeats, .tags: nil
+        case .repeats: nil
         }
     }
 
