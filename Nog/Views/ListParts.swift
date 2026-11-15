@@ -42,6 +42,8 @@ struct NogRow: View {
     var margin: AgendaMargin? = nil
     /// Overview: a project's next step, the one second line a row ever gets.
     var subtitle: AttributedString? = nil
+    /// Table, grouped: how many projects deep this step sits; indents the icon and title.
+    var depth = 0
     @State private var confirmDelete = false
     @AppStorage(NogSettings.Key.escalateAfter) private var globalEscalate = 0
 
@@ -69,6 +71,15 @@ struct NogRow: View {
                     if let margin, !folded {
                         margin.label
                             .frame(width: NogScale.value(52, for: typeSize, maxScale: 1.6), alignment: .leading)
+                    }
+                    if depth > 0 {
+                        // A short rule per level, so steps read as belonging to the row above.
+                        Rectangle()
+                            .fill(Theme.muted.opacity(0.35))
+                            .frame(width: 2)
+                            .padding(.leading, NogScale.value(CGFloat(min(depth, 4) * 14 - 8), for: typeSize, maxScale: 1.6))
+                            .padding(.vertical, 6)
+                            .accessibilityHidden(true)
                     }
                     NogKindIcon(item: item, now: now, steps: counts)
                     VStack(alignment: .leading, spacing: 3) {
@@ -160,7 +171,7 @@ struct NogRow: View {
     }
 }
 
-/// The width of a row's right end (the profile icon), and of the Table header's ⋯ above it.
+/// The width of a row's right end (the profile icon), and of the Table's alarm header above it.
 enum TrailingSlot {
     static func width(_ typeSize: DynamicTypeSize) -> CGFloat {
         NogScale.value(44, for: typeSize, maxScale: 1.6)
@@ -270,7 +281,7 @@ enum RowDetail {
         func add(_ text: String) { parts.append(AttributedString(text)) }
 
         // Folded Table columns come first, labelled, in the order they'd sit on screen.
-        for column in columns where column != .tags {
+        for column in columns where column.lines(item, now: now, counts: counts).0 != "–" {
             add("\(column.rawValue) \(column.spoken(item, now: now, counts: counts))")
         }
         if item.isDoing {
@@ -288,7 +299,7 @@ enum RowDetail {
         if item.status == .someday { add("someday") }
         if !omit.contains(.steps), counts.total > 0 { add("\(counts.done)/\(counts.total) done") }
         if !omit.contains(.parent), let parent = store.parent(of: item) { add("in \(parent.title)") }
-        if !omit.contains(.tags) || columns.contains(.tags), !item.tags.isEmpty {
+        if !omit.contains(.tags), !item.tags.isEmpty {
             var tags = AttributedString()
             for (index, tag) in item.tags.enumerated() {
                 if index > 0 { tags += AttributedString(" ") }
@@ -386,6 +397,7 @@ struct ListSortMenu: View {
     @AppStorage(ListSort.reversedKey) private var reversed = false
     @AppStorage(ListSort.urgentFirstKey) private var urgentFirst = true
     @AppStorage(ListSort.showDoneKey) private var showDone = false
+    @AppStorage(ListSort.groupKey) private var grouped = true
 
     var body: some View {
         Menu {
@@ -394,6 +406,7 @@ struct ListSortMenu: View {
             }
             Toggle("Reverse order", isOn: $reversed)
             Toggle("Urgent first", isOn: $urgentFirst)
+            Toggle("Steps under their project", isOn: $grouped)
             Divider()
             Toggle("Show done", isOn: $showDone)
         } label: {

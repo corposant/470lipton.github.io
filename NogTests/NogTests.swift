@@ -803,7 +803,23 @@ final class MapLayoutTests: XCTestCase {
         XCTAssertEqual(titles(.tags, reversed: true), ["Dentist", "Bills", "Plants", "Socks"])
         // Date added: newest first.
         XCTAssertEqual(titles(.added), ["Dentist", "Plants", "Bills", "Socks"])
-        XCTAssertEqual(ListColumn.tags.sort, .tags)
+        XCTAssertEqual(ListColumn.allCases.map(\.sort), [.priority, .added])
+    }
+
+    func testTableGroupsStepsUnderTheirProject() {
+        let now = Date(timeIntervalSince1970: 1_900_000_000)
+        let car = Item(title: "Car")
+        let apples = Item(title: "Apples")
+        var oil = Item(title: "Oil"); oil.parentID = car.id; oil.position = 1
+        var book = Item(title: "Book garage"); book.parentID = car.id; book.position = 0
+        var filter = Item(title: "Filter"); filter.parentID = oil.id
+        let items = [oil, apples, filter, car, book]
+        let rows = ListSort.name.groupedRows(items, now: now, stats: ChildStats(items))
+        XCTAssertEqual(rows.map(\.item.title), ["Apples", "Car", "Book garage", "Oil", "Filter"])
+        XCTAssertEqual(rows.map(\.depth), [0, 0, 1, 1, 2])
+        // A step whose project is hidden stands on its own.
+        let orphan = ListSort.name.groupedRows([oil, filter], now: now, stats: ChildStats([oil, filter]))
+        XCTAssertEqual(orphan.map(\.depth), [0, 1])
     }
 
     func testOutlineRootsSurviveCycles() {
