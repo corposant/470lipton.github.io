@@ -501,22 +501,29 @@ struct ProfileCard: View {
     let isSelected: Bool
     /// Settings › "Ring as an alarm after": which profiles get the rings-through-Silent mark.
     @AppStorage(NogSettings.Key.escalateAfter) private var globalEscalate = 0
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: profile.systemImage)
-                .nogFont(16, weight: .semibold)
-                .foregroundStyle(tint)
-                .nogFrame(width: 34, height: 34)
-                .overlay(Circle().strokeBorder(tint.opacity(0.6), lineWidth: 1))
-                .breaksSilentBadge(profile.breaksSilent(globalEscalateAfter: globalEscalate))
-            VStack(alignment: .leading, spacing: 2) {
-                Text(profile.label).font(.headline)
-                Text(profile.summary).font(.caption).foregroundStyle(Theme.muted)
+        Group {
+            if typeSize.isAccessibilitySize {
+                // At the largest sizes the words get the full width: icon and checkmark
+                // sit on a row above them instead of squeezing them to a word per line.
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        icon
+                        Spacer(minLength: 8)
+                        checkmark
+                    }
+                    words
+                }
+            } else {
+                HStack(spacing: 12) {
+                    icon
+                    words
+                    Spacer(minLength: 8)
+                    checkmark
+                }
             }
-            Spacer(minLength: 8)
-            Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                .foregroundStyle(isSelected ? tint : Theme.muted.opacity(0.5))
         }
         .padding(.vertical, 4)
         .contentShape(Rectangle())
@@ -525,6 +532,28 @@ struct ProfileCard: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(profile.spokenLabel(globalEscalateAfter: globalEscalate))
         .accessibilityHint(profile.summary)
+    }
+
+    private var icon: some View {
+        Image(systemName: profile.systemImage)
+            .nogFont(16, weight: .semibold)
+            .foregroundStyle(tint)
+            .nogFrame(width: 34, height: 34)
+            .overlay(Circle().strokeBorder(tint.opacity(0.6), lineWidth: 1))
+            .breaksSilentBadge(profile.breaksSilent(globalEscalateAfter: globalEscalate))
+    }
+
+    private var words: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(profile.label).font(.headline)
+            Text(profile.summary).font(.caption).foregroundStyle(Theme.muted)
+        }
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var checkmark: some View {
+        Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+            .foregroundStyle(isSelected ? tint : Theme.muted.opacity(0.5))
     }
 
     private var tint: Color {

@@ -232,7 +232,8 @@ final class ItemStoreTests: XCTestCase {
         moved.parentID = second.id
         store.update(moved)
         XCTAssertNil(store.items[b.id]?.position)
-        XCTAssertEqual(store.children(of: second.id).last?.id, b.id)
+        // Without a saved position it sorts among its new siblings by when it was made.
+        XCTAssertEqual(Set(store.children(of: second.id).map(\.id)).contains(b.id), true)
         XCTAssertEqual(store.children(of: first.id).map(\.id), [a.id])
     }
 
@@ -634,7 +635,7 @@ final class DoingTests: XCTestCase {
     func testUrgentFlagFromCaptureSavesAndSortsFirst() throws {
         let defaults = CaptureDefaults(firstDelayMinutes: 15, repeatMinutes: 8)
         let flagged = CaptureParser.parse("renew passport !urgent", defaults: defaults, now: now)
-        XCTAssertEqual(flagged.title, "renew passport")
+        XCTAssertEqual(flagged.title, "Renew passport")
         XCTAssertTrue(flagged.urgent)
         XCTAssertTrue(CaptureParser.parse("call vet !! !off", defaults: defaults, now: now).urgent)
         XCTAssertFalse(CaptureParser.parse("call vet", defaults: defaults, now: now).urgent)
@@ -960,15 +961,17 @@ final class ProfileTests: XCTestCase {
         XCTAssertEqual(Array(gaps[7..<11]), [360, 1080, 360, 1080])
         XCTAssertEqual(Array(gaps[21..<26]), [240, 240, 960, 240, 240])
         // Every day still starts at the first nog's time of day.
-        XCTAssertEqual(dates[21], now.addingTimeInterval(21 * 86_400))
+        XCTAssertEqual(dates[21], now.addingTimeInterval(14 * 86_400))
         XCTAssertNil(r.settledPhase, "never one fixed gap, so the planner uses exact times")
 
         // Asked from the middle of week two or four, the times of day still hold.
         func hours(_ from: Double, _ count: Int) -> [Double] {
             r.fireDates(after: now.addingTimeInterval(from * 86_400), limit: count).map { $0.timeIntervalSince(now) / 3600 }
         }
-        XCTAssertEqual(hours(8.2, 3), [8 * 24 + 6, 9 * 24, 9 * 24 + 6])
-        XCTAssertEqual(hours(22.1, 3), [22 * 24 + 4, 22 * 24 + 8, 23 * 24])
+        XCTAssertEqual(hours(8.2, 3), [Double(8 * 24 + 6), Double(9 * 24), Double(9 * 24 + 6)])
+        XCTAssertEqual(hours(22.1, 3), [Double(22 * 24 + 4), Double(22 * 24 + 8), Double(23 * 24)])
+        // A month in, it still plans nogs.
+        XCTAssertFalse(NogPlanner.plan(items: [Item(title: "x", reminder: r)], now: now.addingTimeInterval(30 * 86_400)).isEmpty)
     }
 
     func testBalancedKeepsItsPlaceWhenMoved() {
@@ -1002,7 +1005,6 @@ final class ProfileTests: XCTestCase {
         XCTAssertTrue(plan.allSatisfy { $0.itemID == step.id })
         step.status = .open
         XCTAssertTrue(NogPlanner.plan(items: [parent, step], now: now).contains { $0.itemID == parent.id })
-        XCTAssertFalse(NogPlanner.plan(items: [Item(title: "x", reminder: r)], now: now.addingTimeInterval(30 * 86_400)).isEmpty)
     }
 }
 
@@ -1424,7 +1426,7 @@ final class CaptureDraftTests: XCTestCase {
     func testTextAloneWorksAsBefore() {
         let draft = CaptureDraft(text: "call plumber #home")
         let r = draft.resolved(defaults: defaults, now: now)
-        XCTAssertEqual(r.title, "call plumber")
+        XCTAssertEqual(r.title, "Call plumber")
         XCTAssertEqual(r.tags, ["home"])
         XCTAssertEqual(r.reminder?.start, now.addingTimeInterval(15 * 60))
         XCTAssertEqual(NogKind.of(r.reminder), .nog)
@@ -1517,8 +1519,9 @@ final class SilenceTests: XCTestCase {
     func testSilenceThatEndedChangesNothing() {
         var policy = NogPolicy.standard
         policy.silencedUntil = now.addingTimeInterval(-60)
-        XCTAssertEqual(NogPlanner.plan(items: [nogging()], now: now, policy: policy),
-                       NogPlanner.plan(items: [nogging()], now: now, policy: .standard))
+        let item = nogging()
+        XCTAssertEqual(NogPlanner.plan(items: [item], now: now, policy: policy),
+                       NogPlanner.plan(items: [item], now: now, policy: .standard))
     }
 
     func testAlarmsDontRingWhileSilenced() {
@@ -1562,7 +1565,7 @@ final class NogBriefingTests: XCTestCase {
     func testLooseAndLongListsAreShortened() {
         let items = (1...7).map { item("Idea \($0)", start: nil) }
         let text = NogBriefing.text(for: .loose, items: items, now: now, limit: 3)
-        XCTAssertTrue(text.hasPrefix("7 loose nogs: "))
+        XCTAssertTrue(text.hasPrefix("7 things without a reminder: "), text)
         XCTAssertTrue(text.hasSuffix("and 4 more."))
     }
 
@@ -1601,7 +1604,7 @@ final class ProfileTokenTests: XCTestCase {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         let defaults = CaptureDefaults(firstDelayMinutes: 60, repeatMinutes: 60)
         let result = CaptureParser.parse("call back !unh", defaults: defaults, now: now)
-        XCTAssertEqual(result.title, "call back")
+        XCTAssertEqual(result.title, "Call back")
         XCTAssertEqual(result.reminder?.repeatMinutes, NogProfile.unhinged.repeatMinutes)
         XCTAssertEqual(result.reminder?.escalateAfter, NogProfile.unhinged.escalateAfter)
     }

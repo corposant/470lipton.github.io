@@ -8,8 +8,9 @@ final class ContrastTests: XCTestCase {
     private func luminance(_ color: Color, _ scheme: ColorScheme) -> Double {
         var env = EnvironmentValues()
         env.colorScheme = scheme
-        let c = color.resolve(in: env) // linear sRGB components
-        return 0.2126 * Double(c.red) + 0.7152 * Double(c.green) + 0.0722 * Double(c.blue)
+        let c = color.resolve(in: env)
+        // WCAG relative luminance uses linear-light components.
+        return 0.2126 * Double(c.linearRed) + 0.7152 * Double(c.linearGreen) + 0.0722 * Double(c.linearBlue)
     }
 
     private func ratio(_ a: Color, _ b: Color, _ scheme: ColorScheme) -> Double {

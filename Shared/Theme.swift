@@ -201,6 +201,7 @@ struct SectionLabel: View {
     var tint: Color = Theme.muted
     @ScaledMetric(relativeTo: .caption) private var trailLength: CGFloat = 44
     @ScaledMetric(relativeTo: .caption) private var rocketHeight: CGFloat = 8
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
         HStack(spacing: 8) {
@@ -208,12 +209,18 @@ struct SectionLabel: View {
                 .font(.nogLabel)
                 .tracking(2.2)
                 .foregroundStyle(tint)
+                // The title gets the room first, so it never breaks inside a word.
+                .layoutPriority(1)
             if let count {
                 Text(String(format: "%02d", count))
                     .font(.nogMeta)
                     .foregroundStyle(Theme.muted)
+                    .layoutPriority(1)
             }
-            HeadingRocket(trailLength: trailLength, height: rocketHeight, tint: tint)
+            // Decoration only: at the largest text sizes the words need the width.
+            if !typeSize.isAccessibilitySize {
+                HeadingRocket(trailLength: trailLength, height: rocketHeight, tint: tint)
+            }
             Spacer(minLength: 0)
         }
         .textCase(nil)

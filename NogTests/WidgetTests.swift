@@ -53,6 +53,8 @@ final class WidgetSnapshotTests: XCTestCase {
 
     func testRoundTripsThroughJSON() throws {
         var item = Item(title: "Call the plumber")
+        item.created = now
+        item.updated = now // whole seconds, as the JSON stores them
         item.reminder = Reminder(start: now.addingTimeInterval(-600), repeatMinutes: 8, alarm: true)
         let snap = snapshot([item])
         let data = try XCTUnwrap(WidgetStore.encode(snap))

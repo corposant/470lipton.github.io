@@ -970,7 +970,7 @@ final class ItemStore {
     /// A place nog went off ("You're at Home"): from then on the item nogs like any other until
     /// it's done, starting one gap later (you've just been told).
     private func nogFromPlaceArrivals() async {
-        let delivered = await UNUserNotificationCenter.current().deliveredNotifications()
+        let delivered = await NotificationScheduler.shared.delivered()
         let arrived = Set(delivered
             .filter { $0.request.identifier.hasPrefix(NogPlanner.placePrefix) }
             .compactMap { ($0.request.content.userInfo[NotificationScheduler.itemIDKey] as? String)
