@@ -26,7 +26,10 @@ struct NogsTab: View {
                 content(now: context.date)
             }
             .background { NogBackground() }
-            .safeAreaInset(edge: .top) {
+            // A bar, not a plain inset: the list's top scroll-edge fade reaches down under the
+            // picker, so rows fade out before they pass behind it and the toolbar buttons.
+            // The system fade turns more solid by itself with Reduce Transparency.
+            .safeAreaBar(edge: .top) {
                 VStack(spacing: 8) {
                     SilenceBanner()
                     if !isSelecting {
@@ -39,6 +42,7 @@ struct NogsTab: View {
                 }
                 .padding(.bottom, 4)
             }
+            .scrollEdgeEffectStyle(.soft, for: .top)
             .nogTabTitle(.nogs, title: isSelecting ? (selection.isEmpty ? "Select nogs" : "\(selection.count) selected") : nil)
             .environment(\.editMode, $editMode)
             .toolbar {
