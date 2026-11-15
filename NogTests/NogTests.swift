@@ -770,6 +770,42 @@ final class MapLayoutTests: XCTestCase {
         XCTAssertEqual(ListSort.name.sorted([roof, bank, cat], now: now, stats: stats, urgentFirst: false).first?.title, "Bank")
     }
 
+    func testListSortByPriorityAlarmsTagsAndAdded() {
+        let now = Date(timeIntervalSince1970: 1_900_000_000)
+        var bills = Item(title: "Bills")
+        bills.urgent = true
+        bills.reminder = Reminder(start: now.addingTimeInterval(3600), repeatMinutes: 60, silent: true)
+        bills.tags = ["money", "admin"]
+        bills.created = now.addingTimeInterval(-300)
+        var dentist = Item(title: "Dentist")
+        dentist.reminder = Reminder(start: now.addingTimeInterval(600), repeatMinutes: 30, alarm: true)
+        dentist.tags = ["health"]
+        dentist.created = now.addingTimeInterval(-100)
+        var plants = Item(title: "Plants")
+        plants.reminder = Reminder(start: now.addingTimeInterval(60), repeatMinutes: 8, escalateAfter: 0)
+        plants.created = now.addingTimeInterval(-200)
+        var socks = Item(title: "Socks")
+        socks.created = now.addingTimeInterval(-400)
+        let items = [socks, plants, dentist, bills]
+        let stats = ChildStats(items)
+        func titles(_ sort: ListSort, reversed: Bool = false, escalate: Int = 0) -> [String] {
+            sort.sorted(items, now: now, stats: stats, reversed: reversed, urgentFirst: false,
+                        globalEscalateAfter: escalate).map(\.title)
+        }
+
+        // Priority: urgent first, then soonest; no time last among the not-urgent.
+        XCTAssertEqual(titles(.priority), ["Bills", "Plants", "Dentist", "Socks"])
+        // Alarms: rings as an alarm, then plain sound, then silent; no reminder always last.
+        XCTAssertEqual(titles(.alarms), ["Dentist", "Plants", "Bills", "Socks"])
+        XCTAssertEqual(titles(.alarms, reversed: true), ["Bills", "Plants", "Dentist", "Socks"])
+        // Tags: by the first tag A to Z (Bills files under "admin"), untagged last.
+        XCTAssertEqual(titles(.tags), ["Bills", "Dentist", "Plants", "Socks"])
+        XCTAssertEqual(titles(.tags, reversed: true), ["Dentist", "Bills", "Plants", "Socks"])
+        // Date added: newest first.
+        XCTAssertEqual(titles(.added), ["Dentist", "Plants", "Bills", "Socks"])
+        XCTAssertEqual(ListColumn.tags.sort, .tags)
+    }
+
     func testOutlineRootsSurviveCycles() {
         var a = Item(title: "A")
         var b = Item(title: "B")

@@ -363,7 +363,7 @@ struct ListSortMenu: View {
     var body: some View {
         Menu {
             Picker("Sort by", selection: $sort) {
-                ForEach(ListSort.allCases) { Text($0.rawValue).tag($0) }
+                ForEach(ListSort.allCases) { Text($0.label).tag($0) }
             }
             Toggle("Reverse order", isOn: $reversed)
             Toggle("Urgent first", isOn: $urgentFirst)
@@ -373,7 +373,7 @@ struct ListSortMenu: View {
             Image(systemName: "line.3.horizontal.decrease")
         }
         .accessibilityLabel("Sort and show")
-        .accessibilityValue("Sorted by \(sort.rawValue)\(reversed ? ", reversed" : "")")
+        .accessibilityValue("Sorted by \(sort.label), \(reversed ? "reversed" : sort.spokenOrder)")
     }
 }
 
