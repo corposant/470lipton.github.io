@@ -160,7 +160,7 @@ struct NogRow: View {
     }
 }
 
-/// The width of a row's right end (the profile icon), and of the Table header's ⋯ above it.
+/// The width of a row's right end (the profile icon), and of the Table's alarm header above it.
 enum TrailingSlot {
     static func width(_ typeSize: DynamicTypeSize) -> CGFloat {
         NogScale.value(44, for: typeSize, maxScale: 1.6)
@@ -270,7 +270,7 @@ enum RowDetail {
         func add(_ text: String) { parts.append(AttributedString(text)) }
 
         // Folded Table columns come first, labelled, in the order they'd sit on screen.
-        for column in columns where column != .tags {
+        for column in columns where column.lines(item, now: now, counts: counts).0 != "–" {
             add("\(column.rawValue) \(column.spoken(item, now: now, counts: counts))")
         }
         if item.isDoing {
@@ -288,7 +288,7 @@ enum RowDetail {
         if item.status == .someday { add("someday") }
         if !omit.contains(.steps), counts.total > 0 { add("\(counts.done)/\(counts.total) done") }
         if !omit.contains(.parent), let parent = store.parent(of: item) { add("in \(parent.title)") }
-        if !omit.contains(.tags) || columns.contains(.tags), !item.tags.isEmpty {
+        if !omit.contains(.tags), !item.tags.isEmpty {
             var tags = AttributedString()
             for (index, tag) in item.tags.enumerated() {
                 if index > 0 { tags += AttributedString(" ") }

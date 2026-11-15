@@ -803,7 +803,7 @@ final class MapLayoutTests: XCTestCase {
         XCTAssertEqual(titles(.tags, reversed: true), ["Dentist", "Bills", "Plants", "Socks"])
         // Date added: newest first.
         XCTAssertEqual(titles(.added), ["Dentist", "Plants", "Bills", "Socks"])
-        XCTAssertEqual(ListColumn.tags.sort, .tags)
+        XCTAssertEqual(ListColumn.allCases.map(\.sort), [.priority, .added])
     }
 
     func testOutlineRootsSurviveCycles() {
