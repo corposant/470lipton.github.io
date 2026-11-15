@@ -416,7 +416,7 @@ struct CaptureHomeView: View {
         return parts.joined(separator: " · ")
     }
 
-    /// "In 15 min", "6:00 PM", "Tomorrow 9:00 AM", "Tue 9:00 AM".
+    /// "In 15 min", "6:00 PM", "Tomorrow 9:00 AM", "Tue 9:00 AM", "Dec 4, 9:00 AM".
     static func whenText(_ date: Date, now: Date) -> String {
         let minutes = Int((date.timeIntervalSince(now) / 60).rounded())
         if minutes <= 0 { return "Now" }
@@ -425,7 +425,11 @@ struct CaptureHomeView: View {
         let calendar = Calendar.current
         if calendar.isDate(date, inSameDayAs: now) { return time }
         if calendar.isDateInTomorrow(date) { return "Tomorrow \(time)" }
-        return "\(date.formatted(.dateTime.weekday(.abbreviated))) \(time)"
+        // Within the week the weekday is enough; further out it needs the date ("Dec 4, 9:00 AM").
+        let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: now),
+                                           to: calendar.startOfDay(for: date)).day ?? 0
+        if days < 7 { return "\(date.formatted(.dateTime.weekday(.abbreviated))) \(time)" }
+        return "\(date.formatted(.dateTime.month(.abbreviated).day())), \(time)"
     }
 
     // MARK: Saving
@@ -612,20 +616,31 @@ struct CaptureHomeView: View {
     private func whenPanel(_ result: CaptureResult) -> some View {
         let now = Date.now
         let calendar = Calendar.current
-        var choices: [(String, Date)] = [
-            ("In 15 min", now.addingTimeInterval(15 * 60)),
-            ("In 1 hour", now.addingTimeInterval(3600)),
+        func plain(_ label: String, _ date: Date) -> WhenPresets.Preset {
+            WhenPresets.Preset(label: label, spoken: label, date: date)
+        }
+        // Each is when nogging starts. The far-off ones say their date to VoiceOver,
+        // and the When chip shows it once picked.
+        var choices: [WhenPresets.Preset] = [
+            plain("In 15 min", now.addingTimeInterval(15 * 60)),
+            plain("In 1 hour", now.addingTimeInterval(3600)),
         ]
         if let tonight = calendar.date(bySettingHour: 20, minute: 0, second: 0, of: now), tonight > now {
-            choices.append(("Tonight", tonight))
+            choices.append(plain("Tonight", tonight))
         }
         let morning = NogSettings.nextMorning(after: now)
-        choices.append((calendar.isDateInToday(morning) ? "This morning" : "Tomorrow morning", morning))
+        choices.append(plain(calendar.isDateInToday(morning) ? "This morning" : "Tomorrow morning", morning))
+        if let moon = WhenPresets.nextFullMoon(now: now) { choices.append(moon) }
+        if let xmas = WhenPresets.beforeChristmas(now: now) { choices.append(xmas) }
         return VStack(alignment: .leading, spacing: 10) {
+            Text("When should nogging start?")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
             FlowLayout(spacing: 6) {
-                ForEach(choices, id: \.0) { label, date in
-                    smallChip(label, isOn: draft.when.map { abs($0.timeIntervalSince(date)) < 90 } ?? false) {
-                        setWhen(date)
+                ForEach(choices, id: \.label) { choice in
+                    smallChip(choice.label, spoken: choice.spoken,
+                              isOn: draft.when.map { abs($0.timeIntervalSince(choice.date)) < 90 } ?? false) {
+                        setWhen(choice.date)
                     }
                 }
                 if draft.when != nil {
@@ -720,7 +735,7 @@ struct CaptureHomeView: View {
 
     /// `breaksSilent`: a profile chip that can ring through Silent gets the same
     /// alarm mark as the profile icons, and says so to VoiceOver.
-    private func smallChip(_ title: String, isOn: Bool, breaksSilent: Bool = false,
+    private func smallChip(_ title: String, spoken: String? = nil, isOn: Bool, breaksSilent: Bool = false,
                            action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: 4) {
@@ -742,7 +757,7 @@ struct CaptureHomeView: View {
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(breaksSilent ? "\(title), \(NogProfile.breaksSilentSpoken)" : title)
+        .accessibilityLabel(breaksSilent ? "\(spoken ?? title), \(NogProfile.breaksSilentSpoken)" : spoken ?? title)
         .accessibilityAddTraits(isOn ? .isSelected : [])
     }
 }

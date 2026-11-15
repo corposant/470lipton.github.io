@@ -8,7 +8,7 @@ enum OverviewFilter: String, CaseIterable, Identifiable {
     var spoken: String {
         switch self {
         case .now: "Nogging now"
-        case .today: "Due later today"
+        case .today: "Starting later today"
         case .urgent: "Urgent"
         }
     }
@@ -34,7 +34,7 @@ enum OverviewFilter: String, CaseIterable, Identifiable {
     }
 }
 
-/// The Overview: "where am I with everything". Counts on top (nogging now, due today,
+/// The Overview: "where am I with everything". Counts on top (nogging now, starting later today,
 /// urgent; tap one to filter), then one row per project with its next step, then the loose
 /// nogs. A row opens the nog's own page, which has its steps.
 struct OverviewList: View {
