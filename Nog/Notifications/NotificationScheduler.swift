@@ -30,6 +30,8 @@ final class NotificationScheduler {
 
     private let center = UNUserNotificationCenter.current()
     private var running: Task<Void, Never>?
+    private var statusQuery: Task<UNAuthorizationStatus, Never>?
+    private var statusQueryTimedOut = false
     private var enrichment: Task<Void, Never>?
     private var enrichmentID = UUID()
     private var latestItems: [Item] = []
@@ -98,8 +100,56 @@ final class NotificationScheduler {
         (try? await center.requestAuthorization(options: [.alert, .sound, .badge])) ?? false
     }
 
+    /// The notification permission. Gives up after a few seconds and says "not asked yet":
+    /// on iOS 27 (seen in the Simulator on fresh installs) the answer can fail to arrive until
+    /// permission has been asked, and launch, first-run setup and every sync wait on it.
+    /// Callers share one question to iOS; once it has gone unanswered past the limit, later
+    /// callers don't wait again until it's answered.
     func authorizationStatus() async -> UNAuthorizationStatus {
-        await center.notificationSettings().authorizationStatus
+        if statusQuery != nil, statusQueryTimedOut { return .notDetermined }
+        let query = statusQuery ?? Task { @MainActor in
+            let status = await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
+            self.statusQuery = nil
+            self.statusQueryTimedOut = false
+            return status
+        }
+        statusQuery = query
+        if let status = await Self.within(seconds: 3, { await query.value }) { return status }
+        if statusQuery != nil { statusQueryTimedOut = true }
+        return .notDetermined
+    }
+
+    /// Whether Nog may post notifications. Without it nothing can have been delivered or
+    /// scheduled, so the calls that read or change notifications (which can also go
+    /// unanswered before permission is asked) are skipped.
+    func canNotify() async -> Bool {
+        switch await authorizationStatus() {
+        case .authorized, .provisional, .ephemeral: true
+        default: false
+        }
+    }
+
+    /// Nog's delivered notifications, or none when it can't notify (see above).
+    func delivered() async -> [UNNotification] {
+        guard await canNotify() else { return [] }
+        return await center.deliveredNotifications()
+    }
+
+    /// `operation`'s result, or nil if it hasn't finished within `seconds`. The operation
+    /// isn't cancelled (the system calls this guards don't support it); it just stops being waited for.
+    nonisolated static func within<T: Sendable>(seconds: Double,
+                                                _ operation: @escaping @Sendable () async -> T) async -> T? {
+        let once = FirstClaim()
+        return await withCheckedContinuation { (continuation: CheckedContinuation<T?, Never>) in
+            Task.detached {
+                let value = await operation()
+                if once.claim() { continuation.resume(returning: value) }
+            }
+            Task.detached {
+                try? await Task.sleep(for: .seconds(seconds))
+                if once.claim() { continuation.resume(returning: nil) }
+            }
+        }
     }
 
     func pendingCount() async -> Int {
@@ -146,6 +196,8 @@ final class NotificationScheduler {
             desired[pause.identifier] = pause
         }
 
+        // Nothing can be scheduled without permission, and asking iOS what's pending can go unanswered then.
+        guard await canNotify() else { lastPlannedCount = desired.count; return }
         let pending = await center.pendingNotificationRequests()
         var pendingIDs = Set(pending.map(\.identifier).filter { $0.hasPrefix(NogPlanner.prefix) })
 
@@ -220,7 +272,7 @@ final class NotificationScheduler {
     }
 
     func clearDelivered(for itemID: UUID) async {
-        let delivered = await center.deliveredNotifications()
+        let delivered = await delivered()
         let ids = delivered
             .filter { ($0.request.content.userInfo[Self.itemIDKey] as? String) == itemID.uuidString }
             .map(\.request.identifier)
@@ -270,4 +322,11 @@ final class NotificationScheduler {
         }
         return UNNotificationRequest(identifier: planned.identifier, content: content, trigger: trigger)
     }
+}
+
+/// Lets exactly one of several racing callers through (`NotificationScheduler.within`).
+private final class FirstClaim: @unchecked Sendable {
+    private let lock = NSLock()
+    private var done = false
+    func claim() -> Bool { lock.withLock { defer { done = true }; return !done } }
 }
