@@ -129,12 +129,13 @@ def carton_pour(colors):
              f'<line x1="-20" y1="210" x2="{peak[0]+20}" y2="{peak[1]+10}" stroke="url(#inner)" stroke-width="8" stroke-linecap="round" opacity=".45" filter="url(#glow)"/></g>')
     return svg(body)
 
-designs = {
-    "A-carton-synthwave": carton_34(SYNTH),
-    "A-carton-spectrum": carton_34(RAINBOW),
-    "B-front-synthwave": carton_front(SYNTH),
-    "C-pour-synthwave": carton_pour(SYNTH),
-}
-for name, s in designs.items():
-    open(f"{name}.svg", "w").write(s)
-print("\n".join(designs))
+if __name__ == "__main__":
+  designs = {
+      "A-carton-synthwave": carton_34(SYNTH),
+      "A-carton-spectrum": carton_34(RAINBOW),
+      "B-front-synthwave": carton_front(SYNTH),
+      "C-pour-synthwave": carton_pour(SYNTH),
+  }
+  for name, s in designs.items():
+      open(f"{name}.svg", "w").write(s)
+  print("\n".join(designs))
