@@ -9,6 +9,7 @@ struct NogWidgetsBundle: WidgetBundle {
         DoingLiveActivity()
         NogitivityWidget()
         NogAlarmActivity()
+        NewNogControl()
     }
 }
 

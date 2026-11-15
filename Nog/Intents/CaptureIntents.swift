@@ -22,18 +22,8 @@ struct CaptureIntent: AppIntent {
     }
 }
 
-/// Opens the app straight into the capture field (good for the Action Button).
-struct OpenCaptureIntent: AppIntent {
-    static var title: LocalizedStringResource = "Quick Capture"
-    static var description = IntentDescription("Open Nog ready to type.")
-    static var openAppWhenRun = true
-
-    @MainActor
-    func perform() async throws -> some IntentResult {
-        Router.shared.focusCapture()
-        return .result()
-    }
-}
+// OpenCaptureIntent ("Quick Capture") lives in Shared/OpenCaptureIntent.swift so the
+// New Nog control in the widget extension can use it too.
 
 /// "Start <item> in Nog" → ▶︎ with the suggested timebox. Runs without opening the app
 /// (a LiveActivityIntent may start the timer from the background), so it works by voice
