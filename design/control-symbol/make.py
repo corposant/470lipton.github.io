@@ -2,6 +2,8 @@ from shapely.geometry import LineString, LinearRing, Polygon, MultiPolygon
 from shapely.geometry.polygon import orient
 from shapely.ops import unary_union
 import sys
+# Write the result into BOTH NogWidgets/ and Nog/Assets.xcassets/nog.carton.symbolset/:
+# a control is drawn by the system from the app as well as the extension.
 W=1.75  # stroke in the 25-unit carton drawing
 outer=[(4.5,22.6),(4.5,11.2),(9.2,6.4),(9.2,3.9),(15.6,2.3),(15.6,4.8),(20.6,9.6),(20.6,20.9),(14,22.6)]
 lines=[[(4.5,11.2),(14,11.2),(14,22.6)],[(9.2,6.4),(14,11.2),(20.6,9.6)],[(9.2,6.4),(15.6,4.8)]]
