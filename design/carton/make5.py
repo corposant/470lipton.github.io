@@ -86,8 +86,9 @@ def contained_carton(colors, dark=False, seed=11):
     carton += (f'<g stroke="{line}" stroke-width="6" stroke-linecap="round" fill="none">'
                f'<path d="M{FL + 44} {TOP + 40} q-8 44 0 100"/></g>')
     # three shine ticks off the top-left corner, kept from the original drawing
-    shine = "#fff" if dark else "#FBF3E0"
-    carton += (f'<g stroke="{shine}" stroke-width="8" stroke-linecap="round" opacity=".9">'
+    shine = "#FF5FB0" if dark else "#FBF3E0"  # neon pink on Neon
+    glow = ' filter="url(#beamGlow)"' if dark else ""
+    carton += (f'<g stroke="{shine}" stroke-width="8" stroke-linecap="round" opacity=".95"{glow}>'
                f'<line x1="{FL - 72}" y1="{TOP - 48}" x2="{FL - 36}" y2="{TOP - 24}"/>'
                f'<line x1="{FL - 84}" y1="{TOP + 12}" x2="{FL - 40}" y2="{TOP + 17}"/>'
                f'<line x1="{FL - 48}" y1="{TOP - 104}" x2="{FL - 22}" y2="{TOP - 70}"/></g>')
