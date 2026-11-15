@@ -362,21 +362,21 @@ extension View {
     }
 }
 
-/// Clear over the top safe area (everything the bars cover), then a short fade to solid.
+/// Laid out inside the top safe area, so everything the bars cover is outside the mask and
+/// hidden; a short fade to solid at its top edge. The bottom reaches under the tab bar, which
+/// keeps its own scroll-edge effect. (Reading safeAreaInsets from inside .ignoresSafeArea
+/// returns zero, which is why #87's version hid nothing.)
 /// A fade, not a blur, so it reads the same with Reduce Transparency.
 private struct TopBarsFadeMask: View {
     @ScaledMetric private var fade: CGFloat = 20
 
     var body: some View {
-        GeometryReader { proxy in
-            VStack(spacing: 0) {
-                Color.clear.frame(height: proxy.safeAreaInsets.top)
-                LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom)
-                    .frame(height: fade)
-                Color.black
-            }
+        VStack(spacing: 0) {
+            LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom)
+                .frame(height: fade)
+            Color.black
         }
-        .ignoresSafeArea(edges: .top)
+        .ignoresSafeArea(edges: .bottom)
     }
 }
 
