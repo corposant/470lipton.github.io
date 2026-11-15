@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!--Generator: design/control-symbol/make.py (outlined from NogWidgets Carton.imageset)-->
+<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="3300" height="2200">
+ <g id="Notes">
+  <text style="stroke:none;fill:black;font-family:sans-serif;font-size:13" x="18" y="98">Template v.3.0</text>
+ </g>
+ <g id="Guides">
+  <line id="Baseline-S" style="fill:none;stroke:#27AAE1;opacity:1;stroke-width:0.5;" x1="263" x2="3036" y1="696" y2="696"/>
+  <line id="Capline-S" style="fill:none;stroke:#27AAE1;opacity:1;stroke-width:0.5;" x1="263" x2="3036" y1="625.541" y2="625.541"/>
+  <line id="Baseline-M" style="fill:none;stroke:#27AAE1;opacity:1;stroke-width:0.5;" x1="263" x2="3036" y1="1126" y2="1126"/>
+  <line id="Capline-M" style="fill:none;stroke:#27AAE1;opacity:1;stroke-width:0.5;" x1="263" x2="3036" y1="1055.54" y2="1055.54"/>
+  <line id="Baseline-L" style="fill:none;stroke:#27AAE1;opacity:1;stroke-width:0.5;" x1="263" x2="3036" y1="1556" y2="1556"/>
+  <line id="Capline-L" style="fill:none;stroke:#27AAE1;opacity:1;stroke-width:0.5;" x1="263" x2="3036" y1="1485.54" y2="1485.54"/>
+  <line id="left-margin-Regular-M" style="fill:none;stroke:#00AEEF;stroke-width:0.5;opacity:1.0;" x1="1391.30" x2="1391.30" y1="1030.79" y2="1150.12"/>
+  <line id="right-margin-Regular-M" style="fill:none;stroke:#00AEEF;stroke-width:0.5;opacity:1.0;" x1="1468.54" x2="1468.54" y1="1030.79" y2="1150.12"/>
+ </g>
+ <g id="Symbols">
+  <g id="Regular-M" transform="matrix(1 0 0 1 1394.30 1126)">
+   <path d="M71.24 -46.72 L71.23 -46.65 L71.24 -46.58 L71.24 -1.48 L71.18 -0.82 L71.00 -0.19 L70.70 0.39 L70.30 0.91 L69.80 1.35 L69.24 1.68 L68.62 1.90 L42.28 8.69 L42.20 8.70 L42.09 8.73 L41.41 8.80 L3.49 8.80 L2.81 8.73 L2.16 8.53 L1.55 8.21 L1.02 7.78 L0.59 7.25 L0.27 6.64 L0.07 5.99 L0.00 5.31 L0.00 -40.19 L0.07 -40.86 L0.07 -40.87 L0.07 -40.87 L0.13 -41.08 L0.26 -41.51 L0.26 -41.52 L0.27 -41.53 L0.39 -41.76 L0.57 -42.11 L0.58 -42.12 L0.59 -42.13 L0.76 -42.35 L1.00 -42.63 L18.76 -60.77 L18.76 -69.33 L18.82 -69.98 L19.01 -70.62 L19.31 -71.20 L19.71 -71.73 L20.21 -72.16 L20.78 -72.49 L21.40 -72.71 L46.95 -79.10 L47.64 -79.20 L48.34 -79.16 L49.02 -78.98 L49.65 -78.67 L50.21 -78.23 L50.66 -77.70 L51.00 -77.08 L51.21 -76.41 L51.29 -75.71 L51.29 -67.22 L70.17 -49.10 L70.34 -48.89 L70.57 -48.64 L70.59 -48.59 L70.62 -48.56 L70.75 -48.32 L70.92 -48.05 L70.94 -47.99 L70.96 -47.95 L71.04 -47.69 L71.14 -47.40 L71.15 -47.33 L71.17 -47.27 L71.20 -47.02 ZM25.74 -63.82 L44.30 -68.46 L44.30 -71.24 L25.74 -66.60 ZM32.98 -43.68 L22.28 -54.38 L11.80 -43.68 ZM64.26 -42.14 L44.90 -37.44 L44.90 0.80 L64.26 -4.18 ZM42.49 -44.05 L60.73 -48.47 L46.77 -61.88 L29.08 -57.46 ZM37.92 -36.70 L6.98 -36.70 L6.98 1.82 L37.92 1.82 Z"/>
+  </g>
+ </g>
+</svg>
