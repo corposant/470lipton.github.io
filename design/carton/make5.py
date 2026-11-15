@@ -7,7 +7,7 @@ notification-banner size. Writes AppIcon-comix.svg and AppIcon-neon.svg.
 import importlib.util
 spec = importlib.util.spec_from_file_location("m4", "make4.py"); m4 = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(m4)
-SYNTH, svg, bulgy, contour, hatch, comix_letters, INK = m4.SYNTH, m4.svg, m4.bulgy, m4.contour, m4.hatch, m4.comix_letters, m4.INK
+SYNTH, RAINBOW, svg, bulgy, contour, hatch, comix_letters, INK = m4.SYNTH, m4.m.RAINBOW, m4.svg, m4.bulgy, m4.contour, m4.hatch, m4.comix_letters, m4.INK
 
 
 def lerp(p, q, t):
@@ -45,13 +45,14 @@ def contained_carton(colors, dark=False, seed=11):
     # corner; the spectrum fans across the side face and stops at the carton's edge.
     beam_in = (FL + 4, 600)
     split = (FR, 540)
-    far_a, far_b = (FR + DX, TOP + DY + 10), (FR + DX, TOP + DY + 420)
+    # the fan opens to the panel's full height at the far edge
+    far_a, far_b = (FR + DX, TOP + DY - 30), (FR + DX, BOT + DY + 30)
     n = len(colors)
     bands = ""
     for i, c in enumerate(colors):
         a0, a1 = lerp(far_a, far_b, i / n), lerp(far_a, far_b, (i + 1) / n)
         # each band starts as a sliver at the split point, so the fan opens from one spot
-        s0, s1 = (split[0], split[1] - 7 + 14 * i / n), (split[0], split[1] - 7 + 14 * (i + 1) / n)
+        s0, s1 = (split[0], split[1] - 10 + 20 * i / n), (split[0], split[1] - 10 + 20 * (i + 1) / n)
         far_x = FR + DX + 40
         bands += (f'<polygon points="{s0[0]:.1f},{s0[1]:.1f} {far_x},{a0[1] - 10:.1f} '
                   f'{far_x},{a1[1] - 10:.1f} {s1[0]:.1f},{s1[1]:.1f}" fill="{c}"/>')
@@ -81,13 +82,21 @@ def contained_carton(colors, dark=False, seed=11):
     carton += f'<circle cx="{split[0]}" cy="{split[1]}" r="15" fill="#fff" filter="url(#beamGlow)"/>'
     carton += (f'<g stroke="{line}" stroke-width="6" stroke-linecap="round" fill="none">'
                f'<path d="M{FL + 44} {TOP + 40} q-8 44 0 100"/></g>')
-    carton += f'<g transform="rotate(-5 400 800)">{comix_letters(FL + 62, BOT - 100, 112, fill="#FF8CC6" if dark else "#FFF3DC")}</g>'
+    # three shine ticks off the top-left corner, kept from the original drawing
+    shine = "#fff" if dark else INK
+    carton += (f'<g stroke="{shine}" stroke-width="8" stroke-linecap="round" opacity=".9">'
+               f'<line x1="{FL - 72}" y1="{TOP - 48}" x2="{FL - 36}" y2="{TOP - 24}"/>'
+               f'<line x1="{FL - 84}" y1="{TOP + 12}" x2="{FL - 40}" y2="{TOP + 17}"/>'
+               f'<line x1="{FL - 48}" y1="{TOP - 104}" x2="{FL - 22}" y2="{TOP - 70}"/></g>')
+    letters = (comix_letters(FL + 62, BOT - 100, 112, fill="#FF8CC6", ink="#F4EEFF", shadow_ink=INK) if dark
+               else comix_letters(FL + 62, BOT - 100, 112, fill="#FFF3DC"))
+    carton += f'<g transform="rotate(-5 400 800)">{letters}</g>'
     body += carton
     return svg(body, clips)
 
 
 if __name__ == "__main__":
-    out = {"AppIcon-comix": contained_carton(SYNTH), "AppIcon-neon": contained_carton(SYNTH, dark=True)}
+    out = {"AppIcon-comix": contained_carton(RAINBOW), "AppIcon-neon": contained_carton(SYNTH, dark=True)}
     for k, v in out.items():
         open(f"{k}.svg", "w").write(v)
     print(" ".join(out))

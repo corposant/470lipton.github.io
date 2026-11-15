@@ -57,12 +57,13 @@ def hatch(clip_id, box, angle, spacing, w=3.2, color=INK, seed=5, gap=0.12, opac
     return (f'<g clip-path="url(#{clip_id})" stroke="{color}" stroke-width="{w}" stroke-linecap="round" fill="none" opacity="{opacity}">'
             + "".join(lines) + '</g>')
 
-def comix_letters(x, y, h, fill="#FFF3DC", ink=INK):
+def comix_letters(x, y, h, fill="#FFF3DC", ink=INK, shadow_ink=None):
     """Fat, outlined hand lettering: the NOG strokes inked thick, then filled in."""
     g = nog_letters(x, y, h, stroke="X", w=1).replace(' filter="url(#soft)"', '')
     thick = g.replace('stroke="X"', f'stroke="{ink}"').replace('stroke-width="1"', f'stroke-width="{h*0.42:.1f}"')
     inner = g.replace('stroke="X"', f'stroke="{fill}"').replace('stroke-width="1"', f'stroke-width="{h*0.22:.1f}"')
     shadow = thick.replace('<g ', '<g transform="translate(7 7)" opacity=".9" ', 1)
+    if shadow_ink: shadow = shadow.replace(f'stroke="{ink}"', f'stroke="{shadow_ink}"')
     return shadow + thick + inner
 
 def blast_fan(a, b, far_top, far_bottom, colors, x_far=1120):
