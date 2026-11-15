@@ -1,6 +1,6 @@
 import math, random, importlib.util, sys
 spec = importlib.util.spec_from_file_location("m", "make.py"); m = importlib.util.module_from_spec(spec)
-sys.argv = ["x"]; spec.loader.exec_module(m)
+spec.loader.exec_module(m)
 SYNTH, RAINBOW, grid, nog_letters, DEFS = m.SYNTH, m.RAINBOW, m.grid, m.nog_letters, m.DEFS
 INK = "#0A0908"
 
@@ -137,7 +137,8 @@ def comix_carton(colors, dark=False, letters=True, scale=1.0, seed=11):
         body = f'<g transform="translate(500 560) scale({scale}) translate(-500 -560)">{body}</g>'
     return svg(body, clips)
 
-out = {"G-comix-synthwave": comix_carton(SYNTH), "G-comix-spectrum": comix_carton(RAINBOW),
-       "H-comix-dark": comix_carton(SYNTH, dark=True), "I-comix-bold": comix_carton(SYNTH, letters=False, scale=1.16)}
-for k, v in out.items(): open(f"{k}.svg", "w").write(v)
-print(" ".join(out))
+if __name__ == "__main__":
+    out = {"G-comix-synthwave": comix_carton(SYNTH), "G-comix-spectrum": comix_carton(RAINBOW),
+           "H-comix-dark": comix_carton(SYNTH, dark=True), "I-comix-bold": comix_carton(SYNTH, letters=False, scale=1.16)}
+    for k, v in out.items(): open(f"{k}.svg", "w").write(v)
+    print(" ".join(out))
