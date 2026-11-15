@@ -14,6 +14,10 @@ nonisolated enum NotesSelection {
               range.location <= text.utf16.count,
               range.length <= text.utf16.count - range.location,
               let indices = Range(range, in: text) else { return nil }
+        // iOS 27 accepts a range that starts or ends inside a character (e.g. half an emoji)
+        // instead of failing; reject it rather than silently rounding.
+        guard indices.lowerBound.samePosition(in: text) != nil,
+              indices.upperBound.samePosition(in: text) != nil else { return nil }
         let lo = text.distance(from: text.startIndex, to: indices.lowerBound)
         let hi = text.distance(from: text.startIndex, to: indices.upperBound)
         return lo..<hi
