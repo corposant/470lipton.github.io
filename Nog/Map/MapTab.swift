@@ -1210,10 +1210,6 @@ private struct MapInfoCard: View {
     let unpin: () -> Void
     let close: () -> Void
     @Environment(ItemStore.self) private var store
-    /// The tag menu (same as New Nog's) is open under the facts.
-    @State private var editingTags = false
-    @State private var newTag = ""
-    @FocusState private var tagFieldFocused: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -1258,7 +1254,7 @@ private struct MapInfoCard: View {
                 if isPinned {
                     fact("pin", "Pinned here: Tidy up leaves it alone")
                 }
-                if !item.tags.isEmpty && !editingTags {
+                if !item.tags.isEmpty {
                     HStack(spacing: 6) {
                         ForEach(item.tags.prefix(4), id: \.self) { tag in
                             let pair = TagPalette.color(for: tag)
@@ -1268,17 +1264,6 @@ private struct MapInfoCard: View {
                         }
                     }
                 }
-            }
-
-            if editingTags {
-                // Tags set the Map's zones, so this is where they're most useful to change.
-                TagEditor(tags: item.tags,
-                          text: $newTag,
-                          focus: $tagFieldFocused,
-                          focusValue: true,
-                          add: addTag,
-                          remove: removeTag)
-                    .transition(.nog(.opacity))
             }
 
             HStack(spacing: 8) {
@@ -1300,16 +1285,16 @@ private struct MapInfoCard: View {
                     .buttonStyle(.bordered)
                 }
 
-                Button(action: toggleTags) {
-                    Label("Tags", systemImage: editingTags ? "tag.fill" : "tag")
+                // Tags set the Map's zones: same quick menu as New Nog, no keyboard.
+                TagMenu(applied: item.tags, add: addTag, remove: removeTag) {
+                    Label("Tags", systemImage: item.tags.isEmpty ? "tag" : "tag.fill")
                         .labelStyle(.iconOnly)
                         .frame(minWidth: 28, minHeight: 20)
                 }
                 .buttonStyle(.bordered)
                 .accessibilityLabel("Tags")
                 .accessibilityValue(item.tags.isEmpty ? "None" : item.tags.map { "#\($0)" }.joined(separator: ", "))
-                .accessibilityHint(editingTags ? "Closes the tag menu." : "Add or remove tags. Tags set the map zones.")
-                .accessibilityAddTraits(editingTags ? .isSelected : [])
+                .accessibilityHint("Opens a menu of your tags. Tags set the map zones.")
 
                 if !locked && (canFile || parent != nil || isPinned) || item.status == .open || item.status == .someday {
                     Menu {
@@ -1348,17 +1333,6 @@ private struct MapInfoCard: View {
         .padding(14)
         .nogPanel(cornerRadius: 20)
         .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(Theme.blue.opacity(0.5), lineWidth: 1))
-    }
-
-    /// Opens the tag menu with the keyboard up; a second tap adds anything typed and closes it.
-    private func toggleTags() {
-        if editingTags {
-            addTag(newTag)
-            newTag = ""
-            tagFieldFocused = false
-        }
-        withNogAnimation(.snappy) { editingTags.toggle() }
-        if editingTags { tagFieldFocused = true }
     }
 
     /// Adds to the latest copy of the item, so quick successive adds don't overwrite each other.
