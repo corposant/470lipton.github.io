@@ -692,38 +692,14 @@ struct CaptureHomeView: View {
     }
 
     private func tagsPanel(_ result: CaptureResult) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            FlowLayout(spacing: 6) {
-                ForEach(result.tags, id: \.self) { tag in
-                    let added = draft.extraTags.contains(tag)
-                    Button {
-                        if added { draft.extraTags.removeAll { $0 == tag } }
-                    } label: {
-                        Text(added ? "#\(tag) ✕" : "#\(tag)")
-                            .font(.subheadline)
-                            .foregroundStyle(TagPalette.tint(for: tag))
-                            .padding(.horizontal, 10)
-                            .frame(minHeight: 30)
-                            .overlay(Capsule().strokeBorder(TagPalette.tint(for: tag).opacity(0.5), lineWidth: 1))
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(!added)
-                    .accessibilityLabel(added ? "Remove tag \(tag)" : "Tag \(tag), typed in the text")
-                }
-                TextField("add tag", text: $newTag)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .focused($focus, equals: .tag)
-                    .submitLabel(.done)
-                    .onSubmit { addTag(newTag) }
-                    .frame(width: 120).frame(minHeight: 30)
-                    .padding(.horizontal, 10)
-                    .overlay(Capsule().strokeBorder(Theme.edgeStrong, lineWidth: 1))
-            }
-            TagSuggestionStrip(title: newTag.isEmpty ? "Recent" : "Tags",
-                               tags: TagSuggester.suggest(newTag, from: TagSuggester.stats(store.items.values),
-                                                          excluding: Set(result.tags))) { addTag($0) }
-        }
+        // Tags typed in the text stay put; ones added here come off with ✕.
+        TagEditor(tags: result.tags,
+                  fixed: Set(result.tags).subtracting(draft.extraTags),
+                  text: $newTag,
+                  focus: $focus,
+                  focusValue: Field.tag,
+                  add: addTag,
+                  remove: { tag in draft.extraTags.removeAll { $0 == tag } })
     }
 
     private func addTag(_ raw: String) {
