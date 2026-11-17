@@ -116,7 +116,7 @@ struct TagDrawerStyle {
 
     /// The Map card's bordered button. The faint outline keeps the drawer's edge
     /// visible on the dark theme, where a shadow wouldn't show.
-    static let standard = TagDrawerStyle(fill: Theme.blue.opacity(0.15), stroke: Theme.blue.opacity(0.4))
+    static let standard = TagDrawerStyle(fill: Theme.blue.opacity(0.15), stroke: Theme.blue.opacity(0.45))
 }
 
 /// The one tag menu that's open, if any.
