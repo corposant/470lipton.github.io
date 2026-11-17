@@ -50,10 +50,15 @@ extension TagPalette {
     }
 }
 
-/// The tag menu, shared by New Nog's Tags chip and the Map's info card. Tapping the
-/// label opens a plain menu, no keyboard: up to seven tags (the nog's own first, then
-/// the most used), each with a tick when it's on; "New tag…" to name one; and
-/// "More tags…" for the full list once there are more than seven.
+/// The tag menu, shared by New Nog's Tags chip and the Map's info card. Drawn by us, in
+/// the spirit of the Newton's pickers: it pops up right at the button with no animation,
+/// a plain panel with a thin border and a hard shadow, one tight row per tag, a tick on
+/// the left for tags that are on. Tap a tag to put it on (or take it off) and the menu
+/// closes. "New tag…" turns into a field in place (the only time the keyboard comes up);
+/// "More…" shows every tag once there are more than seven.
+///
+/// The panel itself is drawn by `TagMenuHost` at the top of the window, so nothing it
+/// sits inside (a scrolling chip row, a card) can clip it.
 struct TagMenu<MenuLabel: View>: View {
     /// The tags on the nog now.
     let applied: [String]
@@ -62,144 +67,250 @@ struct TagMenu<MenuLabel: View>: View {
     let add: (String) -> Void
     let remove: (String) -> Void
     @ViewBuilder let label: () -> MenuLabel
+    @State private var frame: CGRect = .zero
+    @State private var openID: UUID?
+
+    private var center: TagMenuCenter { .shared }
+    private var isOpen: Bool { openID != nil && center.request?.id == openID }
+
+    var body: some View {
+        Button(action: toggleOpen) { label() }
+            .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { new in
+                frame = new
+                // Follow the button (the Map card rises with the keyboard, say).
+                if isOpen { center.request?.anchor = new }
+            }
+            .accessibilityAddTraits(isOpen ? .isSelected : [])
+            .onDisappear { if isOpen { center.close() } }
+    }
+
+    private func toggleOpen() {
+        if isOpen { center.close(); return }
+        let request = TagMenuCenter.Request(anchor: frame, applied: applied, fixed: fixed,
+                                            add: add, remove: remove)
+        openID = request.id
+        center.request = request
+    }
+}
+
+/// The one tag menu that's open, if any.
+@MainActor @Observable
+final class TagMenuCenter {
+    static let shared = TagMenuCenter()
+
+    struct Request {
+        let id = UUID()
+        /// The button's frame, in window coordinates.
+        var anchor: CGRect
+        let applied: [String]
+        let fixed: Set<String>
+        let add: (String) -> Void
+        let remove: (String) -> Void
+    }
+
+    var request: Request?
+
+    func close() { request = nil }
+}
+
+extension View {
+    /// Draws the open tag menu over everything. Put it once, on the root view.
+    func tagMenuHost() -> some View {
+        overlay { TagMenuHost() }
+    }
+}
+
+private struct TagMenuHost: View {
+    private var center: TagMenuCenter { .shared }
+    @State private var size: CGSize = .zero
+
+    var body: some View {
+        if let request = center.request {
+            GeometryReader { geo in
+                let origin = geo.frame(in: .global).origin
+                let anchor = request.anchor.offsetBy(dx: -origin.x, dy: -origin.y)
+                let bounds = geo.size
+                // Open upwards from buttons in the lower half (the Map card, the capture tray).
+                let up = anchor.midY > bounds.height / 2
+                let room = up ? anchor.minY - geo.safeAreaInsets.top - 12
+                              : bounds.height - anchor.maxY - geo.safeAreaInsets.bottom - 12
+                ZStack(alignment: .topLeading) {
+                    // Tap anywhere else to close, as on the Newton.
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .ignoresSafeArea()
+                        .onTapGesture { center.close() }
+                        .accessibilityHidden(true)
+                    TagMenuPanel(request: request, maxHeight: max(room, 120)) { center.close() }
+                        .id(request.id)
+                        .fixedSize()
+                        .onGeometryChange(for: CGSize.self) { $0.size } action: { size = $0 }
+                        .offset(x: min(max(anchor.minX, 8), bounds.width - size.width - 8),
+                                y: up ? anchor.minY - size.height - 4 : anchor.maxY + 4)
+                        // Hidden for the one pass before it's measured, so it never jumps.
+                        .opacity(size == .zero ? 0 : 1)
+                }
+            }
+            .onDisappear { size = .zero }
+        }
+    }
+}
+
+/// The panel: tag rows, then New tag… and More….
+private struct TagMenuPanel: View {
+    let request: TagMenuCenter.Request
+    let maxHeight: CGFloat
+    let close: () -> Void
     @Environment(ItemStore.self) private var store
+    @Environment(\.colorSchemeContrast) private var contrast
+    @ScaledMetric(relativeTo: .subheadline) private var rowHeight: CGFloat = 32
+    @State private var showingAll = false
     @State private var naming = false
     @State private var newName = ""
-    @State private var showingAll = false
+    @FocusState private var fieldFocused: Bool
+    /// VoiceOver starts on the first row when the menu opens.
+    @AccessibilityFocusState private var voFocus: String?
 
     static var shown: Int { 7 }
 
     var body: some View {
         let all = allTags
-        Menu {
-            ForEach(all.prefix(Self.shown), id: \.self) { tag in
-                toggle(tag)
-            }
-            Divider()
-            Button {
-                naming = true
-            } label: {
-                Label("New tag…", systemImage: "plus")
-            }
-            if all.count > Self.shown {
-                Button {
-                    showingAll = true
-                } label: {
-                    Label("More tags…", systemImage: "ellipsis")
+        let rows = showingAll ? all : Array(all.prefix(Self.shown))
+        // The list scrolls when it can't fit (all tags, or very large text).
+        let listHeight = min(CGFloat(rows.count) * rowHeight, max(maxHeight - 2 * rowHeight - 4, rowHeight * 2))
+        VStack(alignment: .leading, spacing: 0) {
+            if !rows.isEmpty {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(rows, id: \.self) { tag in
+                            tagRow(tag)
+                                .accessibilityFocused($voFocus, equals: tag)
+                        }
+                    }
                 }
+                .scrollBounceBehavior(.basedOnSize)
+                .frame(height: listHeight)
+                rule
+            }
+            if naming {
+                nameField
+            } else {
+                Button { naming = true } label: {
+                    row(mark: "plus", text: "New tag…")
+                }
+                .buttonStyle(NewtonRowStyle(tint: Theme.violet))
+                .accessibilityLabel("New tag")
+            }
+            if all.count > Self.shown && !showingAll {
+                Button { showingAll = true } label: {
+                    row(mark: "ellipsis", text: "More…")
+                }
+                .buttonStyle(NewtonRowStyle(tint: Theme.muted))
                 .accessibilityLabel("More tags, \(all.count - Self.shown) more")
             }
-        } label: {
-            label()
         }
-        .menuOrder(.fixed)
-        .alert("New tag", isPresented: $naming) {
-            TextField("Tag name", text: $newName)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-            Button("Add") {
-                add(newName)
-                newName = ""
-            }
-            Button("Cancel", role: .cancel) { newName = "" }
-        } message: {
-            Text("Nogs with the same tag share a zone on the Map.")
-        }
-        .sheet(isPresented: $showingAll) {
-            TagListSheet(tags: all, applied: applied, fixed: fixed, add: add, remove: remove)
-        }
+        .frame(minWidth: 132, maxWidth: 260, alignment: .leading)
+        .background(Theme.base)
+        .overlay(Rectangle().strokeBorder(contrast == .increased ? Theme.edgeStrong : Theme.edge, lineWidth: 1))
+        // A hard shadow, no blur: quick to draw and crisp.
+        .background(Rectangle().fill(Theme.violet.opacity(0.35)).offset(x: 3, y: 3))
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Tags")
+        .accessibilityAddTraits(.isModal)
+        .accessibilityAction(.escape, close)
+        .onAppear { voFocus = allTags.first }
     }
 
     /// The nog's tags first, then every other tag, most used and most recent first.
     private var allTags: [String] {
         let others = TagSuggester.suggest("", from: TagSuggester.stats(store.items.values),
-                                          excluding: Set(applied), limit: .max)
-        return applied + others
+                                          excluding: Set(request.applied), limit: .max)
+        return request.applied + others
     }
 
     private func isOn(_ tag: String) -> Bool {
-        applied.contains { $0.caseInsensitiveCompare(tag) == .orderedSame }
+        request.applied.contains { $0.caseInsensitiveCompare(tag) == .orderedSame }
     }
 
-    private func toggle(_ tag: String) -> some View {
-        Toggle(isOn: Binding(get: { isOn(tag) },
-                             set: { $0 ? add(tag) : remove(tag) })) {
-            Text("#\(tag)")
+    private func tagRow(_ tag: String) -> some View {
+        let on = isOn(tag)
+        let isFixed = request.fixed.contains(tag)
+        let color = TagPalette.tint(for: tag)
+        return Button {
+            on ? request.remove(tag) : request.add(tag)
+            close()
+        } label: {
+            row(mark: on ? "checkmark" : nil, text: "#\(tag)")
         }
-        .disabled(fixed.contains(tag))
-        .accessibilityLabel(fixed.contains(tag) ? "\(tag), typed in the text" : tag)
+        .buttonStyle(NewtonRowStyle(tint: color))
+        .disabled(isFixed)
+        .opacity(isFixed ? 0.6 : 1)
+        .accessibilityLabel(isFixed ? "\(tag), typed in the text" : tag)
+        .accessibilityAddTraits(on ? .isSelected : [])
+        .accessibilityHint(on ? "Takes the tag off" : "Puts the tag on")
+    }
+
+    /// One tight row: a narrow column for the tick, then the text.
+    private func row(mark: String?, text: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: mark ?? "checkmark")
+                .font(.caption.weight(.bold))
+                .opacity(mark == nil ? 0 : 1)
+                .frame(width: 14)
+                .accessibilityHidden(true)
+            Text(text)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Spacer(minLength: 10)
+        }
+        .font(.subheadline)
+        .padding(.leading, 8)
+        .padding(.trailing, 10)
+        .frame(minHeight: rowHeight)
+        // Every row as wide as the menu, so a pressed row inverts edge to edge.
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+    }
+
+    private var nameField: some View {
+        HStack(spacing: 6) {
+            Text("#")
+                .foregroundStyle(Theme.violet)
+                .frame(width: 14)
+                .accessibilityHidden(true)
+            TextField("new tag", text: $newName)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .focused($fieldFocused)
+                .submitLabel(.done)
+                .onSubmit {
+                    let tag = Item.cleanTag(newName)
+                    if !tag.isEmpty { request.add(tag) }
+                    close()
+                }
+                .frame(width: 150)
+                .onAppear { fieldFocused = true }
+                .accessibilityLabel("New tag name")
+                .accessibilityHint("Type a name, then press Done.")
+        }
+        .font(.subheadline)
+        .padding(.leading, 8)
+        .padding(.trailing, 10)
+        .frame(minHeight: rowHeight)
+    }
+
+    private var rule: some View {
+        Rectangle().fill(Theme.edge).frame(height: 1).accessibilityHidden(true)
     }
 }
 
-/// Every tag, for when there are more than the menu shows. Tap a row to put the tag
-/// on or take it off. The search field only brings up the keyboard when tapped, and
-/// can make a new tag from what's typed.
-private struct TagListSheet: View {
-    let tags: [String]
-    let applied: [String]
-    let fixed: Set<String>
-    let add: (String) -> Void
-    let remove: (String) -> Void
-    @Environment(\.dismiss) private var dismiss
-    @State private var query = ""
-    /// Local copy so ticks update straight away.
-    @State private var on: Set<String> = []
+/// A Newton-style row: pressed, it inverts (filled with its colour, text in the background colour).
+private struct NewtonRowStyle: ButtonStyle {
+    let tint: Color
 
-    var body: some View {
-        NavigationStack {
-            List {
-                let typed = Item.cleanTag(query)
-                if !typed.isEmpty, !tags.contains(where: { $0.caseInsensitiveCompare(typed) == .orderedSame }) {
-                    Button {
-                        add(typed)
-                        on.insert(typed.lowercased())
-                        query = ""
-                    } label: {
-                        Label("New tag #\(typed)", systemImage: "plus")
-                    }
-                }
-                ForEach(matching, id: \.self) { tag in
-                    let ticked = on.contains(tag.lowercased())
-                    Button {
-                        if ticked { remove(tag); on.remove(tag.lowercased()) }
-                        else { add(tag); on.insert(tag.lowercased()) }
-                    } label: {
-                        HStack {
-                            Text("#\(tag)")
-                                .foregroundStyle(TagPalette.tint(for: tag))
-                            Spacer()
-                            if ticked {
-                                Image(systemName: "checkmark")
-                                    .foregroundStyle(Theme.blue)
-                                    .accessibilityHidden(true)
-                            }
-                        }
-                        .frame(minHeight: 44)
-                        .contentShape(Rectangle())
-                    }
-                    .disabled(fixed.contains(tag))
-                    .accessibilityLabel(fixed.contains(tag) ? "\(tag), typed in the text" : tag)
-                    .accessibilityAddTraits(ticked ? .isSelected : [])
-                }
-            }
-            .searchable(text: $query, prompt: "Find or make a tag")
-            .textInputAutocapitalization(.never)
-            .autocorrectionDisabled()
-            .navigationTitle("Tags")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
-                }
-            }
-        }
-        .presentationDetents([.medium, .large])
-        .onAppear { on = Set(applied.map { $0.lowercased() }) }
-    }
-
-    private var matching: [String] {
-        let q = query.trimmingCharacters(in: .whitespaces).trimmingCharacters(in: CharacterSet(charactersIn: "#"))
-        guard !q.isEmpty else { return tags }
-        return tags.filter { $0.localizedCaseInsensitiveContains(q) }
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .foregroundStyle(configuration.isPressed ? Theme.base : tint)
+            .background(configuration.isPressed ? tint : .clear)
     }
 }
