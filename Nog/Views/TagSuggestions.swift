@@ -54,7 +54,7 @@ extension TagPalette {
 /// the spirit of the Newton's pickers: the button pulls out into a drawer in its own style
 /// (a fade with Reduce Motion), as narrow as the tags allow but never narrower than the
 /// button, one tight row per tag, a tick on the left for tags that are on. Tap a tag to
-/// put it on (or take it off) and the menu closes, with a light tap of haptics. "New…"
+/// put it on (or take it off) and the menu closes. "New…"
 /// turns into a field in place (the only time the keyboard comes up); "More…" shows every
 /// tag once there are more than seven. The drawer touches its button and shares that edge
 /// (near-square corners there, a shallow inner shadow), so the two read as one piece.
@@ -119,14 +119,14 @@ struct TagDrawerStyle {
     static let standard = TagDrawerStyle(fill: Theme.blue.opacity(0.15), stroke: Theme.blue.opacity(0.4))
 }
 
-/// The small mark that says "this opens a list" (the Newton used a diamond; ours is a hexagon).
+/// The small mark that says "this opens a list": a subtle diamond, as on the Newton.
 struct PickerMark: View {
     var body: some View {
-        Image(systemName: "hexagon.fill")
+        Image(systemName: "diamond.fill")
             .font(.system(.caption2, weight: .bold))
             .imageScale(.small)
-            .scaleEffect(0.7)
-            .opacity(0.75)
+            .scaleEffect(0.6)
+            .opacity(0.6)
             .accessibilityHidden(true)
     }
 }
@@ -152,10 +152,6 @@ final class TagMenuCenter {
     }
     /// Where the last menu opened, kept after it closes so it slides back into its button.
     private(set) var lastAnchor: CGRect = .zero
-    /// Goes up each time a tag is chosen, for the "click" (a selection haptic).
-    private(set) var chosen = 0
-
-    func didChoose() { chosen += 1 }
 
     func open(_ request: Request) {
         withNogAnimation(.snappy(duration: 0.24, extraBounce: 0.08)) { self.request = request }
@@ -205,7 +201,6 @@ private struct TagMenuHost: View {
                 }
             }
         }
-        .nogFeedback(.selection, trigger: center.chosen)
     }
 }
 
@@ -254,7 +249,7 @@ private struct TagMenuPanel: View {
     @Environment(\.colorSchemeContrast) private var contrast
     @Environment(\.dynamicTypeSize) private var typeSize
     @ScaledMetric(relativeTo: .subheadline) private var fieldWidth: CGFloat = 110
-    @ScaledMetric(relativeTo: .subheadline) private var rowHeight: CGFloat = 32
+    @ScaledMetric(relativeTo: .subheadline) private var rowHeight: CGFloat = 40
     @State private var showingAll = false
     @State private var naming = false
     @State private var newName = ""
@@ -360,7 +355,6 @@ private struct TagMenuPanel: View {
         let color = TagPalette.tint(for: tag)
         return Button {
             on ? request.remove(tag) : request.add(tag)
-            TagMenuCenter.shared.didChoose()
             close()
         } label: {
             row(mark: on ? "checkmark" : nil, text: "#\(tag)")
@@ -408,10 +402,7 @@ private struct TagMenuPanel: View {
                 .submitLabel(.done)
                 .onSubmit {
                     let tag = Item.cleanTag(newName)
-                    if !tag.isEmpty {
-                        request.add(tag)
-                        TagMenuCenter.shared.didChoose()
-                    }
+                    if !tag.isEmpty { request.add(tag) }
                     close()
                 }
                 .frame(width: fieldWidth)
