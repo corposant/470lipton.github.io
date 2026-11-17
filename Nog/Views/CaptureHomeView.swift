@@ -497,17 +497,14 @@ struct CaptureHomeView: View {
                         chip(kind.label, systemImage: kind.systemImage, tint: kind.tint,
                              isOn: kind != .note, isOpen: panel == .kind) { toggle(.kind) }
                         TagMenu(applied: result.tags,
-                                fixed: Set(result.tags).subtracting(draft.extraTags),
                                 add: addTag,
-                                remove: { tag in
-                                    draft.extraTags.removeAll { $0.caseInsensitiveCompare(tag) == .orderedSame }
-                                },
+                                remove: removeTag,
                                 // The chip's own look (violet outline), pulled out as a drawer.
                                 drawer: TagDrawerStyle(fill: Theme.violet.opacity(0.10),
                                                        stroke: Theme.violet.opacity(0.7))) {
                             chipLabel(result.tags.isEmpty ? "Tags" : result.tags.map { "#\($0)" }.joined(separator: " "),
                                       systemImage: "number", tint: Theme.violet,
-                                      isOn: !result.tags.isEmpty, isOpen: false)
+                                      isOn: !result.tags.isEmpty, isOpen: false, opensList: true)
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel("Tags")
@@ -601,8 +598,12 @@ struct CaptureHomeView: View {
         .accessibilityAddTraits(isOpen ? .isSelected : [])
     }
 
-    private func chipLabel(_ title: String, systemImage: String, tint: Color, isOn: Bool, isOpen: Bool) -> some View {
-        Label(title, systemImage: systemImage)
+    private func chipLabel(_ title: String, systemImage: String, tint: Color, isOn: Bool, isOpen: Bool,
+                           opensList: Bool = false) -> some View {
+        HStack(spacing: 5) {
+            Label(title, systemImage: systemImage)
+            if opensList { PickerMark() }
+        }
             .font(.subheadline)
             .lineLimit(1)
             .foregroundStyle(isOn || isOpen ? tint : Color.primary.opacity(0.8))
@@ -700,6 +701,14 @@ struct CaptureHomeView: View {
                 .buttonStyle(.borderless)
                 .tint(Theme.violet)
         }
+    }
+
+    /// Takes a tag off: one added from the menu, or one typed in the text (its "#tag" word goes).
+    private func removeTag(_ tag: String) {
+        draft.extraTags.removeAll { $0.caseInsensitiveCompare(tag) == .orderedSame }
+        let word = "(?<!\\S)#" + NSRegularExpression.escapedPattern(for: tag) + ",?(?!\\S)[ ]?"
+        draft.text = draft.text.replacingOccurrences(of: word, with: "",
+                                                     options: [.regularExpression, .caseInsensitive])
     }
 
     private func addTag(_ raw: String) {

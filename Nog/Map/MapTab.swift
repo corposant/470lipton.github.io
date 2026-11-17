@@ -1287,9 +1287,12 @@ private struct MapInfoCard: View {
 
                 // Tags set the Map's zones: same quick menu as New Nog, no keyboard.
                 TagMenu(applied: item.tags, add: addTag, remove: removeTag) {
-                    Label("Tags", systemImage: item.tags.isEmpty ? "tag" : "tag.fill")
-                        .labelStyle(.iconOnly)
-                        .frame(minWidth: 28, minHeight: 20)
+                    HStack(spacing: 3) {
+                        Label("Tags", systemImage: item.tags.isEmpty ? "tag" : "tag.fill")
+                            .labelStyle(.iconOnly)
+                        PickerMark()
+                    }
+                    .frame(minWidth: 28, minHeight: 20)
                 }
                 .buttonStyle(.bordered)
                 .accessibilityLabel("Tags")
