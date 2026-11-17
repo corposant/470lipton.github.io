@@ -504,7 +504,7 @@ struct CaptureHomeView: View {
                                                        stroke: Theme.violet.opacity(0.7))) {
                             chipLabel(result.tags.isEmpty ? "Tags" : result.tags.map { "#\($0)" }.joined(separator: " "),
                                       systemImage: "number", tint: Theme.violet,
-                                      isOn: !result.tags.isEmpty, isOpen: false, opensList: true)
+                                      isOn: !result.tags.isEmpty, isOpen: false)
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel("Tags")
@@ -598,12 +598,8 @@ struct CaptureHomeView: View {
         .accessibilityAddTraits(isOpen ? .isSelected : [])
     }
 
-    private func chipLabel(_ title: String, systemImage: String, tint: Color, isOn: Bool, isOpen: Bool,
-                           opensList: Bool = false) -> some View {
-        HStack(spacing: 5) {
-            Label(title, systemImage: systemImage)
-            if opensList { PickerMark() }
-        }
+    private func chipLabel(_ title: String, systemImage: String, tint: Color, isOn: Bool, isOpen: Bool) -> some View {
+        Label(title, systemImage: systemImage)
             .font(.subheadline)
             .lineLimit(1)
             .foregroundStyle(isOn || isOpen ? tint : Color.primary.opacity(0.8))

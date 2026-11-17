@@ -119,18 +119,6 @@ struct TagDrawerStyle {
     static let standard = TagDrawerStyle(fill: Theme.blue.opacity(0.15), stroke: Theme.blue.opacity(0.4))
 }
 
-/// The small mark that says "this opens a list": a subtle diamond, as on the Newton.
-struct PickerMark: View {
-    var body: some View {
-        Image(systemName: "diamond.fill")
-            .font(.system(.caption2, weight: .bold))
-            .imageScale(.small)
-            .scaleEffect(0.6)
-            .opacity(0.6)
-            .accessibilityHidden(true)
-    }
-}
-
 /// The one tag menu that's open, if any.
 @MainActor @Observable
 final class TagMenuCenter {
