@@ -499,14 +499,11 @@ struct CaptureHomeView: View {
                         TagMenu(applied: result.tags,
                                 add: addTag,
                                 remove: removeTag,
-                                // The chip's own look (violet outline), pulled out as a drawer.
-                                drawer: TagDrawerStyle(fill: Theme.violet.opacity(0.10),
-                                                       stroke: Theme.violet.opacity(0.7))) {
+                                // The chip's own look; its outline stretches out into the drawer.
+                                look: .chip(Theme.violet, isOn: !result.tags.isEmpty)) {
                             chipLabel(result.tags.isEmpty ? "Tags" : result.tags.map { "#\($0)" }.joined(separator: " "),
-                                      systemImage: "number", tint: Theme.violet,
-                                      isOn: !result.tags.isEmpty, isOpen: false)
+                                      systemImage: "number")
                         }
-                        .buttonStyle(.plain)
                         .accessibilityLabel("Tags")
                         .accessibilityValue(result.tags.isEmpty ? "None" : result.tags.map { "#\($0)" }.joined(separator: ", "))
                         .accessibilityHint("Opens a menu of your tags")
@@ -540,14 +537,8 @@ struct CaptureHomeView: View {
                     } label: {
                         Text("Done")
                             .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(Theme.base)
-                            .padding(.horizontal, 14)
-                            .frame(minHeight: 36)
-                            .background(Theme.teal, in: Capsule())
-                            .frame(minHeight: 44)
-                            .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.newton(.prominent(Theme.teal)))
                     .padding(.trailing, 12)
                     .padding(.leading, 4)
                     .accessibilityHint("Hides the keyboard")
@@ -589,26 +580,21 @@ struct CaptureHomeView: View {
         panel = nil
     }
 
+    /// A tray chip: a Newton-style button, coloured when it has something set, a little
+    /// stronger while its panel is open.
     private func chip(_ title: String, systemImage: String, tint: Color, isOn: Bool, isOpen: Bool,
                       action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            chipLabel(title, systemImage: systemImage, tint: tint, isOn: isOn, isOpen: isOpen)
+            chipLabel(title, systemImage: systemImage)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.newton(isOpen ? .open(tint) : .chip(tint, isOn: isOn)))
         .accessibilityAddTraits(isOpen ? .isSelected : [])
     }
 
-    private func chipLabel(_ title: String, systemImage: String, tint: Color, isOn: Bool, isOpen: Bool) -> some View {
+    private func chipLabel(_ title: String, systemImage: String) -> some View {
         Label(title, systemImage: systemImage)
             .font(.subheadline)
             .lineLimit(1)
-            .foregroundStyle(isOn || isOpen ? tint : Color.primary.opacity(0.8))
-            .padding(.horizontal, 12)
-            .frame(minHeight: 36)
-            .background(isOpen ? tint.opacity(0.18) : (isOn ? tint.opacity(0.10) : .clear), in: Capsule())
-            .overlay(Capsule().strokeBorder(isOn || isOpen ? tint.opacity(0.7) : Theme.edgeStrong,
-                                            lineWidth: isOpen ? 1.5 : 1))
-            .contentShape(Capsule())
     }
 
     @ViewBuilder
