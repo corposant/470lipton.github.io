@@ -50,74 +50,156 @@ extension TagPalette {
     }
 }
 
-/// The tag menu: the tags as chips (✕ takes one off), a field to type a new one, and
-/// recent or matching tags to tap. Used by New Nog's Tags panel and the Map's info card,
-/// so tagging looks and works the same in both places.
-struct TagEditor<Focus: Hashable>: View {
-    let tags: [String]
-    /// Tags shown but not removable here (in New Nog, the ones typed in the text).
+/// The tag menu, shared by New Nog's Tags chip and the Map's info card. Tapping the
+/// label opens a plain menu, no keyboard: up to seven tags (the nog's own first, then
+/// the most used), each with a tick when it's on; "New tag…" to name one; and
+/// "More tags…" for the full list once there are more than seven.
+struct TagMenu<MenuLabel: View>: View {
+    /// The tags on the nog now.
+    let applied: [String]
+    /// Tags that can't be taken off here (in New Nog, the ones typed in the text).
     var fixed: Set<String> = []
-    @Binding var text: String
-    let focus: FocusState<Focus>.Binding
-    let focusValue: Focus
     let add: (String) -> Void
     let remove: (String) -> Void
+    @ViewBuilder let label: () -> MenuLabel
     @Environment(ItemStore.self) private var store
-    @ScaledMetric(relativeTo: .subheadline) private var fieldWidth: CGFloat = 120
+    @State private var naming = false
+    @State private var newName = ""
+    @State private var showingAll = false
+
+    static var shown: Int { 7 }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            FlowLayout(spacing: 6) {
-                ForEach(tags, id: \.self) { tag in
-                    chip(tag, removable: !fixed.contains(tag))
+        let all = allTags
+        Menu {
+            ForEach(all.prefix(Self.shown), id: \.self) { tag in
+                toggle(tag)
+            }
+            Divider()
+            Button {
+                naming = true
+            } label: {
+                Label("New tag…", systemImage: "plus")
+            }
+            if all.count > Self.shown {
+                Button {
+                    showingAll = true
+                } label: {
+                    Label("More tags…", systemImage: "ellipsis")
                 }
-                TextField("add tag", text: $text)
-                    .font(.subheadline)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .focused(focus, equals: focusValue)
-                    .submitLabel(.done)
-                    .onSubmit(submit)
-                    .frame(width: fieldWidth).frame(minHeight: 32)
-                    .padding(.horizontal, 10)
-                    .overlay(Capsule().strokeBorder(Theme.edgeStrong, lineWidth: 1))
-                    .padding(.vertical, 6)
-                    .contentShape(Rectangle())
-                    .accessibilityLabel("Add tag")
-                    .accessibilityHint("Type a tag, then press Done.")
+                .accessibilityLabel("More tags, \(all.count - Self.shown) more")
             }
-            TagSuggestionStrip(title: text.isEmpty ? "Recent" : "Tags",
-                               tags: TagSuggester.suggest(text, from: TagSuggester.stats(store.items.values),
-                                                          excluding: Set(tags))) { tag in
-                add(tag)
-                text = ""
-            }
-        }
-    }
-
-    private func submit() {
-        add(text)
-        text = ""
-    }
-
-    private func chip(_ tag: String, removable: Bool) -> some View {
-        let color = TagPalette.tint(for: tag)
-        return Button {
-            if removable { remove(tag) }
         } label: {
-            Text(removable ? "#\(tag) ✕" : "#\(tag)")
-                .font(.subheadline)
-                .foregroundStyle(color)
-                .padding(.horizontal, 10)
-                .frame(minHeight: 32)
-                .background(color.opacity(0.10), in: Capsule())
-                .overlay(Capsule().strokeBorder(color.opacity(0.5), lineWidth: 1))
-                // A 44pt tall target around the 32pt capsule.
-                .padding(.vertical, 6)
-                .contentShape(Rectangle())
+            label()
         }
-        .buttonStyle(.plain)
-        .disabled(!removable)
-        .accessibilityLabel(removable ? "Remove tag \(tag)" : "Tag \(tag), typed in the text")
+        .menuOrder(.fixed)
+        .alert("New tag", isPresented: $naming) {
+            TextField("Tag name", text: $newName)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+            Button("Add") {
+                add(newName)
+                newName = ""
+            }
+            Button("Cancel", role: .cancel) { newName = "" }
+        } message: {
+            Text("Nogs with the same tag share a zone on the Map.")
+        }
+        .sheet(isPresented: $showingAll) {
+            TagListSheet(tags: all, applied: applied, fixed: fixed, add: add, remove: remove)
+        }
+    }
+
+    /// The nog's tags first, then every other tag, most used and most recent first.
+    private var allTags: [String] {
+        let others = TagSuggester.suggest("", from: TagSuggester.stats(store.items.values),
+                                          excluding: Set(applied), limit: .max)
+        return applied + others
+    }
+
+    private func isOn(_ tag: String) -> Bool {
+        applied.contains { $0.caseInsensitiveCompare(tag) == .orderedSame }
+    }
+
+    private func toggle(_ tag: String) -> some View {
+        Toggle(isOn: Binding(get: { isOn(tag) },
+                             set: { $0 ? add(tag) : remove(tag) })) {
+            Text("#\(tag)")
+        }
+        .disabled(fixed.contains(tag))
+        .accessibilityLabel(fixed.contains(tag) ? "\(tag), typed in the text" : tag)
+    }
+}
+
+/// Every tag, for when there are more than the menu shows. Tap a row to put the tag
+/// on or take it off. The search field only brings up the keyboard when tapped, and
+/// can make a new tag from what's typed.
+private struct TagListSheet: View {
+    let tags: [String]
+    let applied: [String]
+    let fixed: Set<String>
+    let add: (String) -> Void
+    let remove: (String) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var query = ""
+    /// Local copy so ticks update straight away.
+    @State private var on: Set<String> = []
+
+    var body: some View {
+        NavigationStack {
+            List {
+                let typed = Item.cleanTag(query)
+                if !typed.isEmpty, !tags.contains(where: { $0.caseInsensitiveCompare(typed) == .orderedSame }) {
+                    Button {
+                        add(typed)
+                        on.insert(typed.lowercased())
+                        query = ""
+                    } label: {
+                        Label("New tag #\(typed)", systemImage: "plus")
+                    }
+                }
+                ForEach(matching, id: \.self) { tag in
+                    let ticked = on.contains(tag.lowercased())
+                    Button {
+                        if ticked { remove(tag); on.remove(tag.lowercased()) }
+                        else { add(tag); on.insert(tag.lowercased()) }
+                    } label: {
+                        HStack {
+                            Text("#\(tag)")
+                                .foregroundStyle(TagPalette.tint(for: tag))
+                            Spacer()
+                            if ticked {
+                                Image(systemName: "checkmark")
+                                    .foregroundStyle(Theme.blue)
+                                    .accessibilityHidden(true)
+                            }
+                        }
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
+                    }
+                    .disabled(fixed.contains(tag))
+                    .accessibilityLabel(fixed.contains(tag) ? "\(tag), typed in the text" : tag)
+                    .accessibilityAddTraits(ticked ? .isSelected : [])
+                }
+            }
+            .searchable(text: $query, prompt: "Find or make a tag")
+            .textInputAutocapitalization(.never)
+            .autocorrectionDisabled()
+            .navigationTitle("Tags")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+        .onAppear { on = Set(applied.map { $0.lowercased() }) }
+    }
+
+    private var matching: [String] {
+        let q = query.trimmingCharacters(in: .whitespaces).trimmingCharacters(in: CharacterSet(charactersIn: "#"))
+        guard !q.isEmpty else { return tags }
+        return tags.filter { $0.localizedCaseInsensitiveContains(q) }
     }
 }

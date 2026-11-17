@@ -12,7 +12,6 @@ struct CaptureHomeView: View {
     @State private var panel: TrayPanel?
     @State private var showSubItems = false
     @State private var newSubItem = ""
-    @State private var newTag = ""
     @State private var showKindHelp = false
     @State private var showHowTo = false
     @State private var showParentPicker = false
@@ -26,7 +25,7 @@ struct CaptureHomeView: View {
     @AppStorage(NogSettings.Key.escalateAfter) private var globalEscalate = 0
     @FocusState private var focus: Field?
 
-    private enum Field: Hashable { case title, subItem, tag }
+    private enum Field: Hashable { case title, subItem }
 
     /// One saved nog in the "Just nogged" pile, with what's needed to undo it.
     struct JustNogged: Identifiable, Equatable {
@@ -36,13 +35,12 @@ struct CaptureHomeView: View {
         let draft: CaptureDraft
     }
     enum TrayPanel: Hashable {
-        case when, kind, tags
+        case when, kind
 
         var title: String {
             switch self {
             case .when: "When"
             case .kind: "How"
-            case .tags: "Tags"
             }
         }
     }
@@ -498,9 +496,20 @@ struct CaptureHomeView: View {
                              isOn: draft.when != nil, isOpen: panel == .when) { toggle(.when) }
                         chip(kind.label, systemImage: kind.systemImage, tint: kind.tint,
                              isOn: kind != .note, isOpen: panel == .kind) { toggle(.kind) }
-                        chip(result.tags.isEmpty ? "Tags" : result.tags.map { "#\($0)" }.joined(separator: " "),
-                             systemImage: "number", tint: Theme.violet,
-                             isOn: !result.tags.isEmpty, isOpen: panel == .tags) { toggle(.tags) }
+                        TagMenu(applied: result.tags,
+                                fixed: Set(result.tags).subtracting(draft.extraTags),
+                                add: addTag,
+                                remove: { tag in
+                                    draft.extraTags.removeAll { $0.caseInsensitiveCompare(tag) == .orderedSame }
+                                }) {
+                            chipLabel(result.tags.isEmpty ? "Tags" : result.tags.map { "#\($0)" }.joined(separator: " "),
+                                      systemImage: "number", tint: Theme.violet,
+                                      isOn: !result.tags.isEmpty, isOpen: false)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Tags")
+                        .accessibilityValue(result.tags.isEmpty ? "None" : result.tags.map { "#\($0)" }.joined(separator: ", "))
+                        .accessibilityHint("Opens a menu of your tags")
                         chip(draft.subItems.isEmpty ? "Sub-nogs" : "\(draft.subItems.count) sub-nogs",
                              systemImage: "list.bullet", tint: Theme.blue,
                              isOn: !draft.subItems.isEmpty, isOpen: false) {
@@ -573,33 +582,33 @@ struct CaptureHomeView: View {
     private func toggle(_ p: TrayPanel) {
         if panel == p { closePanel(); return }
         panel = p
-        if p == .tags { focus = .tag }
     }
 
-    /// Close whichever panel is open. The tag field's keyboard goes with it;
-    /// the title keeps its keyboard so you can carry on typing.
+    /// Close whichever panel is open. The title keeps its keyboard so you can carry on typing.
     private func closePanel() {
-        if focus == .tag { focus = nil }
-        newTag = ""
         panel = nil
     }
 
     private func chip(_ title: String, systemImage: String, tint: Color, isOn: Bool, isOpen: Bool,
                       action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Label(title, systemImage: systemImage)
-                .font(.subheadline)
-                .lineLimit(1)
-                .foregroundStyle(isOn || isOpen ? tint : Color.primary.opacity(0.8))
-                .padding(.horizontal, 12)
-                .frame(minHeight: 36)
-                .background(isOpen ? tint.opacity(0.18) : (isOn ? tint.opacity(0.10) : .clear), in: Capsule())
-                .overlay(Capsule().strokeBorder(isOn || isOpen ? tint.opacity(0.7) : Theme.edgeStrong,
-                                                lineWidth: isOpen ? 1.5 : 1))
-                .contentShape(Capsule())
+            chipLabel(title, systemImage: systemImage, tint: tint, isOn: isOn, isOpen: isOpen)
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(isOpen ? .isSelected : [])
+    }
+
+    private func chipLabel(_ title: String, systemImage: String, tint: Color, isOn: Bool, isOpen: Bool) -> some View {
+        Label(title, systemImage: systemImage)
+            .font(.subheadline)
+            .lineLimit(1)
+            .foregroundStyle(isOn || isOpen ? tint : Color.primary.opacity(0.8))
+            .padding(.horizontal, 12)
+            .frame(minHeight: 36)
+            .background(isOpen ? tint.opacity(0.18) : (isOn ? tint.opacity(0.10) : .clear), in: Capsule())
+            .overlay(Capsule().strokeBorder(isOn || isOpen ? tint.opacity(0.7) : Theme.edgeStrong,
+                                            lineWidth: isOpen ? 1.5 : 1))
+            .contentShape(Capsule())
     }
 
     @ViewBuilder
@@ -607,7 +616,6 @@ struct CaptureHomeView: View {
         switch p {
         case .when: whenPanel(result)
         case .kind: kindPanel(result, kind: kind)
-        case .tags: tagsPanel(result)
         }
     }
 
@@ -691,20 +699,8 @@ struct CaptureHomeView: View {
         }
     }
 
-    private func tagsPanel(_ result: CaptureResult) -> some View {
-        // Tags typed in the text stay put; ones added here come off with ✕.
-        TagEditor(tags: result.tags,
-                  fixed: Set(result.tags).subtracting(draft.extraTags),
-                  text: $newTag,
-                  focus: $focus,
-                  focusValue: Field.tag,
-                  add: addTag,
-                  remove: { tag in draft.extraTags.removeAll { $0 == tag } })
-    }
-
     private func addTag(_ raw: String) {
         let tag = Item.cleanTag(raw)
-        newTag = ""
         guard !tag.isEmpty, !draft.extraTags.contains(where: { $0.caseInsensitiveCompare(tag) == .orderedSame }) else { return }
         draft.extraTags.append(tag)
     }
