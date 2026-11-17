@@ -51,11 +51,13 @@ extension TagPalette {
 }
 
 /// The tag menu, shared by New Nog's Tags chip and the Map's info card. Drawn by us, in
-/// the spirit of the Newton's pickers: it pops up right at the button with no animation,
-/// a plain panel with a thin border and a hard shadow, one tight row per tag, a tick on
-/// the left for tags that are on. Tap a tag to put it on (or take it off) and the menu
-/// closes. "New tag…" turns into a field in place (the only time the keyboard comes up);
-/// "More…" shows every tag once there are more than seven.
+/// the spirit of the Newton's pickers: the button pulls out into a drawer in its own style
+/// (a fade with Reduce Motion), as narrow as the tags allow but never narrower than the
+/// button, one tight row per tag, a tick on the left for tags that are on. Tap a tag to
+/// put it on (or take it off) and the menu closes. "New…"
+/// turns into a field in place (the only time the keyboard comes up); "More…" shows every
+/// tag once there are more than seven. The drawer touches its button and shares that edge
+/// (near-square corners there, a shallow inner shadow), so the two read as one piece.
 ///
 /// The panel itself is drawn by `TagMenuHost` at the top of the window, so nothing it
 /// sits inside (a scrolling chip row, a card) can clip it.
@@ -66,9 +68,13 @@ struct TagMenu<MenuLabel: View>: View {
     var fixed: Set<String> = []
     let add: (String) -> Void
     let remove: (String) -> Void
+    /// The button's own look, so the menu reads as the button pulled out into a drawer.
+    var drawer: TagDrawerStyle = .standard
     @ViewBuilder let label: () -> MenuLabel
     @State private var frame: CGRect = .zero
     @State private var openID: UUID?
+    /// VoiceOver goes back to the button when its menu closes.
+    @AccessibilityFocusState private var buttonFocused: Bool
 
     private var center: TagMenuCenter { .shared }
     private var isOpen: Bool { openID != nil && center.request?.id == openID }
@@ -81,16 +87,36 @@ struct TagMenu<MenuLabel: View>: View {
                 if isOpen { center.request?.anchor = new }
             }
             .accessibilityAddTraits(isOpen ? .isSelected : [])
+            .accessibilityFocused($buttonFocused)
+            .onChange(of: isOpen) { _, open in
+                if !open, openID != nil {
+                    openID = nil
+                    buttonFocused = true
+                }
+            }
             .onDisappear { if isOpen { center.close() } }
     }
 
     private func toggleOpen() {
         if isOpen { center.close(); return }
         let request = TagMenuCenter.Request(anchor: frame, applied: applied, fixed: fixed,
-                                            add: add, remove: remove)
+                                            style: drawer, add: add, remove: remove)
         openID = request.id
-        center.request = request
+        center.open(request)
     }
+}
+
+/// How a tag button is drawn, so its drawer can match: the same fill and outline, and the
+/// same corners (nil = round ends, like a capsule button).
+struct TagDrawerStyle {
+    var fill: Color
+    var stroke: Color = .clear
+    var lineWidth: CGFloat = 1
+    var cornerRadius: CGFloat? = nil
+
+    /// The Map card's bordered button. The faint outline keeps the drawer's edge
+    /// visible on the dark theme, where a shadow wouldn't show.
+    static let standard = TagDrawerStyle(fill: Theme.blue.opacity(0.15), stroke: Theme.blue.opacity(0.45))
 }
 
 /// The one tag menu that's open, if any.
@@ -104,13 +130,24 @@ final class TagMenuCenter {
         var anchor: CGRect
         let applied: [String]
         let fixed: Set<String>
+        let style: TagDrawerStyle
         let add: (String) -> Void
         let remove: (String) -> Void
     }
 
-    var request: Request?
+    var request: Request? {
+        didSet { if let request { lastAnchor = request.anchor } }
+    }
+    /// Where the last menu opened, kept after it closes so it slides back into its button.
+    private(set) var lastAnchor: CGRect = .zero
 
-    func close() { request = nil }
+    func open(_ request: Request) {
+        withNogAnimation(.snappy(duration: 0.24, extraBounce: 0.08)) { self.request = request }
+    }
+
+    func close() {
+        withNogAnimation(.snappy(duration: 0.18)) { request = nil }
+    }
 }
 
 extension View {
@@ -122,48 +159,84 @@ extension View {
 
 private struct TagMenuHost: View {
     private var center: TagMenuCenter { .shared }
-    @State private var size: CGSize = .zero
 
     var body: some View {
-        if let request = center.request {
-            GeometryReader { geo in
-                let origin = geo.frame(in: .global).origin
-                let anchor = request.anchor.offsetBy(dx: -origin.x, dy: -origin.y)
-                let bounds = geo.size
-                // Open upwards from buttons in the lower half (the Map card, the capture tray).
-                let up = anchor.midY > bounds.height / 2
-                let room = up ? anchor.minY - geo.safeAreaInsets.top - 12
-                              : bounds.height - anchor.maxY - geo.safeAreaInsets.bottom - 12
-                ZStack(alignment: .topLeading) {
-                    // Tap anywhere else to close, as on the Newton.
+        GeometryReader { geo in
+            let origin = geo.frame(in: .global).origin
+            let anchor = center.lastAnchor.offsetBy(dx: -origin.x, dy: -origin.y)
+            // Open upwards from buttons in the lower half (the Map card, the capture tray).
+            let up = anchor.midY > geo.size.height / 2
+            let room = up ? anchor.minY - 12 : geo.size.height - anchor.maxY - 12
+            ZStack(alignment: .topLeading) {
+                if center.request != nil {
+                    // Tap anywhere else to close.
                     Color.clear
                         .contentShape(Rectangle())
                         .ignoresSafeArea()
                         .onTapGesture { center.close() }
                         .accessibilityHidden(true)
-                    TagMenuPanel(request: request, maxHeight: max(room, 120)) { center.close() }
-                        .id(request.id)
-                        .fixedSize()
-                        .onGeometryChange(for: CGSize.self) { $0.size } action: { size = $0 }
-                        .offset(x: min(max(anchor.minX, 8), bounds.width - size.width - 8),
-                                y: up ? anchor.minY - size.height - 4 : anchor.maxY + 4)
-                        // Hidden for the one pass before it's measured, so it never jumps.
-                        .opacity(size == .zero ? 0 : 1)
+                }
+                TagMenuPlacement(anchor: anchor, up: up) {
+                    if let request = center.request {
+                        TagMenuPanel(request: request, up: up, maxHeight: max(room, 120)) { center.close() }
+                            .id(request.id)
+                            .fixedSize()
+                            // Pulls out of the button like a drawer: revealed from the button's edge.
+                            .transition(.nog(.modifier(active: DrawerReveal(open: 0, fromBottom: up),
+                                                       identity: DrawerReveal(open: 1, fromBottom: up))
+                                .combined(with: .opacity)))
+                    }
                 }
             }
-            .onDisappear { size = .zero }
         }
     }
 }
 
-/// The panel: tag rows, then New tag… and More….
+/// Puts the menu right against (or below) its button, kept on screen. A layout, not a
+/// measure-then-move, so it's in the right place from the first frame.
+private struct TagMenuPlacement: Layout {
+    let anchor: CGRect
+    let up: Bool
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        proposal.replacingUnspecifiedDimensions()
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            let x = min(max(anchor.minX, 8), bounds.width - size.width - 8)
+            // Touching the button: one piece with it.
+            let y = up ? anchor.minY - size.height : anchor.maxY
+            subview.place(at: CGPoint(x: bounds.minX + x, y: bounds.minY + y), proposal: ProposedViewSize(size))
+        }
+    }
+}
+
+/// Reveals the drawer from the button's edge outwards.
+private struct DrawerReveal: ViewModifier {
+    let open: CGFloat
+    let fromBottom: Bool
+
+    func body(content: Content) -> some View {
+        content.mask {
+            Rectangle()
+                .scaleEffect(x: 1, y: max(open, 0.001), anchor: fromBottom ? .bottom : .top)
+        }
+    }
+}
+
+/// The panel: tag rows, then New… and More….
 private struct TagMenuPanel: View {
     let request: TagMenuCenter.Request
+    /// Opens upwards, so the button is at its bottom edge.
+    let up: Bool
     let maxHeight: CGFloat
     let close: () -> Void
     @Environment(ItemStore.self) private var store
     @Environment(\.colorSchemeContrast) private var contrast
-    @ScaledMetric(relativeTo: .subheadline) private var rowHeight: CGFloat = 32
+    @ScaledMetric(relativeTo: .subheadline) private var fieldWidth: CGFloat = 110
+    @ScaledMetric(relativeTo: .subheadline) private var rowHeight: CGFloat = 40
     @State private var showingAll = false
     @State private var naming = false
     @State private var newName = ""
@@ -172,6 +245,19 @@ private struct TagMenuPanel: View {
     @AccessibilityFocusState private var voFocus: String?
 
     static var shown: Int { 7 }
+
+    /// The button's corners (its own radius, or round ends for a capsule) on the far side;
+    /// nearly square where the drawer meets the button, so they share that edge.
+    private var shape: UnevenRoundedRectangle {
+        let far = request.style.cornerRadius ?? min(request.anchor.height / 2, 18)
+        let near: CGFloat = 3
+        return UnevenRoundedRectangle(topLeadingRadius: up ? far : near, bottomLeadingRadius: up ? near : far,
+                                      bottomTrailingRadius: up ? near : far, topTrailingRadius: up ? far : near,
+                                      style: .continuous)
+    }
+
+    /// Narrow comes first: longer tags are cut with "…".
+    private var maxWidth: CGFloat { max(request.anchor.width, 180) }
 
     var body: some View {
         let all = allTags
@@ -196,7 +282,7 @@ private struct TagMenuPanel: View {
                 nameField
             } else {
                 Button { naming = true } label: {
-                    row(mark: "plus", text: "New tag…")
+                    row(mark: "plus", text: "New…")
                 }
                 .buttonStyle(NewtonRowStyle(tint: Theme.violet))
                 .accessibilityLabel("New tag")
@@ -209,11 +295,27 @@ private struct TagMenuPanel: View {
                 .accessibilityLabel("More tags, \(all.count - Self.shown) more")
             }
         }
-        .frame(minWidth: 132, maxWidth: 260, alignment: .leading)
-        .background(Theme.base)
-        .overlay(Rectangle().strokeBorder(contrast == .increased ? Theme.edgeStrong : Theme.edge, lineWidth: 1))
-        // A hard shadow, no blur: quick to draw and crisp.
-        .background(Rectangle().fill(Theme.violet.opacity(0.35)).offset(x: 3, y: 3))
+        // As narrow as the tags allow, never narrower than the button itself.
+        .frame(minWidth: request.anchor.width, maxWidth: maxWidth, alignment: .leading)
+        .background {
+            ZStack {
+                Theme.base
+                request.style.fill
+            }
+        }
+        // A little depth: a shallow inner shadow at the button's edge, as if the rows
+        // sit in a well the button pulled open.
+        .overlay(alignment: up ? .bottom : .top) {
+            LinearGradient(colors: [.black.opacity(0.2), .clear],
+                           startPoint: up ? .bottom : .top, endPoint: up ? .top : .bottom)
+                .frame(height: 7)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
+        .clipShape(shape)
+        .overlay(shape.strokeBorder(contrast == .increased && request.style.stroke == .clear
+                                        ? Theme.edgeStrong : request.style.stroke,
+                                    lineWidth: request.style.lineWidth))
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Tags")
         .accessibilityAddTraits(.isModal)
@@ -243,8 +345,8 @@ private struct TagMenuPanel: View {
             row(mark: on ? "checkmark" : nil, text: "#\(tag)")
         }
         .buttonStyle(NewtonRowStyle(tint: color))
-        .disabled(isFixed)
-        .opacity(isFixed ? 0.6 : 1)
+        // Ticked at full strength, never a dimmed dead-looking row.
+        .allowsHitTesting(!isFixed)
         .accessibilityLabel(isFixed ? "\(tag), typed in the text" : tag)
         .accessibilityAddTraits(on ? .isSelected : [])
         .accessibilityHint(on ? "Takes the tag off" : "Puts the tag on")
@@ -256,16 +358,16 @@ private struct TagMenuPanel: View {
             Image(systemName: mark ?? "checkmark")
                 .font(.caption.weight(.bold))
                 .opacity(mark == nil ? 0 : 1)
-                .frame(width: 14)
+                .frame(width: 12)
                 .accessibilityHidden(true)
             Text(text)
                 .lineLimit(1)
                 .truncationMode(.middle)
-            Spacer(minLength: 10)
+            Spacer(minLength: 4)
         }
         .font(.subheadline)
         .padding(.leading, 8)
-        .padding(.trailing, 10)
+        .padding(.trailing, 8)
         .frame(minHeight: rowHeight)
         // Every row as wide as the menu, so a pressed row inverts edge to edge.
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -276,7 +378,7 @@ private struct TagMenuPanel: View {
         HStack(spacing: 6) {
             Text("#")
                 .foregroundStyle(Theme.violet)
-                .frame(width: 14)
+                .frame(width: 12)
                 .accessibilityHidden(true)
             TextField("new tag", text: $newName)
                 .textInputAutocapitalization(.never)
@@ -288,14 +390,14 @@ private struct TagMenuPanel: View {
                     if !tag.isEmpty { request.add(tag) }
                     close()
                 }
-                .frame(width: 150)
+                .frame(width: fieldWidth)
                 .onAppear { fieldFocused = true }
                 .accessibilityLabel("New tag name")
                 .accessibilityHint("Type a name, then press Done.")
         }
         .font(.subheadline)
         .padding(.leading, 8)
-        .padding(.trailing, 10)
+        .padding(.trailing, 8)
         .frame(minHeight: rowHeight)
     }
 
