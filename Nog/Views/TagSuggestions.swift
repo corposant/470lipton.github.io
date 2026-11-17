@@ -247,7 +247,6 @@ private struct TagMenuPanel: View {
     let close: () -> Void
     @Environment(ItemStore.self) private var store
     @Environment(\.colorSchemeContrast) private var contrast
-    @Environment(\.dynamicTypeSize) private var typeSize
     @ScaledMetric(relativeTo: .subheadline) private var fieldWidth: CGFloat = 110
     @ScaledMetric(relativeTo: .subheadline) private var rowHeight: CGFloat = 40
     @State private var showingAll = false
@@ -269,10 +268,8 @@ private struct TagMenuPanel: View {
                                       style: .continuous)
     }
 
-    /// Wider at the accessibility text sizes, where 180pt would cut most tags short.
-    private var maxWidth: CGFloat {
-        max(request.anchor.width, typeSize.isAccessibilitySize ? 320 : 180)
-    }
+    /// Narrow comes first: longer tags are cut with "…".
+    private var maxWidth: CGFloat { max(request.anchor.width, 180) }
 
     var body: some View {
         let all = allTags
