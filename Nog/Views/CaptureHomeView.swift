@@ -501,7 +501,10 @@ struct CaptureHomeView: View {
                                 add: addTag,
                                 remove: { tag in
                                     draft.extraTags.removeAll { $0.caseInsensitiveCompare(tag) == .orderedSame }
-                                }) {
+                                },
+                                // The chip's own look (violet outline), pulled out as a drawer.
+                                drawer: TagDrawerStyle(fill: Theme.violet.opacity(0.10),
+                                                       stroke: Theme.violet.opacity(0.7))) {
                             chipLabel(result.tags.isEmpty ? "Tags" : result.tags.map { "#\($0)" }.joined(separator: " "),
                                       systemImage: "number", tint: Theme.violet,
                                       isOn: !result.tags.isEmpty, isOpen: false)
