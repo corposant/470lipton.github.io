@@ -1270,28 +1270,27 @@ private struct MapInfoCard: View {
                 Button(action: open) {
                     Label("Open", systemImage: "arrow.up.right")
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(Theme.blue)
+                .buttonStyle(.newton(.prominent(Theme.blue)))
 
                 if item.status == .done {
                     Button { store.reopen(item.id) } label: {
                         Label("Reopen", systemImage: "arrow.uturn.backward")
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.newton(.tinted(Theme.blue)))
                 } else {
                     Button { store.markDone(item.id) } label: {
                         Label("Done", systemImage: "checkmark")
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.newton(.tinted(Theme.blue)))
                 }
 
-                // Tags set the Map's zones: same quick menu as New Nog, no keyboard.
-                TagMenu(applied: item.tags, add: addTag, remove: removeTag) {
+                // Tags set the Map's zones: same quick menu as New Nog, no keyboard. Its
+                // outline stretches out into the drawer.
+                TagMenu(applied: item.tags, add: addTag, remove: removeTag, look: .tinted(Theme.blue)) {
                     Label("Tags", systemImage: item.tags.isEmpty ? "tag" : "tag.fill")
                         .labelStyle(.iconOnly)
-                        .frame(minWidth: 28, minHeight: 20)
+                        .frame(minWidth: 20)
                 }
-                .buttonStyle(.bordered)
                 .accessibilityLabel("Tags")
                 .accessibilityValue(item.tags.isEmpty ? "None" : item.tags.map { "#\($0)" }.joined(separator: ", "))
                 .accessibilityHint("Opens a menu of your tags. Tags set the map zones.")
@@ -1321,9 +1320,9 @@ private struct MapInfoCard: View {
                     } label: {
                         Label("More", systemImage: "ellipsis")
                             .labelStyle(.iconOnly)
-                            .frame(minWidth: 28, minHeight: 20)
+                            .frame(minWidth: 20)
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.newton(.tinted(Theme.blue)))
                     .accessibilityLabel("More actions")
                 }
             }
