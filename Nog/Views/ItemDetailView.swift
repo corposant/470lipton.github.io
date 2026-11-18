@@ -48,6 +48,13 @@ private struct ItemEditor: View {
     @State private var showNogSheet = false
     @State private var showKnob = false
     @State private var confirmDelete = false
+    /// Set by Complete: the page poofs into confetti, then goes back.
+    @State private var completing = false
+    /// The Complete button and this page, on screen, so the puff starts at the button.
+    @State private var completeFrame: CGRect = .zero
+    @State private var pageFrame: CGRect = .zero
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @AppStorage(Calm.lowStimulationKey) private var lowStimulation = false
 
     /// Edits go straight to the store (and disk), so a "Done" tapped on a
     /// notification while this screen is open is never overwritten.
@@ -78,6 +85,36 @@ private struct ItemEditor: View {
 
     private var tint: Color { StatusDial.tint(item.status) }
 
+    /// Reduce Motion or Low stimulation: no confetti, no shrinking, just a fade.
+    private var calmSendOff: Bool { reduceMotion || lowStimulation }
+
+    /// Complete (not Done for now): saves it as done, gives it a moment, then goes back to
+    /// wherever Back would go. The nog is done the instant you tap, so leaving early loses nothing.
+    private func complete() {
+        guard !completing else { return }
+        store.markDone(item.id)
+        var said = AttributedString("Completed \(item.title)")
+        // Going back moves VoiceOver too; high priority keeps this from being cut off.
+        said.accessibilitySpeechAnnouncementPriority = .high
+        AccessibilityNotification.Announcement(said).post()
+        // A fade is fine with Reduce Motion, so this one isn't skipped like other animations.
+        withAnimation(calmSendOff ? .easeOut(duration: 0.3) : .easeIn(duration: 0.32)) {
+            completing = true
+        }
+    }
+
+    /// Where the puff starts: the middle of the Complete button, in this page's coordinates.
+    private var puffOrigin: CGPoint {
+        guard completeFrame != .zero else { return CGPoint(x: pageFrame.width / 2, y: pageFrame.height / 2) }
+        return CGPoint(x: completeFrame.midX - pageFrame.minX, y: completeFrame.midY - pageFrame.minY)
+    }
+
+    /// The page shrinks toward the button as it fades, so it looks like it went into the puff.
+    private var puffAnchor: UnitPoint {
+        guard pageFrame.width > 0, pageFrame.height > 0 else { return .center }
+        return UnitPoint(x: puffOrigin.x / pageFrame.width, y: puffOrigin.y / pageFrame.height)
+    }
+
     // The page, top to bottom: where it lives, what it is, its state and the one
     // thing to do next; then the content (notes, voice, sub-items, tags); details last.
     var body: some View {
@@ -98,6 +135,28 @@ private struct ItemEditor: View {
             .onChange(of: heroRequest) {
                 withNogAnimation(.snappy) { proxy.scrollTo(Self.heroAnchor, anchor: .top) }
             }
+        }
+        // Complete: the page poofs (shrinks into the button and fades); calm mode only fades.
+        .scaleEffect(completing && !calmSendOff ? 0.86 : 1, anchor: puffAnchor)
+        .blur(radius: completing && !calmSendOff ? 6 : 0)
+        .opacity(completing ? 0 : 1)
+        .allowsHitTesting(!completing)
+        .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { pageFrame = $0 }
+        .overlay {
+            if completing {
+                if calmSendOff {
+                    CompleteSeal(origin: puffOrigin)
+                } else {
+                    ConfettiPuff(origin: puffOrigin)
+                }
+            }
+        }
+        .nogFeedback(.success, trigger: completing) { _, now in now }
+        // Back to where you came from once the puff has mostly settled. Leaving sooner cancels this.
+        .task(id: completing) {
+            guard completing else { return }
+            do { try await Task.sleep(for: .seconds(calmSendOff ? 0.9 : 0.8)) } catch { return }
+            dismiss()
         }
         // Leaving the page stops this nog's voice note if one is playing.
         .onDisappear {
@@ -356,7 +415,7 @@ private struct ItemEditor: View {
         return layout {
             StartButton(item: item, prominent: true)
             Button {
-                store.markDone(item.id)
+                complete()
             } label: {
                 HStack(spacing: 8) {
                     Image(systemName: "checkmark").nogFont(12, weight: .bold)
@@ -372,8 +431,9 @@ private struct ItemEditor: View {
                 .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
             }
             .buttonStyle(.borderless)
+            .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { completeFrame = $0 }
             .accessibilityLabel("Complete")
-            .accessibilityHint("Marks it finished")
+            .accessibilityHint("Marks it finished and goes back")
         }
         // The row is as tall as its tallest button, so Complete can stretch to match Start.
         .fixedSize(horizontal: false, vertical: true)
