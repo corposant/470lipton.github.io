@@ -20,7 +20,7 @@ struct NogApp: App {
         WindowGroup {
             RootView()
                 // The tag menu draws over everything, so a card or chip row can't clip it.
-                .tagMenuHost()
+                .drawerHost()
                 .environment(store)
                 .environment(router)
                 .tint(Theme.blue)

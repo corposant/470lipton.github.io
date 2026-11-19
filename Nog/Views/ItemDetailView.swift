@@ -30,11 +30,8 @@ private struct ItemEditor: View {
 
     @State private var newChild = ""
     @FocusState private var childFieldFocused: Bool
-    @State private var newTag = ""
-    @State private var isAddingTag = false
     /// Bumped by the top bar's flag and tag buttons to scroll the title row into view.
     @State private var heroRequest = 0
-    @FocusState private var tagFieldFocused: Bool
     @State private var notesFocused = false
     @State private var notesCommitted = 0
     /// The notes show formatted until tapped; then the words underneath are edited.
@@ -252,7 +249,6 @@ private struct ItemEditor: View {
                     if item.urgent && item.status != .done { urgentMark }
                     tagChips
                 }
-                tagSuggestions
             }
             .padding(.vertical, 2)
             .id(Self.heroAnchor)
@@ -276,24 +272,18 @@ private struct ItemEditor: View {
         .accessibilityHint("Urgent nogs are listed first and keep nogging after Done for now")
     }
 
-    /// Opens the tag field in the row under the title (with recent tags to tap). Tap it
-    /// again to put the field away; anything typed is added first, as Return would.
+    /// The tag menu, a drawer out of the top-bar tag button: this nog's tags ticked, then
+    /// your most used. No keyboard unless you make a new tag.
     private var tagButton: some View {
-        Button {
-            heroRequest += 1
-            if isAddingTag {
-                tagFieldFocused = false
-                addTag()
-            } else {
-                withNogAnimation(.snappy) { isAddingTag = true }
-            }
-        } label: {
-            Image(systemName: isAddingTag ? "tag.fill" : "tag")
-                .foregroundStyle(isAddingTag ? Theme.blue : .primary)
+        TagMenu(applied: item.tags, add: { add($0); heroRequest += 1 }, remove: removeTag,
+                look: .open(Theme.blue), style: .bare, font: .body) {
+            Image(systemName: item.tags.isEmpty ? "tag" : "tag.fill")
+                .foregroundStyle(item.tags.isEmpty ? Color.primary : Theme.blue)
+                .frame(minWidth: 22, minHeight: 22)
         }
-        .accessibilityLabel("Add tag")
-        .accessibilityValue(isAddingTag ? "Open" : "")
-        .accessibilityHint(isAddingTag ? "Puts the tag field away" : "Shows a tag field and your recent tags")
+        .accessibilityLabel("Tags")
+        .accessibilityValue(item.tags.isEmpty ? "None" : item.tags.map { "#\($0)" }.joined(separator: ", "))
+        .accessibilityHint("Opens a menu of your tags")
     }
 
     /// Shown in the row only while the nog is urgent. Not a button: the trefoil in the top bar
@@ -548,44 +538,46 @@ private struct ItemEditor: View {
                 .accessibilityLabel(item.voiceNotes.isEmpty ? "Record voice note" : "Record another voice note")
                 .accessibilityHint("It's kept here in Notes.")
 
-                Menu {
-                    Section {
-                        Button("Bulleted list", systemImage: "list.bullet") {
-                            formatNotes { NotesFormat.toggle(.bullet, in: $0, selection: $1) }
-                        }
-                        Button("Numbered list", systemImage: "list.number") {
-                            formatNotes { NotesFormat.toggle(.numbered, in: $0, selection: $1) }
-                        }
-                        Button("Lettered steps", systemImage: "textformat.abc") {
-                            formatNotes { NotesFormat.toggle(.lettered, in: $0, selection: $1) }
-                        }
-                        Button("Checklist", systemImage: "checklist") {
-                            formatNotes { NotesFormat.toggle(.checklist, in: $0, selection: $1) }
-                        }
-                        Button("Heading", systemImage: "textformat.size.larger") {
-                            formatNotes { NotesFormat.toggle(.heading, in: $0, selection: $1) }
-                        }
-                    }
-                    Section {
-                        Button("Indent", systemImage: "increase.indent") {
-                            formatNotes { NotesFormat.indent(false, in: $0, selection: $1) }
-                        }
-                        Button("Outdent", systemImage: "decrease.indent") {
-                            formatNotes { NotesFormat.indent(true, in: $0, selection: $1) }
-                        }
-                    }
-                    Section {
-                        Button("Bold", systemImage: "bold") {
-                            formatNotes { NotesFormat.wrap(.bold, in: $0, selection: $1) }
-                        }
-                        Button("Italic", systemImage: "italic") {
-                            formatNotes { NotesFormat.wrap(.italic, in: $0, selection: $1) }
-                        }
-                        Button("Strikethrough", systemImage: "strikethrough") {
-                            formatNotes { NotesFormat.wrap(.strikethrough, in: $0, selection: $1) }
-                        }
-                    }
-                } label: {
+                DrawerButton("Format", look: .open(Theme.violet), style: .bare, maxWidth: 200, sections: {
+                    [
+                        DrawerSection(id: "lists", items: [
+                            DrawerItem("Bulleted list", systemImage: "list.bullet") {
+                                formatNotes { NotesFormat.toggle(.bullet, in: $0, selection: $1) }
+                            },
+                            DrawerItem("Numbered list", systemImage: "list.number") {
+                                formatNotes { NotesFormat.toggle(.numbered, in: $0, selection: $1) }
+                            },
+                            DrawerItem("Lettered steps", systemImage: "textformat.abc") {
+                                formatNotes { NotesFormat.toggle(.lettered, in: $0, selection: $1) }
+                            },
+                            DrawerItem("Checklist", systemImage: "checklist") {
+                                formatNotes { NotesFormat.toggle(.checklist, in: $0, selection: $1) }
+                            },
+                            DrawerItem("Heading", systemImage: "textformat.size.larger") {
+                                formatNotes { NotesFormat.toggle(.heading, in: $0, selection: $1) }
+                            },
+                        ]),
+                        DrawerSection(id: "indent", items: [
+                            DrawerItem("Indent", systemImage: "increase.indent") {
+                                formatNotes { NotesFormat.indent(false, in: $0, selection: $1) }
+                            },
+                            DrawerItem("Outdent", systemImage: "decrease.indent") {
+                                formatNotes { NotesFormat.indent(true, in: $0, selection: $1) }
+                            },
+                        ]),
+                        DrawerSection(id: "style", items: [
+                            DrawerItem("Bold", systemImage: "bold") {
+                                formatNotes { NotesFormat.wrap(.bold, in: $0, selection: $1) }
+                            },
+                            DrawerItem("Italic", systemImage: "italic") {
+                                formatNotes { NotesFormat.wrap(.italic, in: $0, selection: $1) }
+                            },
+                            DrawerItem("Strikethrough", systemImage: "strikethrough") {
+                                formatNotes { NotesFormat.wrap(.strikethrough, in: $0, selection: $1) }
+                            },
+                        ]),
+                    ]
+                }) {
                     notesToolIcon("textformat", tint: Theme.violet)
                 }
                 .buttonStyle(.borderless)
@@ -720,51 +712,12 @@ private struct ItemEditor: View {
         childFieldFocused = true
     }
 
-    /// The tag chips, and the tag field while adding one (opened by the tag button in the top bar).
+    /// The tag chips (set from the tag button in the top bar).
     @ViewBuilder
     private var tagChips: some View {
         ForEach(item.tags, id: \.self) { tag in
             TagChip(tag: tag) { removeTag(tag) }
         }
-        if isAddingTag {
-            TextField("tag", text: $newTag)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .focused($tagFieldFocused)
-                .submitLabel(.done)
-                .onSubmit(addTag)
-                .frame(width: 110).frame(minHeight: 32)
-                .padding(.horizontal, 12)
-                .overlay(Capsule().strokeBorder(Theme.edgeStrong, lineWidth: 1))
-                .onAppear { tagFieldFocused = true }
-                // Tapped away with nothing typed: put the field away. With text, keep it
-                // (and its suggestions) so a tap on a suggestion still lands.
-                .onChange(of: tagFieldFocused) { _, focused in
-                    if !focused, newTag.trimmingCharacters(in: .whitespaces).isEmpty {
-                        withNogAnimation(.snappy) { isAddingTag = false }
-                    }
-                }
-        }
-    }
-
-    /// While adding a tag: recent or matching tags to tap.
-    @ViewBuilder
-    private var tagSuggestions: some View {
-        if isAddingTag {
-            let suggestions = TagSuggester.suggest(newTag, from: TagSuggester.stats(store.items.values),
-                                                   excluding: Set(item.tags))
-            TagSuggestionStrip(title: newTag.isEmpty ? "Recent" : "Tags", tags: suggestions) { tag in
-                add(tag)
-                newTag = ""
-            }
-        }
-    }
-
-    /// Return in the tag field: add what's typed and put the field away.
-    private func addTag() {
-        add(newTag)
-        newTag = ""
-        withNogAnimation(.snappy) { isAddingTag = false }
     }
 
     /// Adds a tag (cleaned up, no duplicates), to the latest copy of the item so quick
@@ -804,33 +757,30 @@ private struct ItemEditor: View {
 
     @ViewBuilder
     private var moreMenu: some View {
-        Menu {
+        DrawerButton("More", look: .open(Theme.blue), style: .bare, font: .body, sections: {
+            var move: [DrawerItem] = []
             if let parent = store.parent(of: item) {
-                Button {
+                move.append(DrawerItem("Move…", systemImage: "arrow.up.and.down.and.arrow.left.and.right") {
                     showParentPicker = true
-                } label: {
-                    Label("Move…", systemImage: "arrow.up.and.down.and.arrow.left.and.right")
-                }
-                Button {
+                })
+                move.append(DrawerItem("Take out of \(parent.title)", id: "takeOut",
+                                       systemImage: "arrow.up.forward.square") {
                     set(\.parentID, nil)
-                } label: {
-                    Label("Take out of \(parent.title)", systemImage: "arrow.up.forward.square")
-                }
+                })
             } else {
-                Button {
+                move.append(DrawerItem("Put inside…", systemImage: "arrow.down.right.square") {
                     showParentPicker = true
-                } label: {
-                    Label("Put inside…", systemImage: "arrow.down.right.square")
-                }
+                })
             }
-            Divider()
-            Button(role: .destructive) {
-                confirmDelete = true
-            } label: {
-                Label("Delete", systemImage: "trash")
-            }
-        } label: {
+            return [
+                DrawerSection(id: "move", items: move),
+                DrawerSection(id: "delete", items: [
+                    DrawerItem("Delete", systemImage: "trash", isDestructive: true) { confirmDelete = true },
+                ]),
+            ]
+        }) {
             Image(systemName: "ellipsis")
+                .frame(minWidth: 22, minHeight: 22)
         }
         .accessibilityLabel("More")
         // Anchored to the ••• button, so the confirmation pops up right here.

@@ -400,17 +400,23 @@ struct ListSortMenu: View {
     @AppStorage(ListSort.groupKey) private var grouped = true
 
     var body: some View {
-        Menu {
-            Picker("Sort by", selection: $sort) {
-                ForEach(ListSort.allCases) { Text($0.label).tag($0) }
-            }
-            Toggle("Reverse order", isOn: $reversed)
-            Toggle("Urgent first", isOn: $urgentFirst)
-            Toggle("Steps under their project", isOn: $grouped)
-            Divider()
-            Toggle("Show done", isOn: $showDone)
-        } label: {
+        DrawerButton("Sort and show", look: .open(Theme.blue), style: .bare, font: .body, sections: {
+            [
+                DrawerSection("Sort by", items: ListSort.allCases.map { option in
+                    DrawerItem(option.label, id: option.rawValue, isOn: sort == option) { sort = option }
+                }),
+                DrawerSection(id: "order", items: [
+                    DrawerItem("Reverse order", isOn: reversed) { reversed.toggle() },
+                    DrawerItem("Urgent first", isOn: urgentFirst) { urgentFirst.toggle() },
+                    DrawerItem("Steps under their project", isOn: grouped) { grouped.toggle() },
+                ]),
+                DrawerSection(id: "show", items: [
+                    DrawerItem("Show done", isOn: showDone) { showDone.toggle() },
+                ]),
+            ]
+        }) {
             Image(systemName: "line.3.horizontal.decrease")
+                .frame(minWidth: 22, minHeight: 22)
         }
         .accessibilityLabel("Sort and show")
         .accessibilityValue("Sorted by \(sort.label), \(reversed ? "reversed" : sort.spokenOrder)")
