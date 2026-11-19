@@ -1296,33 +1296,27 @@ private struct MapInfoCard: View {
                 .accessibilityHint("Opens a menu of your tags. Tags set the map zones.")
 
                 if !locked && (canFile || parent != nil || isPinned) || item.status == .open || item.status == .someday {
-                    Menu {
+                    DrawerButton("More actions", look: .tinted(Theme.blue), sections: {
+                        var rows: [DrawerItem] = []
                         if item.status == .open || item.status == .someday {
-                            Button { store.start(item.id) } label: {
-                                Label("Start", systemImage: "play")
-                            }
+                            rows.append(DrawerItem("Start", systemImage: "play") { store.start(item.id) })
                         }
                         if !locked && canFile {
-                            Button(action: fileInto) {
-                                Label("File into…", systemImage: "folder.badge.plus")
-                            }
+                            rows.append(DrawerItem("File into…", systemImage: "folder.badge.plus", action: fileInto))
                         }
                         if !locked, let parent {
-                            Button(action: takeOut) {
-                                Label("Take out of “\(parent.title)”", systemImage: "folder.badge.minus")
-                            }
+                            rows.append(DrawerItem("Take out of “\(parent.title)”", id: "takeOut",
+                                                   systemImage: "folder.badge.minus", action: takeOut))
                         }
                         if !locked && isPinned {
-                            Button(action: unpin) {
-                                Label("Unpin", systemImage: "pin.slash")
-                            }
+                            rows.append(DrawerItem("Unpin", systemImage: "pin.slash", action: unpin))
                         }
-                    } label: {
+                        return [DrawerSection(id: "more", items: rows)]
+                    }) {
                         Label("More", systemImage: "ellipsis")
                             .labelStyle(.iconOnly)
                             .frame(minWidth: 20)
                     }
-                    .buttonStyle(.newton(.tinted(Theme.blue)))
                     .accessibilityLabel("More actions")
                 }
             }
