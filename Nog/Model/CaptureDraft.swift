@@ -77,8 +77,8 @@ struct CaptureDraft: Equatable {
                 repeatMinutes: defaults.repeatMinutes, curve: defaults.curve, silent: defaults.silent,
                 escalateAfter: defaults.escalateAfter)
             if let profile {
-                r = profile.apply(to: r)
-                // Teatime picked in the tray, and no time typed: first reminder at tea time.
+                r = profile.apply(to: r, now: now)
+                // Balanced picked in the tray, and no time typed: first reminder at its time of day.
                 if profile.timeOfDay != nil, NaturalDateParser.parse(text, now: now, calendar: calendar).start == nil {
                     r.start = profile.firstStart(from: now, calendar: calendar)
                 }

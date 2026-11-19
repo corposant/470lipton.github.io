@@ -40,7 +40,8 @@ struct SnoozeItemIntent: LiveActivityIntent {
         #if !WIDGET_EXTENSION
         try await NogActions.run(itemID) { store, id in
             // Snooze by the item's own gap (at least 5 minutes).
-            let gap = max(300, store.items[id]?.reminder?.gap(after: 0) ?? 600)
+            // Nagging, Easing and Building: the gap they're at now.
+            let gap = max(300, store.items[id]?.reminder?.gap(at: .now) ?? 600)
             store.snooze(id, until: .now.addingTimeInterval(gap))
         }
         #endif

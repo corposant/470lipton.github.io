@@ -68,7 +68,7 @@ enum NogPlanner {
     /// The notification category for an item's nogs: "NOG", or e.g. "NOG_S30_M510_G" when it has
     /// its own snooze length / morning time, or a profile with its own buttons, so its notification
     /// buttons say the right thing. "_G": the profile has a Gentler step. "_K": Skip today, not
-    /// Snooze till morning (Balanced, Teatime).
+    /// Snooze till morning (Balanced).
     static func category(for reminder: Reminder?) -> String {
         var id = categoryNog
         if let s = reminder?.snoozeMinutes { id += "_S\(s)" }
@@ -187,7 +187,7 @@ enum NogPlanner {
             // Gap no longer changes: one trigger iOS repeats forever. A day-long gap uses a daily
             // calendar trigger so it stays at the item's time of day (a time-interval trigger
             // counts from when it was scheduled, so it would drift to whenever the app last ran).
-            // Gaps over a day (Teatime's every other day) have no repeating trigger that keeps
+            // Gaps over a day (a custom every 2 days) have no repeating trigger that keeps
             // their time, so they use exact one-shots below.
             var settled: (since: Date, gap: TimeInterval)?
             if !needsExactTimes, let phase = r.settledPhase, phase.since <= now, phase.gap <= 86_400 { settled = phase }

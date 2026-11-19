@@ -13,6 +13,7 @@ import Foundation
 ///     remind_at: 2026-11-05T18:15:00Z
 ///     repeat_minutes: 8
 ///     repeat_curve: logarithmic      (omitted when steady)
+///     rhythm: 2                      (profile version; older files move onto today's profiles)
 ///     repeats: weekdays:3            (a recurring item: comes back after it's done)
 ///     voice: [voice-9A2B….m4a=42]     (recordings next to this file, with their length in seconds)
 ///     ---
@@ -40,6 +41,7 @@ enum ItemFile {
             lines.append("remind_at: \(iso(r.start))")
             if let m = r.repeatMinutes { lines.append("repeat_minutes: \(m)") }
             if r.curve != .steady { lines.append("repeat_curve: \(r.curve.rawValue)") }
+            lines.append("rhythm: \(NogProfile.rhythmVersion)")
             if r.alarm { lines.append("alarm: true") }
             if r.silent { lines.append("silent: true") }
             if let e = r.escalateAfter { lines.append("escalate_after: \(e)") }
@@ -128,6 +130,8 @@ enum ItemFile {
                                      followsParent: fields["follows_parent"] != "false",
                                      passesDown: fields["pass_down"] != "false",
                                      rampSince: fields["ramp_since"].flatMap(date))
+            // Saved before the profile rework: move it onto today's profiles.
+            if fields["rhythm"] == nil, let r = item.reminder { item.reminder = NogProfile.migrateLegacy(r) }
         }
         item.recurrence = fields["repeats"].flatMap(Recurrence.init(encoded:))
         item.lastDone = fields["last_done"].flatMap(date)

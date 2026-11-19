@@ -14,6 +14,8 @@ struct NogApp: App {
     init() {
         // Futura navigation titles that scale with text size. Each tab also colours its own.
         NogTitleFont.applyDefault()
+        // Old profile defaults (Steady every 8 min, Teatime…) move onto today's profiles, once.
+        NogSettings.migrateDefaultProfileIfNeeded()
     }
 
     var body: some Scene {

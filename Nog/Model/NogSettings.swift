@@ -22,7 +22,8 @@ enum NogSettings {
     static let timeboxChoices = [2, 5, 10, 15, 25, 45, 60, 90]
 
     static let defaultFirstDelay = 15
-    static let defaultRepeat = 8
+    /// Steady's 2.5 hours (it was 8 minutes before the profile rework).
+    static let defaultRepeat = 150
 
     /// Minutes after capture before the first nog.
     static var firstDelayMinutes: Int {
@@ -42,7 +43,7 @@ enum NogSettings {
 
     static let escalateKey = "defaultEscalateAfter" // -1 = follow the global setting
     static let silentKey = "defaultSilent"
-    /// Teatime: new captures first remind you at this time of day (minutes after midnight; -1 = after the delay).
+    /// Balanced: new captures first remind you at this time of day (minutes after midnight; -1 = after the delay).
     static let timeOfDayKey = "defaultTimeOfDay"
 
     static var defaultTimeOfDay: Int? {
@@ -80,8 +81,7 @@ enum NogSettings {
     }
 
     /// Makes a profile the default for new captures.
-    static func setDefaultProfile(_ profile: NogProfile) {
-        let d = UserDefaults.standard
+    static func setDefaultProfile(_ profile: NogProfile, _ d: UserDefaults = .standard) {
         d.set(profile.firstDelayMinutes, forKey: firstDelayKey)
         d.set(profile.repeatMinutes, forKey: repeatKey)
         d.set(profile.curve.rawValue, forKey: curveKey)
@@ -90,8 +90,34 @@ enum NogSettings {
         d.set(profile.timeOfDay ?? -1, forKey: timeOfDayKey)
     }
 
+    static let profileDefaultsVersionKey = "profileDefaultsVersion"
+
+    /// Once, after the profile rework: a default saved as one of the old profiles (Steady every
+    /// 8 min, Teatime, the old Easing, Building, Unhinged or Balanced) becomes today's version
+    /// of it. A custom default is left alone.
+    static func migrateDefaultProfileIfNeeded(_ d: UserDefaults = .standard) {
+        guard d.integer(forKey: profileDefaultsVersionKey) < NogProfile.rhythmVersion else { return }
+        d.set(NogProfile.rhythmVersion, forKey: profileDefaultsVersionKey)
+        // Nothing saved yet: the built-in defaults are already today's Steady.
+        guard d.object(forKey: repeatKey) != nil else { return }
+        let firstDelay = d.object(forKey: firstDelayKey) as? Int ?? defaultFirstDelay
+        let repeatMinutes = d.object(forKey: repeatKey) as? Int ?? defaultRepeat
+        let curve = d.string(forKey: curveKey).flatMap(RepeatCurve.init(rawValue:)) ?? .steady
+        let escalate = (d.object(forKey: escalateKey) as? Int).flatMap { $0 >= 0 ? $0 : nil }
+        let timeOfDay = (d.object(forKey: timeOfDayKey) as? Int).flatMap { $0 >= 0 ? $0 : nil }
+        guard !d.bool(forKey: silentKey) else { return }
+        if let old = NogProfile.LegacyProfile.allCases.first(where: {
+            $0.defaults.firstDelay == firstDelay && $0.defaults.repeatMinutes == repeatMinutes && $0.defaults.curve == curve
+                && $0.defaults.escalate == escalate && $0.defaults.timeOfDay == timeOfDay
+        }) {
+            setDefaultProfile(old.profile, d)
+        } else if firstDelay == 1440, repeatMinutes == 1440, curve == .balanced, escalate == 0, timeOfDay == nil {
+            setDefaultProfile(.balanced, d) // the old Balanced, which started this time tomorrow
+        }
+    }
+
     /// Choices offered in pickers (0 = once).
-    static let repeatChoices = [0, 1, 2, 5, 8, 10, 15, 20, 30, 45, 60, 120, 240, 480, 1440]
+    static let repeatChoices = [0, 1, 2, 5, 8, 10, 15, 20, 30, 45, 60, 120, 150, 240, 480, 1440]
 
     static func repeatLabel(_ minutes: Int) -> String {
         minutes == 0 ? "No repeat" : "Every \(IntervalFormat.short(minutes))"

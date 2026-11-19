@@ -162,7 +162,7 @@ struct NogSheet: View {
                     Button {
                         edit {
                             $0 = profile.apply(to: $0)
-                            // Teatime moves the next reminder to tea time.
+                            // Balanced moves the next reminder to its time of day (10 AM).
                             if profile.timeOfDay != nil { $0.start = profile.firstStart(from: .now) }
                         }
                     } label: {

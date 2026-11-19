@@ -5,7 +5,7 @@ A capture-first iPhone app where **every item can nog you, repeatedly, until it'
 - **Everything is an Item.** To-dos, ideas, concepts and projects are all the same thing. Any item can have notes, `[[links]]` to other items, backlinks, tags, and sub-nogs (an item with sub-nogs *is* a project).
 - **Capture is instant.** The app opens with the keyboard already up. Type, hit return, and keep typing.
 - **Every capture gets a default nog** (out of the box: first nog 15 min after capture, then every 8 min until done). You can change that in Settings, or per item.
-- **Nogs repeat forever.** They don't stop after one or two. Long-press a nog for its buttons: **Done**, **Start**, **Snooze**, **Snooze till 9 AM** (**Skip today** on Balanced and Teatime), **Gentler** on the louder profiles (one profile quieter), and **Later…**, where you type a time or profile (`20m`, `4pm`, `tomorrow`, `!hush`). Heads-ups get **Start now**, **Push 15 min** and **Done**. The line under each nog's title is in its profile's voice ("Getting louder.", "Tea time."), and a nog that will ring as an alarm says so: "Alarm after 2 more." With quiet hours, a timed silence or alarms in play, iOS only lets Nog line up the next few hours of nogs at a time; if you don't open Nog before they run out, one last notification asks you to, so they never just stop.
+- **Nogs repeat forever.** They don't stop after one or two. Long-press a nog for its buttons: **Done**, **Start**, **Snooze**, **Snooze till 9 AM** (**Skip today** on Balanced), **Gentler** on the louder profiles (one profile quieter), and **Later…**, where you type a time or profile (`20m`, `4pm`, `tomorrow`, `!hush`). Heads-ups get **Start now**, **Push 15 min** and **Done**. The line under each nog's title is in its profile's voice ("Getting firmer.", "Today's nog."), and a nog that will ring as an alarm says so: "Alarm after 2 more." With quiet hours, a timed silence or alarms in play, iOS only lets Nog line up the next few hours of nogs at a time; if you don't open Nog before they run out, one last notification asks you to, so they never just stop.
 - **Things that come back.** "Meds every morning", "bins every tue", "rent every month on the 1st": tap Done and the item moves on to its next time (its sub-nogs reopen too), or tap **Skip this time** on its page. "Every 4 hours" still means how often to remind you until it's done.
 - **Places.** Save Home, Work and others in Settings › Places, then type "bins when I get home" or "buy milk when I leave work". iOS fires the reminder when you arrive or leave (While Using permission only; Nog never tracks you), and from then on it reminds you like anything else until it's done.
 - **First run** explains what Nog does, asks how firm it should be (Gentle, Steady or Relentless) and offers Low stimulation, then asks for notifications and alarms, each with its reason. Existing installs skip it.
@@ -102,23 +102,25 @@ Eight styles, all shown as buttons, gentlest to loudest. Pick your default in Se
 | Profile | Token | First nog | Then | Rings as an alarm |
 |---|---|---|---|---|
 | **Hush** | `!hush` | after 15 min | every 15 min, always silent (no sound, not Time Sensitive) | never |
-| **Teatime** | `!teatime` or `!tea` | at tea time (4 PM) | every other day at 4 PM, about three times a week | never |
 | **Whisper** | `!whisper` | after 1 hr | hourly, easing off to daily | never |
-| **Balanced** | `!balanced` (or `!daily`) | at the time you type, or this time tomorrow | once a day for a week, then twice a day (6 hr apart) for a week, then three times a day (4 hr apart). Skipping, snoozing or Done for now keeps its place in that build-up | never |
-| **Easing** | `!easing` | after 8 min | 8 → 16 → 32 min… up to daily | per global setting |
-| **Steady** | `!steady` (the default) | after 15 min | every 8 min | per global setting |
-| **Building** | `!building` | after 30 min, with heads-ups 15, 5 and 1 min before a set start | 30 → 15 → 8 → 4 min, then every 4 min | per global setting |
-| **Unhinged** | `!unhinged` | after 2 min | every 7 min, no let-up | after 3 ignored nogs |
+| **Balanced** | `!balanced` (or `!daily`, `!tea`) | at 10 AM, or the time you type | once a day for a week, then twice a day (10 AM and 4 PM) for a week, then three times a day (10 AM, 1 PM, 4 PM). Skipping, snoozing or Done for now keeps its place in that build-up. Teatime was folded in here | never |
+| **Easing** | `!easing` | after 30 min | steps down every 12 hours: every 30 min (Nagging's pace), then every 2.5 hr (Steady), every 6 hr (Balanced), then once a day (Whisper) | never |
+| **Steady** | `!steady` (the default) | after 15 min | every 2.5 hr | per global setting |
+| **Building** | `!building` | after 1 hr | steps up every 12 hours: once (Whisper), every 6 hr (Balanced), every 2.5 hr (Steady), then Nagging. Never reaches Unhinged | never |
+| **Nagging** | `!nagging` | after 30 min | every 30 min for 3 hours, then every 15 min | per global setting |
+| **Unhinged** | `!unhinged` | after 2 min | every 8 min, no let-up | after 3 ignored nogs |
+
+Easing and Building never ring as alarms, even with "Ring as an alarm after" on: an alarm is something you choose (Unhinged, or that setting on Steady and Nagging), never something a nog drifts into overnight. Snoozing or skipping keeps their place in the 12-hour steps. Nogs saved under the earlier profiles (Steady every 8 min, Unhinged every 7, the old Easing and Building, Teatime) move onto these when Nog opens.
 
 The first three letters of a token are enough (`!whi`, `!bui`). Fine-tune anything and the item becomes **Custom**. A Hush item stays silent until you pick another profile.
 
-## Steady, logarithmic or building
+## Steady, logarithmic or speeding up
 
 Each reminder has a style:
 
 - **Steady**: the same gap every time, e.g. every 8 min until done.
 - **Logarithmic**: urgent at first, then easing off. The gap doubles after each nog (8 min, 16, 32, 1 h, 2 h…) until it reaches a day, then Nog nogs daily until it's done. It never goes quiet.
-- **Building**: the opposite. The gap halves after each nog (30 min, 15, 8, 4…) down to 4 min, then stays there until it's done.
+- **Speeding up**: the opposite. The gap halves after each nog (30 min, 15, 8, 4…) down to 4 min, then stays there until it's done, with heads-ups 15, 5 and 1 min before a set start.
 
 Pick the default in Settings, change it per item, or type `!log` when capturing.
 

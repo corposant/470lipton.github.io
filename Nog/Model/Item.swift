@@ -195,11 +195,19 @@ enum RepeatCurve: String, CaseIterable, Hashable {
     /// Gap halves each time down to a floor, getting more insistent: 30, 15, 8, 4, 4, 4…
     case building
     /// Days, gently getting more frequent: once a day for a week, twice a day the next week
-    /// (6 hours apart), then three times a day (4 hours apart), all from the first nog's time of day.
+    /// (6 hours apart), then three times a day (3 hours apart), all from the first nog's time of day.
     case balanced
+    /// The Nagging profile: every 30 min for the first 3 hours, then every 15.
+    case nagging
+    /// The Easing profile: steps down every 12 hours through the profiles' paces,
+    /// Nagging → Steady → Balanced → Whisper, then stays at Whisper's once a day.
+    case easingSteps = "easing_steps"
+    /// The Building profile: steps up every 12 hours, Whisper → Balanced → Steady → Nagging,
+    /// then nags like Nagging. Never reaches Unhinged and never rings as an alarm.
+    case buildingSteps = "building_steps"
 
-    /// The styles offered for a custom rhythm. Balanced is the Balanced profile's own pattern
-    /// (it ignores the repeat gap), so it's only listed when a rhythm already uses it.
+    /// The styles offered for a custom rhythm. The rest are profiles' own patterns
+    /// (they ignore the repeat gap), so they're only listed when a rhythm already uses one.
     static func customChoices(current: RepeatCurve) -> [RepeatCurve] {
         let plain: [RepeatCurve] = [.steady, .logarithmic, .building]
         return plain.contains(current) ? plain : plain + [current]
@@ -209,9 +217,48 @@ enum RepeatCurve: String, CaseIterable, Hashable {
         switch self {
         case .steady: "Steady"
         case .logarithmic: "Logarithmic"
-        case .building: "Building"
+        case .building: "Speeding up"
         case .balanced: "Balanced"
+        case .nagging: "Nagging"
+        case .easingSteps: "Easing"
+        case .buildingSteps: "Building"
         }
+    }
+
+    /// Paces that change with time since the rhythm began, not with the number of nogs:
+    /// (minutes after the start, gap in minutes) for each stretch. nil for the other styles.
+    var timedPhases: [(after: Int, gap: Int)]? {
+        let nagging = Pace.nagging, steady = Pace.steady, balanced = Pace.balanced, whisper = Pace.whisper
+        let step = Pace.stepMinutes
+        switch self {
+        case .nagging:
+            return [(0, nagging), (Pace.naggingSpeedsUpAfter, Pace.naggingLater)]
+        case .easingSteps:
+            return [(0, nagging), (step, steady), (2 * step, balanced), (3 * step, whisper)]
+        case .buildingSteps:
+            // The last step is Nagging itself, so it speeds up 3 hours in, as Nagging does.
+            return [(0, whisper), (step, balanced), (2 * step, steady), (3 * step, nagging),
+                    (3 * step + Pace.naggingSpeedsUpAfter, Pace.naggingLater)]
+        case .steady, .logarithmic, .building, .balanced:
+            return nil
+        }
+    }
+
+    /// Ignores the repeat gap: the pattern is the whole rhythm.
+    var hasOwnPattern: Bool { self == .balanced || timedPhases != nil }
+
+    /// The profiles' paces, in minutes, as the Easing and Building steps use them.
+    enum Pace {
+        static let nagging = 30
+        static let naggingLater = 15
+        static let naggingSpeedsUpAfter = 180
+        static let steady = 150
+        /// Balanced at twice a day.
+        static let balanced = 360
+        /// Whisper once it has eased off to daily.
+        static let whisper = 1440
+        /// Easing and Building move one step every 12 hours.
+        static let stepMinutes = 720
     }
 }
 
@@ -236,7 +283,7 @@ struct Reminder: Hashable {
     var followsParent = true
     /// A parent: its rhythm flows down to sub-items that follow it.
     var passesDown = true
-    /// Balanced: when its once / twice / three-times-a-day ramp began, if `start` has moved since
+    /// Balanced, Nagging, Easing, Building: when their ramp began, if `start` has moved since
     /// (a snooze, Skip today, Done for now). nil = the ramp began at `start`.
     var rampSince: Date? = nil
 
@@ -279,7 +326,37 @@ struct Reminder: Hashable {
             return TimeInterval(minutes * 60)
         case .balanced:
             return TimeInterval(Self.balancedGapMinutes(after: k + balancedOffset) * 60)
+        case .nagging, .easingSteps, .buildingSteps:
+            // Timed paces depend on the clock, not the count: see `gap(at:)`.
+            return gap(at: rampOrigin)
         }
+    }
+
+    /// When a timed pace (Nagging, Easing, Building) began: `rampSince` once it has moved.
+    var rampOrigin: Date {
+        if let since = rampSince, since < start { return since }
+        return start
+    }
+
+    /// The gap after a nog at `date`. For timed paces it's the pace of the stretch `date` is in,
+    /// cut short at the next stretch so a nog always lands on the change. Others: the first gap.
+    func gap(at date: Date) -> TimeInterval? {
+        guard repeatMinutes != nil else { return nil }
+        guard let phases = curve.timedPhases else { return gap(after: 0) }
+        let elapsed = max(0, date.timeIntervalSince(rampOrigin))
+        var pace = TimeInterval(phases[0].gap * 60)
+        var nextChange: TimeInterval?
+        for phase in phases {
+            let at = TimeInterval(phase.after * 60)
+            if at <= elapsed { pace = TimeInterval(phase.gap * 60) } else { nextChange = at; break }
+        }
+        guard let nextChange else { return pace }
+        return min(pace, nextChange - elapsed)
+    }
+
+    /// When the last timed stretch begins (nil when it's not a timed pace).
+    private var lastPhaseStart: Date? {
+        curve.timedPhases.map { rampOrigin.addingTimeInterval(TimeInterval(($0.last?.after ?? 0) * 60)) }
     }
 
     /// How far into Balanced's ramp `start` already is: whole days since `rampSince`, as a count
@@ -299,11 +376,11 @@ struct Reminder: Hashable {
         return offset
     }
 
-    /// This reminder starting at `date` instead (a snooze, Skip today, Done for now). A Balanced
-    /// one remembers when its ramp began, so moving it doesn't send it back to once a day.
+    /// This reminder starting at `date` instead (a snooze, Skip today, Done for now). Balanced, Nagging,
+    /// Easing and Building remember when their ramp began, so moving them doesn't start them over.
     func moved(to date: Date) -> Reminder {
         var r = self
-        if curve == .balanced, rampSince == nil, start < date { r.rampSince = start }
+        if curve.hasOwnPattern, rampSince == nil, start < date { r.rampSince = start }
         r.start = date
         return r
     }
@@ -311,8 +388,9 @@ struct Reminder: Hashable {
     /// Balanced: nogs a day in week one, then two, then three.
     static let balancedDaysPerStep = 7
     /// The day's gaps at each step, adding up to a day so the nogs keep their time of day:
-    /// once (24 h), twice (9 → 3 PM, then back to 9), three times (9 → 1 PM → 5 PM, back to 9).
-    static let balancedDayPatterns: [[Int]] = [[1440], [360, 1080], [240, 240, 960]]
+    /// once (24 h), twice (6 hours apart), three times (3 hours apart).
+    /// From Balanced's 10 AM: 10 AM; then 10 AM and 4 PM; then 10 AM, 1 PM and 4 PM.
+    static let balancedDayPatterns: [[Int]] = [[1440], [360, 1080], [180, 180, 1080]]
 
     static func balancedGapMinutes(after k: Int) -> Int {
         var k = max(0, k)
@@ -329,6 +407,10 @@ struct Reminder: Hashable {
     /// Balanced never settles on one gap (its days have a pattern), so it's always exact times.
     var settledPhase: (since: Date, gap: TimeInterval)? {
         if curve == .balanced { return nil }
+        if let last = lastPhaseStart, let pace = gap(at: last) {
+            // A nog always lands on each change of pace, so from the last one it's a plain repeat.
+            return (max(start, last), pace)
+        }
         guard let first = gap(after: 0) else { return nil }
         var t = start
         var k = 0
@@ -349,8 +431,24 @@ struct Reminder: Hashable {
         var t = start
         var k = 0
         var iterations = 0
+        let timed = curve.timedPhases != nil
         while result.count < limit && iterations < 100_000 {
             iterations += 1
+            if timed {
+                guard let g = gap(at: t), g > 0 else { break }
+                // Still in the past: jump ahead through this stretch instead of stepping.
+                if t <= date {
+                    let end = min(date, nextPhaseChange(after: t) ?? date)
+                    let skip = (end.timeIntervalSince(t) / g).rounded(.down)
+                    if skip >= 1 {
+                        t = t.addingTimeInterval(skip * g)
+                        continue
+                    }
+                }
+                if t > date { result.append(t) }
+                t = t.addingTimeInterval(g)
+                continue
+            }
             guard let g = gap(after: k) else { break }
             // In a steady stretch that's still in the past, jump ahead instead of stepping.
             // (Not Balanced: its week of equal day-long gaps is followed by a different pattern.)
@@ -369,6 +467,13 @@ struct Reminder: Hashable {
         return result
     }
 
+    /// The next change of a timed pace strictly after `date`, if any is left.
+    private func nextPhaseChange(after date: Date) -> Date? {
+        guard let phases = curve.timedPhases else { return nil }
+        return phases.lazy.map { self.rampOrigin.addingTimeInterval(TimeInterval($0.after * 60)) }
+            .first { $0 > date }
+    }
+
     /// Best estimate of the next time this reminder fires.
     func nextFire(after now: Date) -> Date? {
         fireDates(after: now, limit: 1).first
@@ -385,6 +490,12 @@ struct Reminder: Hashable {
             return "every \(IntervalFormat.short(m)), building to every \(IntervalFormat.short(fastest))"
         case .balanced:
             return "daily, then twice a day, then three times"
+        case .nagging:
+            return "every 30 min, then every 15 after 3 hours"
+        case .easingSteps:
+            return "every 30 min, easing off every 12 hours to daily"
+        case .buildingSteps:
+            return "daily, building every 12 hours to every 30 min"
         }
     }
 }
