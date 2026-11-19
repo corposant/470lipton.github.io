@@ -7,7 +7,7 @@ struct CaptureDefaults: Equatable {
     var escalateAfter: Int? = nil
     /// Hush: no sound, no Time Sensitive.
     var silent = false
-    /// Teatime: first reminder at this time of day (minutes after midnight) instead of after the delay.
+    /// Balanced: first reminder at this time of day (minutes after midnight) instead of after the delay.
     var timeOfDay: Int? = nil
     /// Saved place names, so "when I get to Mum's" finds Mum's.
     var places: [String] = []
@@ -32,9 +32,9 @@ struct CaptureResult: Equatable {
 ///   `!once` `!norepeat` remind once, don't repeat
 ///   `!log`              logarithmic: gaps double each time (8, 16, 32…), capped at daily
 ///   `!alarm`            ring like a real alarm (through Silent and Focus)
-///   `!hush` `!teatime` `!whisper` `!daily` `!easing` `!steady` `!building` `!unhinged`
+///   `!hush` `!whisper` `!balanced` `!easing` `!steady` `!building` `!nagging` `!unhinged`
 ///                       use a nog profile (or just its first three letters: `!hus` `!unh`…;
-///                       `!gentle` = Whisper, `!tea` = Teatime)
+///                       `!gentle` = Whisper, `!daily` `!tea` `!teatime` = Balanced)
 ///   `!off` / `!idea`    no reminder at all
 ///   `!urgent` / `!!`    flag it urgent (listed first)
 ///   `@30m` `@2h` `@1d`  start nogging in 30 minutes / 2 hours / 1 day
@@ -130,10 +130,13 @@ enum CaptureParser {
                                           from: now, calendar: calendar)
         }
         var repeatMinutes = once ? nil : (repeatOverride ?? natural.repeatMinutes ?? effective.repeatMinutes)
-        // Balanced has its own day-by-day rhythm, so a typed gap ("!balanced !30m") doesn't apply.
-        if repeatMinutes != nil, (curveOverride ?? effective.curve) == .balanced { repeatMinutes = NogProfile.balanced.repeatMinutes }
+        // Balanced, Nagging, Easing and Building have their own pattern, so a typed gap
+        // ("!balanced !30m") doesn't apply.
+        let curve = curveOverride ?? effective.curve
+        if repeatMinutes != nil, curve.hasOwnPattern,
+           let own = NogProfile.allCases.first(where: { $0.curve == curve }) { repeatMinutes = own.repeatMinutes }
         let reminder = Reminder(start: start, repeatMinutes: repeatMinutes,
-                                curve: curveOverride ?? effective.curve, alarm: alarm, silent: effective.silent,
+                                curve: curve, alarm: alarm, silent: effective.silent,
                                 escalateAfter: effective.escalateAfter)
         return CaptureResult(title: title, reminder: reminder, tags: tags, urgent: urgent,
                              recurrence: natural.recurrence, place: place)

@@ -57,7 +57,7 @@ struct BulkActionBar: View {
                             apply { item in
                                 var r = item.reminder ?? NogSettings.defaultReminderFromNow
                                 r = profile.apply(to: r)
-                                // Teatime moves the next reminder to tea time, as on the item's page.
+                                // Balanced moves the next reminder to its time of day, as on the item's page.
                                 if profile.timeOfDay != nil { r.start = profile.firstStart(from: .now) }
                                 // Picked for these items specifically: they stop following a parent.
                                 if item.parentID != nil { r.followsParent = false }

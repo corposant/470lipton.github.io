@@ -413,14 +413,10 @@ final class LogarithmicReminderTests: XCTestCase {
         let time = Calendar.current.dateComponents([.hour, .minute], from: now.addingTimeInterval(1800))
         XCTAssertEqual(plan.map(\.trigger), [.daily(hour: time.hour!, minute: time.minute!)])
 
-        let tea = Item(title: "call grandma", reminder: NogProfile.teatime.apply(to: Reminder(start: now.addingTimeInterval(-86_400))))
-        let teaPlan = NogPlanner.plan(items: [tea], now: now, maxFollowUpsPerItem: 3)
-        XCTAssertEqual(teaPlan.map(\.fireDate), [1, 3, 5, 7].map { now.addingTimeInterval(Double($0) * 86_400) })
-    }
-
-    func testTeatimeNeverNogsEveryMinute() {
-        XCTAssertEqual(NogProfile.teatime.repeatMinutes, 2880)
-        XCTAssertEqual(NogProfile.matching(NogProfile.teatime.reminder(from: .now)), .teatime)
+        let everyOtherDay = Item(title: "call grandma",
+                                 reminder: Reminder(start: now.addingTimeInterval(-86_400), repeatMinutes: 2880, escalateAfter: 0))
+        let otherDayPlan = NogPlanner.plan(items: [everyOtherDay], now: now, maxFollowUpsPerItem: 3)
+        XCTAssertEqual(otherDayPlan.map(\.fireDate), [1, 3, 5, 7].map { now.addingTimeInterval(Double($0) * 86_400) })
     }
 
     func testCaptureTokenAndFileRoundTrip() throws {
@@ -891,7 +887,7 @@ final class ProfileTests: XCTestCase {
         let defaults = CaptureDefaults(firstDelayMinutes: 15, repeatMinutes: 8)
         let r = try XCTUnwrap(CaptureParser.parse("file taxes !unhinged", defaults: defaults, now: now).reminder)
         XCTAssertEqual(r.start, now.addingTimeInterval(120))
-        XCTAssertEqual(r.repeatMinutes, 7)
+        XCTAssertEqual(r.repeatMinutes, 8)
         XCTAssertEqual(r.escalateAfter, 3)
         XCTAssertEqual(NogProfile.matching(r), .unhinged)
     }
@@ -900,7 +896,7 @@ final class ProfileTests: XCTestCase {
         let reminder = NogProfile.unhinged.apply(to: Reminder(start: now.addingTimeInterval(-60)))
         let item = Item(title: "taxes", reminder: reminder)
         let alarms = AlarmScheduler.alarmDates(for: item, policy: .standard, now: now, limit: 1)
-        XCTAssertEqual(alarms, [now.addingTimeInterval(-60 + 3 * 7 * 60)])
+        XCTAssertEqual(alarms, [now.addingTimeInterval(-60 + 3 * 8 * 60)])
     }
 
     func testWhisperNeverEscalatesEvenWhenGlobalEscalationIsOn() {
@@ -914,7 +910,7 @@ final class ProfileTests: XCTestCase {
     func testApplyingAProfileKeepsTheStartAndMatchesBack() {
         let original = Reminder(start: now, repeatMinutes: 30, curve: .steady, alarm: true)
         XCTAssertNil(NogProfile.matching(original))
-        let easing = NogProfile.easing.apply(to: original)
+        let easing = NogProfile.easing.apply(to: original, now: now)
         XCTAssertEqual(easing.start, now)
         XCTAssertTrue(easing.alarm, "The alarm switch survives picking a profile")
         XCTAssertEqual(NogProfile.matching(easing), .easing)
@@ -938,11 +934,13 @@ final class ProfileTests: XCTestCase {
             XCTAssertEqual(NogProfile.token("!" + profile.rawValue), profile)
             XCTAssertEqual(NogProfile.token("!" + profile.rawValue.prefix(3)), profile, "3-letter token for \(profile.label)")
         }
-        XCTAssertEqual(NogProfile.token("!tea"), .teatime)
+        XCTAssertEqual(NogProfile.token("!tea"), .balanced, "Teatime joined Balanced")
+        XCTAssertEqual(NogProfile.token("!teatime"), .balanced)
     }
 
-    func testBuildingGapsShrinkToFourMinutes() {
-        let r = NogProfile.building.apply(to: Reminder(start: now))
+    func testSpeedingUpGapsShrinkToFourMinutes() {
+        // The old Building's halving gaps, still there as a custom style.
+        let r = Reminder(start: now, repeatMinutes: 30, curve: .building)
         let gaps = (0..<6).compactMap { r.gap(after: $0) }.map { Int($0 / 60) }
         XCTAssertEqual(gaps, [30, 15, 8, 4, 4, 4])
         XCTAssertEqual(r.settledPhase?.gap, 4 * 60)
@@ -950,9 +948,9 @@ final class ProfileTests: XCTestCase {
                        [30, 45, 53, 57].map { now.addingTimeInterval(TimeInterval($0 * 60)) })
     }
 
-    func testBuildingWarnsFifteenFiveAndOneMinuteBeforeItStarts() {
+    func testSpeedingUpWarnsFifteenFiveAndOneMinuteBeforeItStarts() {
         let start = now.addingTimeInterval(3600)
-        let item = Item(title: "leave for bus", reminder: NogProfile.building.apply(to: Reminder(start: start)))
+        let item = Item(title: "leave for bus", reminder: Reminder(start: start, repeatMinutes: 30, curve: .building))
         let plan = NogPlanner.plan(items: [item], now: now)
         let headsUps = plan.filter(\.isHeadsUp).compactMap(\.fireDate).sorted()
         XCTAssertEqual(headsUps, [15, 5, 1].map { start.addingTimeInterval(TimeInterval(-$0 * 60)) })
@@ -975,30 +973,33 @@ final class ProfileTests: XCTestCase {
     func testRingsThroughSilentMarkFollowsTheAlarmSetting() {
         // "Ring as an alarm after: Never" (the default): only Unhinged can ring.
         XCTAssertEqual(NogProfile.allCases.filter { $0.breaksSilent(globalEscalateAfter: 0) }, [.unhinged])
-        // With it on, the profiles that follow the setting can too; the quiet four never do.
+        // With it on, Steady and Nagging can too. Easing and Building never drift into an alarm.
         XCTAssertEqual(NogProfile.allCases.filter { $0.breaksSilent(globalEscalateAfter: 3) },
-                       [.easing, .steady, .building, .unhinged])
+                       [.steady, .nagging, .unhinged])
         XCTAssertEqual(NogProfile.unhinged.spokenLabel(globalEscalateAfter: 0), "Unhinged, Rings through Silent")
         XCTAssertEqual(NogProfile.hush.spokenLabel(globalEscalateAfter: 3), "Hush")
     }
 
-    func testTeatimeStartsAtFourAndComesEveryOtherDay() throws {
+    func testTeaPicksBalancedAtTenInTheMorning() throws {
         let defaults = CaptureDefaults(firstDelayMinutes: 15, repeatMinutes: 8)
         let r = try XCTUnwrap(CaptureParser.parse("call grandma !tea", defaults: defaults, now: now).reminder)
         let start = r.start
-        XCTAssertEqual(Calendar.current.component(.hour, from: start), 16)
+        XCTAssertEqual(Calendar.current.component(.hour, from: start), 10)
         XCTAssertEqual(Calendar.current.component(.minute, from: start), 0)
         XCTAssertGreaterThan(start, now)
         XCTAssertLessThanOrEqual(start, now.addingTimeInterval(86_400))
-        XCTAssertEqual(r.repeatMinutes, 2880)
         XCTAssertEqual(r.escalateAfter, 0)
-        XCTAssertEqual(NogProfile.matching(r), .teatime)
+        XCTAssertEqual(NogProfile.matching(r), .balanced)
     }
 
-    func testDailyNogsOnceADayFromTheTimeYouType() throws {
+    func testDailyNogsOnceADayFromTenOrTheTimeYouType() throws {
         let defaults = CaptureDefaults(firstDelayMinutes: 15, repeatMinutes: 8)
         let r = try XCTUnwrap(CaptureParser.parse("meds !daily", defaults: defaults, now: now).reminder)
-        XCTAssertEqual(r.start, now.addingTimeInterval(86_400))
+        XCTAssertEqual(Calendar.current.component(.hour, from: r.start), 10)
+        XCTAssertGreaterThan(r.start, now)
+        XCTAssertLessThanOrEqual(r.start, now.addingTimeInterval(86_400))
+        let typed = try XCTUnwrap(CaptureParser.parse("meds !daily @2h", defaults: defaults, now: now).reminder)
+        XCTAssertEqual(typed.start, now.addingTimeInterval(2 * 3600))
         XCTAssertEqual(r.repeatMinutes, 1440)
         XCTAssertEqual(r.escalateAfter, 0)
         XCTAssertEqual(NogProfile.matching(r), .balanced, "!daily picks Balanced, which replaced Daily")
@@ -1011,7 +1012,7 @@ final class ProfileTests: XCTestCase {
         let gaps = zip(dates, dates.dropFirst()).map { Int($1.timeIntervalSince($0) / 60) }
         XCTAssertEqual(Array(gaps.prefix(7)), Array(repeating: 1440, count: 7))
         XCTAssertEqual(Array(gaps[7..<11]), [360, 1080, 360, 1080])
-        XCTAssertEqual(Array(gaps[21..<26]), [240, 240, 960, 240, 240])
+        XCTAssertEqual(Array(gaps[21..<26]), [180, 180, 1080, 180, 180])
         // Every day still starts at the first nog's time of day.
         XCTAssertEqual(dates[21], now.addingTimeInterval(14 * 86_400))
         XCTAssertNil(r.settledPhase, "never one fixed gap, so the planner uses exact times")
@@ -1021,7 +1022,7 @@ final class ProfileTests: XCTestCase {
             r.fireDates(after: now.addingTimeInterval(from * 86_400), limit: count).map { $0.timeIntervalSince(now) / 3600 }
         }
         XCTAssertEqual(hours(8.2, 3), [Double(8 * 24 + 6), Double(9 * 24), Double(9 * 24 + 6)])
-        XCTAssertEqual(hours(22.1, 3), [Double(22 * 24 + 4), Double(22 * 24 + 8), Double(23 * 24)])
+        XCTAssertEqual(hours(22.1, 3), [Double(22 * 24 + 3), Double(22 * 24 + 6), Double(23 * 24)])
         // A month in, it still plans nogs.
         XCTAssertFalse(NogPlanner.plan(items: [Item(title: "x", reminder: r)], now: now.addingTimeInterval(30 * 86_400)).isEmpty)
     }
@@ -1039,7 +1040,7 @@ final class ProfileTests: XCTestCase {
         // Moved again in week four: three times a day, and the ramp's beginning is remembered.
         let later = skipped.moved(to: now.addingTimeInterval(22 * 86_400))
         XCTAssertEqual(later.rampSince, now)
-        XCTAssertEqual(gaps(later, 3), [240, 240, 960])
+        XCTAssertEqual(gaps(later, 3), [180, 180, 1080])
         XCTAssertEqual(ItemFile.decode(ItemFile.encode(Item(title: "x", reminder: later)))?.reminder?.rampSince, now)
         XCTAssertEqual(NogProfile.matching(later), .balanced)
         // Picking the profile again starts it over.
@@ -1401,7 +1402,7 @@ final class RhythmFlowTests: XCTestCase {
         parent.reminder?.snoozeMinutes = 30
         store.update(parent)
         let child = try XCTUnwrap(store.capture("Book flights", parent: parent.id))
-        XCTAssertEqual(child.reminder?.repeatMinutes, 7)
+        XCTAssertEqual(child.reminder?.repeatMinutes, 8)
         XCTAssertEqual(child.reminder?.snoozeMinutes, 30)
         XCTAssertEqual(child.reminder?.followsParent, true)
     }
@@ -1682,7 +1683,6 @@ final class NotificationButtonTests: XCTestCase {
     func testCategoryCarriesTheProfilesButtons() {
         XCTAssertEqual(NogPlanner.category(for: reminder(.unhinged)), "NOG_G")
         XCTAssertEqual(NogPlanner.category(for: reminder(.balanced)), "NOG_K")
-        XCTAssertEqual(NogPlanner.category(for: reminder(.teatime)), "NOG_K")
         XCTAssertEqual(NogPlanner.category(for: reminder(.hush)), "NOG")
         XCTAssertEqual(NogPlanner.category(for: reminder(.whisper)), "NOG")
 
@@ -1697,37 +1697,39 @@ final class NotificationButtonTests: XCTestCase {
     }
 
     func testGentlerStepsDownTheLoudProfilesOnly() {
-        XCTAssertEqual(NogProfile.unhinged.gentler, .building)
+        XCTAssertEqual(NogProfile.unhinged.gentler, .nagging)
+        XCTAssertEqual(NogProfile.nagging.gentler, .steady)
         XCTAssertEqual(NogProfile.building.gentler, .steady)
-        XCTAssertEqual(NogProfile.steady.gentler, .easing)
+        XCTAssertEqual(NogProfile.steady.gentler, .whisper)
         XCTAssertEqual(NogProfile.easing.gentler, .whisper)
-        for quiet in [NogProfile.hush, .teatime, .whisper, .balanced] { XCTAssertNil(quiet.gentler) }
+        for quiet in [NogProfile.hush, .whisper, .balanced] { XCTAssertNil(quiet.gentler) }
     }
 
     func testBannerLineIsInTheProfilesVoice() {
-        XCTAssertEqual(NogPlanner.bannerLine(for: reminder(.building)), "Getting louder.")
-        XCTAssertEqual(NogPlanner.bannerLine(for: reminder(.teatime)), "Tea time.")
+        XCTAssertEqual(NogPlanner.bannerLine(for: reminder(.building)), "Getting firmer.")
+        XCTAssertEqual(NogPlanner.bannerLine(for: reminder(.balanced)), "Today's nog.")
         XCTAssertEqual(NogPlanner.bannerLine(for: Reminder(start: now, repeatMinutes: 10)),
                        "Nogging every 10 min until done")
         XCTAssertEqual(NogPlanner.bannerLine(for: Reminder(start: now)), "Reminder")
         let item = Item(title: "x", reminder: reminder(.building))
         let nogs = NogPlanner.plan(items: [item], now: now).filter { !$0.isHeadsUp }
-        XCTAssertEqual(nogs.first?.body, "Getting louder.")
+        XCTAssertEqual(nogs.first?.body, "Getting firmer.")
     }
 
     func testHeadsUpsGetTheirOwnButtons() {
-        let item = Item(title: "x", reminder: reminder(.building))
+        // The custom "Speeding up" style keeps the old Building's 15 / 5 / 1 min countdown.
+        let item = Item(title: "x", reminder: Reminder(start: now.addingTimeInterval(3600), repeatMinutes: 30, curve: .building))
         let plan = NogPlanner.plan(items: [item], now: now)
         let headsUps = plan.filter(\.isHeadsUp)
         XCTAssertEqual(headsUps.count, 3)
         XCTAssertTrue(headsUps.allSatisfy { $0.category == NogPlanner.categoryHeadsUp })
-        XCTAssertTrue(plan.filter { !$0.isHeadsUp }.allSatisfy { $0.category == "NOG_G" })
+        XCTAssertTrue(plan.filter { !$0.isHeadsUp }.allSatisfy { $0.category == "NOG" })
     }
 
     func testNogsCountDownToTheAlarm() {
         let r = reminder(.unhinged, startsIn: 10)
         let item = Item(title: "x", reminder: r)
-        let alarm = r.start.addingTimeInterval(3 * 7 * 60)
+        let alarm = r.start.addingTimeInterval(3 * 8 * 60)
         let plan = NogPlanner.plan(items: [item], now: now, maxFollowUpsPerItem: 4, alarmDates: [item.id: [alarm]])
             .filter { !$0.isHeadsUp }
             .sorted { ($0.fireDate ?? .distantPast) < ($1.fireDate ?? .distantPast) }
@@ -1748,7 +1750,7 @@ final class NotificationButtonTests: XCTestCase {
         XCTAssertEqual(hush.profile, .hush)
         XCTAssertNil(hush.start)
         let both = LaterReply.parse("1h !tea", now: now)
-        XCTAssertEqual(both.profile, .teatime)
+        XCTAssertEqual(both.profile, .balanced)
         XCTAssertEqual(both.start, now.addingTimeInterval(3600))
         XCTAssertEqual(LaterReply.parse("whatever", now: now), LaterReply())
         XCTAssertNotNil(LaterReply.parse("tomorrow", now: now).start)
@@ -1768,7 +1770,7 @@ final class NotificationButtonStoreTests: XCTestCase {
         store.insert(item)
         store.makeGentler(item.id)
         let r = try XCTUnwrap(store.items[item.id]?.reminder)
-        XCTAssertEqual(NogProfile.matching(r), .building)
+        XCTAssertEqual(NogProfile.matching(r), .nagging)
         XCTAssertGreaterThan(r.start, .now.addingTimeInterval(25 * 60))
 
         var quiet = Item(title: "y", reminder: NogProfile.whisper.reminder())
@@ -1899,5 +1901,156 @@ final class NotificationChimeTests: XCTestCase {
             guard let file = chime.fileName else { continue }
             XCTAssertNotNil(Bundle(for: NotificationScheduler.self).url(forResource: file, withExtension: nil), file)
         }
+    }
+}
+
+/// The November 2026 profile rework: Steady every 2.5 h, Unhinged every 8 min, Nagging,
+/// Teatime folded into Balanced, and Easing / Building as 12-hour steps that never ring.
+final class ProfileReworkTests: XCTestCase {
+    let now = Date(timeIntervalSince1970: 1_800_000_000)
+
+    private func minutes(_ dates: [Date], from origin: Date) -> [Int] {
+        dates.map { Int(($0.timeIntervalSince(origin) / 60).rounded()) }
+    }
+
+    func testSteadyAndUnhingedAreFarApart() {
+        XCTAssertEqual(NogProfile.steady.repeatMinutes, 150)
+        XCTAssertEqual(NogProfile.unhinged.repeatMinutes, 8)
+        XCTAssertEqual(NogSettings.defaultRepeat, 150, "the built-in default is today's Steady")
+    }
+
+    func testNaggingIsEveryThirtyMinutesThenFifteenAfterThreeHours() {
+        let r = NogProfile.nagging.apply(to: Reminder(start: now), now: now)
+        XCTAssertEqual(minutes(r.fireDates(after: now.addingTimeInterval(-1), limit: 9), from: now),
+                       [0, 30, 60, 90, 120, 150, 180, 195, 210])
+        XCTAssertEqual(r.settledPhase?.since, now.addingTimeInterval(180 * 60))
+        XCTAssertEqual(r.settledPhase?.gap, 15 * 60)
+        XCTAssertEqual(NogProfile.matching(r), .nagging)
+        // Still right a month in, without stepping through every nog.
+        let later = now.addingTimeInterval(30 * 86_400 + 7 * 60)
+        XCTAssertEqual(minutes(r.fireDates(after: later, limit: 2), from: later), [8, 23])
+    }
+
+    func testEasingStepsDownEveryTwelveHours() {
+        let r = NogProfile.easing.apply(to: Reminder(start: now), now: now)
+        // Nagging's 30 min for 12 hours, Steady's 2.5 h, Balanced's 6 h, then Whisper's once a day.
+        XCTAssertEqual(minutes(r.fireDates(after: now.addingTimeInterval(690 * 60 - 1), limit: 10), from: now),
+                       [690, 720, 870, 1020, 1170, 1320, 1440, 1800, 2160, 3600])
+        XCTAssertEqual(r.settledPhase?.since, now.addingTimeInterval(2160 * 60))
+        XCTAssertEqual(r.settledPhase?.gap, 86_400)
+    }
+
+    func testBuildingStepsUpEveryTwelveHoursToNagging() {
+        let r = NogProfile.building.apply(to: Reminder(start: now), now: now)
+        // Whisper's once, Balanced's 6 h, Steady's 2.5 h, then Nagging (30 min, 15 after 3 hours).
+        XCTAssertEqual(minutes(r.fireDates(after: now.addingTimeInterval(-1), limit: 16), from: now),
+                       [0, 720, 1080, 1440, 1590, 1740, 1890, 2040, 2160, 2190, 2220, 2250, 2280, 2310, 2340, 2355])
+        XCTAssertEqual(r.settledPhase?.gap, 15 * 60, "never faster than Nagging")
+    }
+
+    func testEasingAndBuildingNeverRingEvenWithTheGlobalSettingOn() {
+        var policy = NogPolicy.standard
+        policy.escalateAfter = 2
+        for profile in [NogProfile.easing, .building] {
+            let item = Item(title: "x", reminder: profile.apply(to: Reminder(start: now.addingTimeInterval(-3 * 86_400)), now: .distantPast))
+            XCTAssertTrue(AlarmScheduler.alarmDates(for: item, policy: policy, now: now).isEmpty, profile.label)
+            XCTAssertFalse(profile.breaksSilent(globalEscalateAfter: 2), profile.label)
+        }
+    }
+
+    func testSteppedProfilesKeepTheirPlaceWhenSnoozed() {
+        let r = NogProfile.easing.apply(to: Reminder(start: now), now: now)
+        let snoozed = r.moved(to: now.addingTimeInterval(13 * 3600))
+        XCTAssertEqual(snoozed.rampSince, now)
+        // 13 hours in is Steady's stretch: every 2.5 hours, not back to every 30 min.
+        XCTAssertEqual(minutes(snoozed.fireDates(after: snoozed.start.addingTimeInterval(-1), limit: 3), from: now),
+                       [780, 930, 1080])
+        XCTAssertEqual(snoozed.gap(at: snoozed.start), 150 * 60)
+        XCTAssertEqual(ItemFile.decode(ItemFile.encode(Item(title: "x", reminder: snoozed)))?.reminder?.rampSince, now)
+    }
+
+    func testPickingBuildingForAnOldNogStartsItGentle() {
+        let old = Reminder(start: now.addingTimeInterval(-5 * 86_400), repeatMinutes: 10)
+        let r = NogProfile.building.apply(to: old, now: now)
+        XCTAssertEqual(r.start, now)
+        XCTAssertEqual(r.gap(at: now.addingTimeInterval(60)), 719 * 60, "begins at Whisper's pace, not at full nag")
+    }
+
+    func testTypedGapDoesNotOverrideASteppedProfile() throws {
+        let defaults = CaptureDefaults(firstDelayMinutes: 15, repeatMinutes: 150)
+        let r = try XCTUnwrap(CaptureParser.parse("tidy desk !building !5m", defaults: defaults, now: now).reminder)
+        XCTAssertEqual(NogProfile.matching(r), .building)
+    }
+
+    // MARK: Moving saved nogs onto the new profiles
+
+    private func legacyFile(_ reminder: Reminder) -> String {
+        var item = Item(title: "x", reminder: reminder)
+        item.created = now
+        item.updated = now
+        let text = ItemFile.encode(item)
+        XCTAssertTrue(text.contains("rhythm: \(NogProfile.rhythmVersion)\n"))
+        return text.replacingOccurrences(of: "rhythm: \(NogProfile.rhythmVersion)\n", with: "")
+    }
+
+    func testOldFilesMoveOntoTodaysProfiles() throws {
+        let start = now.addingTimeInterval(-3600)
+        func decoded(_ r: Reminder) throws -> Reminder {
+            try XCTUnwrap(ItemFile.decode(legacyFile(r))?.reminder)
+        }
+        let steady = try decoded(Reminder(start: start, repeatMinutes: 8, alarm: true))
+        XCTAssertEqual(NogProfile.matching(steady), .steady)
+        XCTAssertEqual(steady.start, start)
+        XCTAssertTrue(steady.alarm, "the alarm switch stays")
+
+        XCTAssertEqual(NogProfile.matching(try decoded(Reminder(start: start, repeatMinutes: 7, escalateAfter: 3))), .unhinged)
+        let easing = try decoded(Reminder(start: start, repeatMinutes: 8, curve: .logarithmic))
+        XCTAssertEqual(NogProfile.matching(easing), .easing)
+        XCTAssertEqual(easing.start, start, "the ramp counts from when it began")
+        XCTAssertEqual(NogProfile.matching(try decoded(Reminder(start: start, repeatMinutes: 30, curve: .building))), .building)
+
+        let calendar = Calendar.current
+        let fourPM = try XCTUnwrap(calendar.date(bySettingHour: 16, minute: 0, second: 0, of: now))
+        let tea = try decoded(Reminder(start: fourPM, repeatMinutes: 2880, escalateAfter: 0))
+        XCTAssertEqual(NogProfile.matching(tea), .balanced)
+        XCTAssertEqual(tea.start, calendar.date(bySettingHour: 10, minute: 0, second: 0, of: now))
+
+        // Something that was never a profile stays exactly as it was.
+        let custom = Reminder(start: start, repeatMinutes: 20)
+        XCTAssertEqual(try decoded(custom), custom)
+    }
+
+    func testNewFilesAreNotMovedAgain() throws {
+        // A custom every 8 min saved today looks like the old Steady, but it's marked as new.
+        var item = Item(title: "x", reminder: Reminder(start: now, repeatMinutes: 8))
+        item.created = now
+        item.updated = now
+        XCTAssertEqual(ItemFile.decode(ItemFile.encode(item)), item)
+    }
+
+    func testOldDefaultProfileMovesOnce() throws {
+        let suite = "ProfileReworkTests.\(UUID().uuidString)"
+        let d = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { d.removePersistentDomain(forName: suite) }
+        // The old Teatime as the default.
+        d.set(0, forKey: NogSettings.firstDelayKey)
+        d.set(2880, forKey: NogSettings.repeatKey)
+        d.set(RepeatCurve.steady.rawValue, forKey: NogSettings.curveKey)
+        d.set(0, forKey: NogSettings.escalateKey)
+        d.set(false, forKey: NogSettings.silentKey)
+        d.set(16 * 60, forKey: NogSettings.timeOfDayKey)
+        NogSettings.migrateDefaultProfileIfNeeded(d)
+        XCTAssertEqual(d.integer(forKey: NogSettings.repeatKey), NogProfile.balanced.repeatMinutes)
+        XCTAssertEqual(d.string(forKey: NogSettings.curveKey), RepeatCurve.balanced.rawValue)
+        XCTAssertEqual(d.integer(forKey: NogSettings.timeOfDayKey), 10 * 60)
+
+        // Once only: a custom default chosen afterwards is left alone.
+        d.set(8, forKey: NogSettings.repeatKey)
+        d.set(15, forKey: NogSettings.firstDelayKey)
+        d.set(RepeatCurve.steady.rawValue, forKey: NogSettings.curveKey)
+        d.set(-1, forKey: NogSettings.escalateKey)
+        d.set(-1, forKey: NogSettings.timeOfDayKey)
+        NogSettings.migrateDefaultProfileIfNeeded(d)
+        XCTAssertEqual(d.integer(forKey: NogSettings.repeatKey), 8)
     }
 }

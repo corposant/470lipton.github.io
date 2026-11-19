@@ -75,13 +75,13 @@ struct NogKindSheet: View {
                                     Spacer()
                                     Text("now").font(.caption).foregroundStyle(Theme.muted)
                                 }
-                                Text("Nogging every 8 min until done").font(.footnote).foregroundStyle(.secondary)
+                                Text("Nogging every 2.5 hours until done").font(.footnote).foregroundStyle(.secondary)
                             }
                         }
                         .padding(12)
                         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                         .accessibilityHidden(true)
-                        Text("9:00 · 9:08 · 9:16 · 9:24 … until done")
+                        Text("9:00 · 11:30 · 2:00 · 4:30 … until done")
                             .nogReadout(12)
                             .foregroundStyle(NogKind.nog.tint)
                         bullets([

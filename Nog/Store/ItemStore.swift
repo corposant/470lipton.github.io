@@ -781,12 +781,12 @@ final class ItemStore {
 
     // MARK: - Notification buttons
 
-    /// "Gentler": the next quieter profile (Unhinged → Building → Steady → Easing → Whisper),
+    /// "Gentler": the next quieter profile (Unhinged → Nagging → Steady → Whisper),
     /// starting over from now so the new rhythm begins at its own first gap.
     func makeGentler(_ id: UUID, now: Date = .now) {
         guard var item = items[id], item.isOpen, let r = item.reminder,
               let quieter = NogProfile.matching(r)?.gentler else { return }
-        var gentler = quieter.apply(to: r)
+        var gentler = quieter.apply(to: r, now: now)
         gentler.start = quieter.firstStart(from: now)
         if item.parentID != nil { gentler.followsParent = false }
         item.reminder = gentler
@@ -811,7 +811,7 @@ final class ItemStore {
         guard var item = items[id] else { return }
         let later = LaterReply.parse(reply, now: now)
         if let profile = later.profile, item.isOpen {
-            var r = profile.apply(to: item.reminder ?? profile.reminder(from: now))
+            var r = profile.apply(to: item.reminder ?? profile.reminder(from: now), now: now)
             r.start = later.start ?? profile.firstStart(from: now)
             if item.parentID != nil { r.followsParent = false }
             item.reminder = r

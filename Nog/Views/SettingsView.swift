@@ -458,7 +458,7 @@ private struct NogsAlertsPage: View {
         .nogListStyle()
         .tint(Theme.pink)
         .navigationTitle("Timing & alerts")
-        // Setting the first reminder by hand replaces Teatime's fixed time of day.
+        // Setting the first reminder by hand replaces Balanced's fixed time of day.
         .onChange(of: firstDelay) { profileTimeOfDay = -1 }
         .onChange(of: showTitles) { Task { await store.syncNow() } }
         .onDisappear {
@@ -549,8 +549,8 @@ struct ProfileCard: View {
 
     private var tint: Color {
         switch profile {
-        case .hush, .teatime, .whisper, .balanced: Theme.blue
-        case .steady, .easing, .building: Theme.violet
+        case .hush, .whisper, .balanced: Theme.blue
+        case .steady, .easing, .building, .nagging: Theme.violet
         case .unhinged: Theme.pink
         }
     }
