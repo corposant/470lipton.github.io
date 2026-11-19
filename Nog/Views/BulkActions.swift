@@ -4,7 +4,6 @@ import SwiftUI
 struct BulkActionBar: View {
     @Environment(ItemStore.self) private var store
     @Binding var selection: Set<UUID>
-    @State private var showAddTag = false
     @State private var confirmDelete = false
     /// Settings › "Ring as an alarm after": which profiles get the rings-through-Silent mark.
     @AppStorage(NogSettings.Key.escalateAfter) private var globalEscalate = 0
@@ -25,103 +24,73 @@ struct BulkActionBar: View {
 
                 Spacer()
 
-                Menu {
+                DrawerButton("Snooze", look: .open(Theme.blue), style: .bare, sections: {
                     let open = selected.filter { $0.status != .done }
-                    Button {
-                        store.batch {
-                            for item in open {
-                                store.snooze(item.id, until: .now.addingTimeInterval(TimeInterval(NogSettings.snoozeLength(for: item) * 60)))
+                    return [DrawerSection(id: "snooze", items: [
+                        DrawerItem("Snooze", systemImage: "zzz") {
+                            store.batch {
+                                for item in open {
+                                    store.snooze(item.id, until: .now.addingTimeInterval(TimeInterval(NogSettings.snoozeLength(for: item) * 60)))
+                                }
                             }
-                        }
-                    } label: {
-                        Label("Snooze", systemImage: "zzz")
-                    }
-                    Button {
-                        store.batch {
-                            for item in open { store.snooze(item.id, until: NogSettings.nextMorning(for: item)) }
-                        }
-                    } label: {
-                        Label("Snooze till morning", systemImage: "sunrise")
-                    }
-                } label: {
-                    Label("Snooze", systemImage: "zzz")
+                        },
+                        DrawerItem("Snooze till morning", systemImage: "sunrise") {
+                            store.batch {
+                                for item in open { store.snooze(item.id, until: NogSettings.nextMorning(for: item)) }
+                            }
+                        },
+                    ])]
+                }) {
+                    Label("Snooze", systemImage: "zzz").labelStyle(StackedLabelStyle())
                 }
                 .disabled(none)
 
                 Spacer()
 
-                Menu {
-                    Section("Nog them") {
-                        ForEach(NogProfile.allCases) { profile in
-                            Button {
-                                apply { item in
-                                    var r = item.reminder ?? NogSettings.defaultReminderFromNow
-                                    r = profile.apply(to: r)
-                                    // Balanced moves the next reminder to its time of day, as on the item's page.
-                                    if profile.timeOfDay != nil { r.start = profile.firstStart(from: .now) }
-                                    // Picked for these items specifically: they stop following a parent.
-                                    if item.parentID != nil { r.followsParent = false }
-                                    item.reminder = r
-                                }
-                            } label: {
-                                // Menus can't draw the corner mark, so it's a subtitle line.
-                                if profile.breaksSilent(globalEscalateAfter: globalEscalate) {
-                                    Label {
-                                        Text(profile.label)
-                                        Text(NogProfile.breaksSilentSpoken)
-                                    } icon: {
-                                        Image(systemName: profile.systemImage)
-                                    }
-                                } else {
-                                    Label(profile.label, systemImage: profile.systemImage)
-                                }
+                DrawerButton("Nog", look: .open(Theme.blue), style: .bare, maxWidth: 250, sections: {
+                    let profiles = NogProfile.allCases.map { profile in
+                        DrawerItem(profile.label, id: profile.id,
+                                   // The rings-through-Silent mark, as a second line.
+                                   detail: profile.breaksSilent(globalEscalateAfter: globalEscalate)
+                                       ? NogProfile.breaksSilentSpoken : nil,
+                                   systemImage: profile.systemImage) {
+                            apply { item in
+                                var r = item.reminder ?? NogSettings.defaultReminderFromNow
+                                r = profile.apply(to: r)
+                                // Balanced moves the next reminder to its time of day, as on the item's page.
+                                if profile.timeOfDay != nil { r.start = profile.firstStart(from: .now) }
+                                // Picked for these items specifically: they stop following a parent.
+                                if item.parentID != nil { r.followsParent = false }
+                                item.reminder = r
                             }
                         }
-                        Button {
-                            apply { $0.reminder = nil }
-                        } label: {
-                            Label("Stop nogging", systemImage: "bell.slash")
-                        }
                     }
-                    Section("Status") {
-                        Button {
-                            apply { $0.status = .open }
-                        } label: {
-                            Label("Open", systemImage: "circle")
-                        }
-                        Button {
-                            apply { $0.status = .someday }
-                        } label: {
-                            Label("Move to Someday", systemImage: "moon.stars")
-                        }
-                    }
-                } label: {
-                    Label("Nog", systemImage: "bell.badge")
+                    return [
+                        DrawerSection("Nog them", items: profiles + [
+                            DrawerItem("Stop nogging", systemImage: "bell.slash") { apply { $0.reminder = nil } },
+                        ]),
+                        DrawerSection("Status", items: [
+                            DrawerItem("Open", systemImage: "circle") { apply { $0.status = .open } },
+                            DrawerItem("Move to Someday", systemImage: "moon.stars") { apply { $0.status = .someday } },
+                        ]),
+                    ]
+                }) {
+                    Label("Nog", systemImage: "bell.badge").labelStyle(StackedLabelStyle())
                 }
                 .disabled(none)
 
                 Spacer()
 
-                Menu {
-                    Button {
-                        showAddTag = true
-                    } label: {
-                        Label("Add tag…", systemImage: "plus")
-                    }
-                    let tags = Array(Set(selected.flatMap { $0.tags.map { $0.lowercased() } })).sorted()
-                    if !tags.isEmpty {
-                        Section("Remove") {
-                            ForEach(tags, id: \.self) { tag in
-                                Button(role: .destructive) {
-                                    apply { $0.removeTag(tag) }
-                                } label: {
-                                    Label("#\(tag)", systemImage: "xmark")
-                                }
-                            }
-                        }
-                    }
-                } label: {
-                    Label("Tags", systemImage: "number")
+                // The same tag drawer as everywhere else: ticked = on all of them, a dash = on
+                // some (tap to put it on all).
+                let tagCounts = Dictionary(grouping: selected.flatMap { item in Set(item.tags.map { $0.lowercased() }) },
+                                           by: { $0 }).mapValues(\.count)
+                TagMenu(applied: tagCounts.filter { $0.value == selected.count }.keys.sorted(),
+                        partial: tagCounts.filter { $0.value < selected.count }.keys.sorted(),
+                        add: { tag in apply { $0.addTag(tag) } },
+                        remove: { tag in apply { $0.removeTag(tag) } },
+                        look: .open(Theme.blue), style: .bare) {
+                    Label("Tags", systemImage: "number").labelStyle(StackedLabelStyle())
                 }
                 .disabled(none)
 
@@ -148,11 +117,6 @@ struct BulkActionBar: View {
         }
         .scrollIndicators(.hidden)
         .labelStyle(StackedLabelStyle())
-        .sheet(isPresented: $showAddTag) {
-            AddTagSheet { tag in
-                apply { $0.addTag(tag) }
-            }
-        }
     }
 
     /// Changes every selected item, then reschedules nogs once.
@@ -176,53 +140,5 @@ private struct StackedLabelStyle: LabelStyle {
         }
         .frame(minWidth: 52, minHeight: 44)
         .contentShape(Rectangle())
-    }
-}
-
-/// Type a tag (with suggestions) to add to every selected item.
-private struct AddTagSheet: View {
-    @Environment(ItemStore.self) private var store
-    @Environment(\.dismiss) private var dismiss
-    let add: (String) -> Void
-    @State private var text = ""
-    @FocusState private var focused: Bool
-
-    var body: some View {
-        NavigationStack {
-            VStack(alignment: .leading, spacing: 14) {
-                TextField("tag", text: $text)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .focused($focused)
-                    .submitLabel(.done)
-                    .onSubmit { commit(text) }
-                    .padding(.horizontal, 14)
-                    .frame(minHeight: 44)
-                    .overlay(Capsule().strokeBorder(Theme.edgeStrong, lineWidth: 1))
-                TagSuggestionStrip(title: text.isEmpty ? "Recent" : "Tags",
-                                   tags: TagSuggester.suggest(text, from: TagSuggester.stats(store.items.values))) { tag in
-                    commit(tag)
-                }
-                Spacer(minLength: 0)
-            }
-            .padding()
-            .navigationTitle("Add tag")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Add") { commit(text) }
-                        .disabled(Item.cleanTag(text).isEmpty)
-                }
-            }
-            .onAppear { focused = true }
-        }
-        .presentationDetents([.medium, .large])
-    }
-
-    private func commit(_ tag: String) {
-        guard !Item.cleanTag(tag).isEmpty else { return }
-        add(tag)
-        dismiss()
     }
 }

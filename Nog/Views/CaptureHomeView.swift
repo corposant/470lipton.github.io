@@ -883,7 +883,7 @@ struct RootView: View {
         .tint(router.tab.accent)
         .tabBarMinimizeBehavior(.onScrollDown)
         .sheet(isPresented: $router.showSilenceSheet) { SilenceSheet() }
-        .sheet(isPresented: $router.showSettings) { SettingsView() }
+        .sheet(isPresented: $router.showSettings) { SettingsView().drawerHost(scope: "settings") }
         // First run only: what Nog does, how firm, and permissions with their reasons.
         .fullScreenCover(isPresented: Binding(get: { checkedFirstRun && !onboardingDone },
                                               set: { if !$0 { onboardingDone = true } })) {

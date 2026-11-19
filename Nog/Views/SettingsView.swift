@@ -263,18 +263,17 @@ struct AdvancedSettingsPage: View {
 
     private var storage: some View {
         Section {
-            Picker("Keep items", selection: Binding(
+            DrawerPicker("Keep items", selection: Binding(
                 get: { storageMode },
                 set: { mode in
+                    guard mode != storageMode else { return }
                     storageMode = mode
                     isSwitchingStorage = true
                     Task {
                         await store.setStorage(mode)
                         isSwitchingStorage = false
                     }
-                })) {
-                ForEach(StorageMode.allCases) { Text($0.label).tag($0) }
-            }
+                }), options: Array(StorageMode.allCases)) { $0.label }
             .disabled(isSwitchingStorage)
             .listRowBackground(Theme.glass)
 
@@ -409,11 +408,9 @@ private struct NogsAlertsPage: View {
                 Stepper(value: $firstDelay, in: 0...max(240, firstDelay), step: 1) {
                     LabeledContent("First reminder", value: firstDelay == 0 ? "Right away" : "after \(IntervalFormat.amount(firstDelay))")
                 }
-                Picker("Then", selection: $repeatMinutes) {
-                    ForEach(Array(Set(NogSettings.repeatChoices + [repeatMinutes])).sorted(), id: \.self) {
-                        Text(NogSettings.repeatLabel($0)).tag($0)
-                    }
-                }
+                DrawerPicker("Then", selection: $repeatMinutes,
+                             options: Array(Set(NogSettings.repeatChoices + [repeatMinutes])).sorted(),
+                             tint: Theme.pink) { NogSettings.repeatLabel($0) }
                 if repeatMinutes > 0 {
                     Picker("Style", selection: $curve) {
                         ForEach(RepeatCurve.customChoices(current: curve), id: \.self) { Text($0.label).tag($0) }
@@ -427,15 +424,12 @@ private struct NogsAlertsPage: View {
             .listRowBackground(Theme.glass)
 
             Section {
-                Picker("Heads-up before", selection: $headsUp) {
-                    ForEach(NogSettings.headsUpChoices, id: \.self) { Text($0 == 0 ? "Off" : IntervalFormat.amount($0)).tag($0) }
-                }
-                Picker("Ring as an alarm after", selection: $escalateAfter) {
-                    ForEach(NogSettings.escalateChoices, id: \.self) { Text($0 == 0 ? "Never" : "\($0) ignored nogs").tag($0) }
-                }
-                Picker("Snooze button", selection: $snoozeMinutes) {
-                    ForEach(NogSettings.snoozeChoices, id: \.self) { Text(IntervalFormat.amount($0)).tag($0) }
-                }
+                DrawerPicker("Heads-up before", selection: $headsUp, options: NogSettings.headsUpChoices,
+                             tint: Theme.pink) { $0 == 0 ? "Off" : IntervalFormat.amount($0) }
+                DrawerPicker("Ring as an alarm after", selection: $escalateAfter, options: NogSettings.escalateChoices,
+                             tint: Theme.pink) { $0 == 0 ? "Never" : "\($0) ignored nogs" }
+                DrawerPicker("Snooze button", selection: $snoozeMinutes, options: NogSettings.snoozeChoices,
+                             tint: Theme.pink) { IntervalFormat.amount($0) }
                 TimeTunerRow(title: "“Morning” means", minutes: $morningMinutes)
             } header: {
                 SectionLabel(title: "Timing")
@@ -477,11 +471,8 @@ private struct NogsAlertsPage: View {
 extension NogsAlertsPage {
     /// One sound picker; picking a chime plays it so people hear what they chose.
     fileprivate func chimePicker(_ title: String, selection: Binding<NotificationChime>) -> some View {
-        Picker(title, selection: selection) {
-            ForEach(NotificationChime.allCases) { option in
-                Text(option.label).tag(option)
-            }
-        }
+        DrawerPicker(title, selection: selection, options: Array(NotificationChime.allCases),
+                     tint: Theme.pink) { $0.label }
         .accessibilityValue("\(selection.wrappedValue.label). \(selection.wrappedValue.detail)")
         .onChange(of: selection.wrappedValue) { _, picked in ChimePreview.play(picked) }
     }
@@ -575,8 +566,8 @@ private struct DoingPage: View {
     var body: some View {
         List {
             Section {
-                Picker("Starter", selection: $timebox) {
-                    ForEach(NogSettings.starterChoices, id: \.self) { Text(IntervalFormat.amount($0)).tag($0) }
+                DrawerPicker("Starter", selection: $timebox, options: NogSettings.starterChoices) {
+                    IntervalFormat.amount($0)
                 }
             } header: {
                 SectionLabel(title: "▶︎ Doing")
@@ -586,10 +577,10 @@ private struct DoingPage: View {
             .listRowBackground(Theme.glass)
 
             Section {
-                Picker("“Still on it?” check-in", selection: $checkInEvery) {
-                    // A gap saved by an older version (2 hours) still shows, rather than a blank picker.
-                    ForEach(NogSettings.checkInChoices + (NogSettings.checkInChoices.contains(checkInEvery) ? [] : [checkInEvery]),
-                            id: \.self) { Text($0 == 0 ? "Off" : "every \(IntervalFormat.short($0))").tag($0) }
+                // A gap saved by an older version (2 hours) still shows, rather than a blank picker.
+                DrawerPicker("“Still on it?” check-in", selection: $checkInEvery,
+                             options: NogSettings.checkInChoices + (NogSettings.checkInChoices.contains(checkInEvery) ? [] : [checkInEvery])) {
+                    $0 == 0 ? "Off" : "every \(IntervalFormat.short($0))"
                 }
                 Toggle("Live Activity", isOn: $liveActivity)
             } header: {

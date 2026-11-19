@@ -289,16 +289,13 @@ struct NogSheet: View {
             names.append(p.name)
         }
         return Section {
-            Picker("Remind me at", selection: Binding<String?>(
+            DrawerPicker("Remind me at", selection: Binding<String?>(
                 get: { item.place?.name },
                 set: { name in
                     guard var current = store.items[id] else { return }
                     current.place = name.map { PlaceTrigger(name: $0, leaving: current.place?.leaving ?? false) }
                     store.update(current)
-                })) {
-                Text("No place").tag(String?.none)
-                ForEach(names, id: \.self) { Text($0).tag(String?.some($0)) }
-            }
+                }), options: [String?.none] + names.map { String?.some($0) }) { $0 ?? "No place" }
             if let place = item.place {
                 Picker("When I", selection: Binding(
                     get: { place.leaving },
@@ -329,7 +326,7 @@ struct NogSheet: View {
         let choices = Recurrence.choices(for: reminder.start)
         let all = item.recurrence.map { current in choices.contains(current) ? choices : [current] + choices } ?? choices
         return Section {
-            Picker("Comes back", selection: Binding<Recurrence?>(
+            DrawerPicker("Comes back", selection: Binding<Recurrence?>(
                 get: { item.recurrence },
                 set: { new in
                     guard var current = store.items[id] else { return }
@@ -339,9 +336,9 @@ struct NogSheet: View {
                         current.reminder = r
                     }
                     store.update(current)
-                })) {
-                Text("Never").tag(Recurrence?.none)
-                ForEach(all, id: \.self) { Text($0.summary.prefix(1).uppercased() + $0.summary.dropFirst()).tag(Recurrence?.some($0)) }
+                }), options: [Recurrence?.none] + all.map { Recurrence?.some($0) }) { recurrence in
+                guard let summary = recurrence?.summary else { return "Never" }
+                return summary.prefix(1).uppercased() + summary.dropFirst()
             }
         } header: {
             SectionLabel(title: "Comes back")
@@ -359,13 +356,11 @@ struct NogSheet: View {
         return Section {
             DisclosureGroup(isExpanded: $showFineTune) {
                 rhythmRows(reminder)
-                Picker("Snooze for", selection: Binding(
+                DrawerPicker("Snooze for", selection: Binding(
                     get: { reminder.snoozeMinutes ?? 0 },
-                    set: { minutes in edit { $0.snoozeMinutes = minutes > 0 ? minutes : nil } })) {
-                    Text("Default (\(IntervalFormat.amount(NogSettings.snoozeMinutes)))").tag(0)
-                    ForEach(Array(Set(NogSettings.snoozeChoices + [reminder.snoozeMinutes ?? 5])).sorted(), id: \.self) {
-                        Text(IntervalFormat.amount($0)).tag($0)
-                    }
+                    set: { minutes in edit { $0.snoozeMinutes = minutes > 0 ? minutes : nil } }),
+                    options: [0] + Array(Set(NogSettings.snoozeChoices + [reminder.snoozeMinutes ?? 5])).sorted()) {
+                    $0 == 0 ? "Default (\(IntervalFormat.amount(NogSettings.snoozeMinutes)))" : IntervalFormat.amount($0)
                 }
                 TimeTunerRow(title: "Morning snooze until", minutes: Binding(
                     get: { morningMinutes },
@@ -384,12 +379,11 @@ struct NogSheet: View {
 
     @ViewBuilder
     private func rhythmRows(_ reminder: Reminder) -> some View {
-            Picker("Remind every", selection: Binding(
+            DrawerPicker("Remind every", selection: Binding(
                 get: { reminder.repeatMinutes ?? 0 },
-                set: { minutes in edit { $0.repeatMinutes = minutes > 0 ? minutes : nil } })) {
-                ForEach(Array(Set(NogSettings.repeatChoices + [reminder.repeatMinutes ?? 0])).sorted(), id: \.self) {
-                    Text(NogSettings.repeatLabel($0)).tag($0)
-                }
+                set: { minutes in edit { $0.repeatMinutes = minutes > 0 ? minutes : nil } }),
+                options: Array(Set(NogSettings.repeatChoices + [reminder.repeatMinutes ?? 0])).sorted()) {
+                NogSettings.repeatLabel($0)
             }
             // Profiles set the curve; only a custom rhythm shows it.
             if reminder.repeatMinutes != nil, NogProfile.matching(reminder) == nil {
