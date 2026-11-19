@@ -44,6 +44,8 @@ struct DrawerButton<Label: View>: View {
     let content: (DrawerContext) -> AnyView
     @ViewBuilder let label: () -> Label
     @Environment(\.font) private var environmentFont
+    /// Which host draws the drawer: the window's, or a sheet's own.
+    @Environment(\.drawerScope) private var scope
     @State private var frame: CGRect = .zero
     @State private var openID: UUID?
     /// VoiceOver goes back to the button when its drawer closes.
@@ -87,7 +89,7 @@ struct DrawerButton<Label: View>: View {
 
     private func toggleOpen() {
         if isOpen { center.close(); return }
-        let request = DrawerCenter.Request(anchor: frame, title: title, look: look,
+        let request = DrawerCenter.Request(anchor: frame, scope: scope, title: title, look: look,
                                            font: font ?? environmentFont ?? .subheadline,
                                            label: AnyView(label()), content: content)
         openID = request.id
@@ -104,6 +106,8 @@ final class DrawerCenter {
         let id = UUID()
         /// The button's frame, in window coordinates.
         var anchor: CGRect
+        /// The host that draws it (see `drawerHost(scope:)`).
+        let scope: String
         let title: String
         let look: NewtonLook
         /// The button's font and label, so the drawer can draw the button as its own edge.
@@ -162,21 +166,30 @@ final class DrawerCenter {
     func move(to anchor: CGRect) { request?.anchor = anchor }
 }
 
+extension EnvironmentValues {
+    /// The drawer host that buttons inside this view open their drawers in.
+    @Entry var drawerScope = "root"
+}
+
 extension View {
-    /// Draws the open drawer menu over everything. Put it once, on the root view.
-    func drawerHost() -> some View {
-        overlay { DrawerHost() }
+    /// Draws the open drawer menu over everything. Put it once on the root view, and once
+    /// on each sheet that has drawer buttons (a sheet sits above the root's host), with a
+    /// scope of its own.
+    func drawerHost(scope: String = "root") -> some View {
+        environment(\.drawerScope, scope)
+            .overlay { DrawerHost(scope: scope) }
     }
 }
 
 private struct DrawerHost: View {
+    let scope: String
     private var center: DrawerCenter { .shared }
 
     var body: some View {
         GeometryReader { geo in
             let origin = geo.frame(in: .global).origin
             ZStack(alignment: .topLeading) {
-                if let request = center.request {
+                if let request = center.request, request.scope == scope {
                     let anchor = request.anchor.offsetBy(dx: -origin.x, dy: -origin.y)
                     // Open upwards from buttons in the lower half (the Map card, the capture tray).
                     let up = anchor.midY > geo.size.height / 2
@@ -466,5 +479,46 @@ struct NewtonRowStyle: ButtonStyle {
         configuration.label
             .foregroundStyle(configuration.isPressed ? Theme.base : tint)
             .background(configuration.isPressed ? tint : .clear)
+    }
+}
+
+// MARK: Pickers
+
+/// A settings row: the name on the left, the current choice as a Newton button on the
+/// right. Tap it and the choices slide out of it as a drawer, the current one ticked.
+/// Used in place of the stock menu picker in Settings and the Nog sheet.
+struct DrawerPicker<Value: Hashable>: View {
+    let title: String
+    @Binding var selection: Value
+    let options: [Value]
+    let label: (Value) -> String
+    var tint: Color = Theme.blue
+
+    init(_ title: String, selection: Binding<Value>, options: [Value], tint: Color = Theme.blue,
+         label: @escaping (Value) -> String) {
+        self.title = title
+        self._selection = selection
+        self.options = options
+        self.tint = tint
+        self.label = label
+    }
+
+    var body: some View {
+        LabeledContent {
+            DrawerButton(title, look: .tinted(tint), font: .subheadline, maxWidth: 240, sections: {
+                [DrawerSection(id: "choices", items: options.enumerated().map { index, option in
+                    DrawerItem(label(option), id: "\(index)", isOn: option == selection) {
+                        selection = option
+                    }
+                })]
+            }) {
+                Text(label(selection))
+            }
+            .accessibilityLabel(title)
+            .accessibilityValue(label(selection))
+            .accessibilityHint("Opens the choices")
+        } label: {
+            Text(title)
+        }
     }
 }

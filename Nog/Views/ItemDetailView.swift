@@ -210,6 +210,7 @@ private struct ItemEditor: View {
         }
         .sheet(isPresented: $showNogSheet) {
             NogSheet(id: item.id)
+                .drawerHost(scope: "nogSheet")
         }
         .nogFeedback(.success, trigger: item.status) { _, new in new == .done }
         .nogAnimation(.snappy, value: item.status)
